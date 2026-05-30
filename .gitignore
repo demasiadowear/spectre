@@ -40,3 +40,7 @@ backup_*.sql
 next-env.d.ts
 
 .vercel
+
+# generated artifacts
+dev-server.log
+leads-*.csv
