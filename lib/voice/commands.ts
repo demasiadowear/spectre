@@ -328,18 +328,24 @@ export function parseCommand(transcript: string): VoiceCommand {
     };
   }
 
-  // 5. Lead filter.
-  m = t.match(/(?:mostra|filtra)\s+(?:i\s+)?lead\s+(hot|warm|cold|caldi|tiepidi|freddi|chiusi|aperti)/);
+  // 5. Lead filter (colloquial → funnel status).
+  m = t.match(
+    /(?:mostra|filtra)\s+(?:i\s+)?lead\s+(da contattare|contattare|nuovi|inviati|risposti|risposto|preview|trattativa|chiusi|persi|lost|aperti)/,
+  );
   if (m) {
     const map: Record<string, string> = {
-      hot: "hot",
-      caldi: "hot",
-      warm: "warm",
-      tiepidi: "warm",
-      cold: "cold",
-      freddi: "cold",
+      "da contattare": "todo",
+      contattare: "todo",
+      nuovi: "todo",
+      inviati: "step1_sent",
+      risposti: "replied",
+      risposto: "replied",
+      preview: "preview_sent",
+      trattativa: "negotiating",
       chiusi: "closed",
-      aperti: "warm",
+      persi: "lost",
+      lost: "lost",
+      aperti: "replied",
     };
     return {
       type: "filter",

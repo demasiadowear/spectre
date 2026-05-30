@@ -55,11 +55,11 @@ export default function HUDHeader() {
     : "—";
 
   return (
-    <header className="sticky top-0 z-40 flex h-12 items-center justify-between border-b border-spectre-cyan/15 bg-black/50 px-5 backdrop-blur-xl">
-      <div className="flex items-center gap-3">
+    <header className="sticky top-0 z-40 flex h-12 items-center justify-between gap-2 border-b border-spectre-cyan/15 bg-black/50 px-3 backdrop-blur-xl sm:px-5">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
         <span className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.25em] text-spectre-green">
           <Radio className="h-3 w-3 animate-pulse" />
-          system online
+          <span className="hidden sm:inline">system online</span>
         </span>
         <span className="hidden h-3 w-px bg-spectre-cyan/20 sm:block" />
         <span className="hidden font-mono text-[11px] uppercase tracking-[0.2em] text-spectre-muted sm:block">
@@ -67,21 +67,22 @@ export default function HUDHeader() {
         </span>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2.5 sm:gap-4">
         <span className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-spectre-amber">
-          <Wallet className="h-3 w-3" />
+          <Wallet className="h-3 w-3 shrink-0" />
           <span className="hidden sm:inline">{formatCurrency(dealValueOpen)} aperto</span>
           <span className="sm:hidden">{formatCurrency(dealValueOpen)}</span>
         </span>
         <span className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-spectre-cyan">
-          <Activity className="h-3 w-3" />
-          {activeLeads} lead attivi
+          <Activity className="h-3 w-3 shrink-0" />
+          {activeLeads}
+          <span className="hidden sm:inline"> lead attivi</span>
         </span>
 
         <span className="hidden h-4 w-px bg-spectre-cyan/20 sm:block" />
         <VoiceInterface />
 
-        <span className="font-mono text-sm tabular-nums tracking-widest text-spectre-text text-glow-cyan">
+        <span className="hidden font-mono text-sm tabular-nums tracking-widest text-spectre-text text-glow-cyan sm:inline">
           {time}
         </span>
       </div>

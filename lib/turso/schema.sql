@@ -26,7 +26,8 @@ create table if not exists leads (
   tags              text default '[]',  -- JSON array of strings
   created_at        text default (datetime('now')),
   updated_at        text default (datetime('now')),
-  graph_connections text default '[]'   -- JSON array of lead ids
+  graph_connections text default '[]',  -- JSON array of lead ids
+  meta              text default '{}'   -- JSON LeadMeta (rating, reviews, address, funnel dates, custom msgs)
 );
 
 create table if not exists interactions (

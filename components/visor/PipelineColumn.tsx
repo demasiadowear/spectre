@@ -14,6 +14,7 @@ interface PipelineColumnProps {
   onDragStartCard: (id: string) => void;
   onDragEndCard: () => void;
   onDropLead: (id: string, status: LeadStatus) => void;
+  onSelectCard: (id: string) => void;
 }
 
 /** One kanban column. Accepts dropped cards and re-assigns their status. */
@@ -24,6 +25,7 @@ export default function PipelineColumn({
   onDragStartCard,
   onDragEndCard,
   onDropLead,
+  onSelectCard,
 }: PipelineColumnProps) {
   const [over, setOver] = useState(false);
   const meta = LEAD_STATUS[status];
@@ -66,6 +68,7 @@ export default function PipelineColumn({
               dragging={lead.id === draggingId}
               onDragStart={onDragStartCard}
               onDragEnd={onDragEndCard}
+              onSelect={onSelectCard}
             />
           ))}
         </AnimatePresence>

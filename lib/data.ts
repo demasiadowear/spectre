@@ -9,6 +9,7 @@ import type {
   Interaction,
   InteractionType,
   Lead,
+  LeadMeta,
   LeadSource,
   LeadStatus,
   MindEdge,
@@ -78,6 +79,7 @@ function rowToLead(r: Row): Lead {
     created_at: String(r.created_at ?? ""),
     updated_at: String(r.updated_at ?? ""),
     graph_connections: parseJsonArray(r.graph_connections),
+    meta: parseJson<LeadMeta>(r.meta, {}),
   };
 }
 
@@ -142,11 +144,15 @@ const LEAD_COLUMNS = new Set([
   "created_at",
   "updated_at",
   "graph_connections",
+  "meta",
 ]);
 
 function serializeLeadValue(key: string, value: unknown): InValue {
   if (key === "tags" || key === "graph_connections") {
     return JSON.stringify(Array.isArray(value) ? value : []);
+  }
+  if (key === "meta") {
+    return JSON.stringify(value && typeof value === "object" ? value : {});
   }
   return value as InValue;
 }
@@ -187,9 +193,14 @@ export async function getLeadById(id: string): Promise<Lead | null> {
 
 export type NewLead = Omit<
   Lead,
-  "id" | "created_at" | "updated_at" | "probability" | "graph_connections"
+  | "id"
+  | "created_at"
+  | "updated_at"
+  | "probability"
+  | "graph_connections"
+  | "meta"
 > &
-  Partial<Pick<Lead, "probability" | "graph_connections">>;
+  Partial<Pick<Lead, "probability" | "graph_connections" | "meta">>;
 
 export async function createLead(input: NewLead): Promise<Lead> {
   const nowIso = new Date().toISOString();
@@ -197,6 +208,7 @@ export async function createLead(input: NewLead): Promise<Lead> {
     id: crypto.randomUUID(),
     probability: 25,
     graph_connections: [],
+    meta: {},
     ...input,
     created_at: nowIso,
     updated_at: nowIso,
@@ -206,8 +218,8 @@ export async function createLead(input: NewLead): Promise<Lead> {
     await turso.execute({
       sql: `INSERT INTO leads
         (id, name, company, email, phone, source, status, value, probability,
-         last_contact, next_action, notes, tags, created_at, updated_at, graph_connections)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         last_contact, next_action, notes, tags, created_at, updated_at, graph_connections, meta)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         lead.id,
         lead.name,
@@ -225,6 +237,7 @@ export async function createLead(input: NewLead): Promise<Lead> {
         lead.created_at,
         lead.updated_at,
         JSON.stringify(lead.graph_connections),
+        JSON.stringify(lead.meta),
       ],
     });
     return lead;

@@ -12,15 +12,18 @@ interface LeadCardProps {
   dragging: boolean;
   onDragStart: (id: string) => void;
   onDragEnd: () => void;
+  onSelect: (id: string) => void;
 }
 
 /** A draggable pipeline card. Native HTML5 DnD on the inner div;
- *  Framer handles only enter/exit/layout on the wrapper. */
+ *  Framer handles only enter/exit/layout on the wrapper. Click opens
+ *  the action panel (drag and click don't conflict in the DnD spec). */
 export default function LeadCard({
   lead,
   dragging,
   onDragStart,
   onDragEnd,
+  onSelect,
 }: LeadCardProps) {
   const stale = daysSince(lead.last_contact) > 7;
 
@@ -42,8 +45,17 @@ export default function LeadCard({
         draggable
         onDragStart={handleDragStart}
         onDragEnd={onDragEnd}
+        onClick={() => onSelect(lead.id)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onSelect(lead.id);
+          }
+        }}
         className={cn(
-          "cursor-grab rounded-sm border border-spectre-cyan/15 bg-black/50 p-2.5 backdrop-blur-sm transition-colors active:cursor-grabbing hover:border-spectre-cyan/40",
+          "cursor-pointer rounded-sm border border-spectre-cyan/15 bg-black/50 p-2.5 backdrop-blur-sm transition-colors hover:border-spectre-cyan/40",
           dragging && "border-spectre-cyan/60 opacity-40",
         )}
       >

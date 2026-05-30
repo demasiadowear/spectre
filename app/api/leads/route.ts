@@ -4,11 +4,12 @@ import type { ApiResponse, Lead, LeadSource, LeadStatus } from "@/types";
 
 const SOURCES: LeadSource[] = ["maps", "linkedin", "referral", "cold"];
 const STATUSES: LeadStatus[] = [
-  "cold",
-  "warm",
-  "hot",
-  "proposal",
-  "negotiation",
+  "todo",
+  "step1_sent",
+  "replied",
+  "step2_sent",
+  "preview_sent",
+  "negotiating",
   "closed",
   "lost",
 ];
@@ -47,7 +48,7 @@ export async function POST(req: Request) {
     : "cold";
   const status = STATUSES.includes(body.status as LeadStatus)
     ? (body.status as LeadStatus)
-    : "cold";
+    : "todo";
 
   const input: NewLead = {
     name,
@@ -67,6 +68,10 @@ export async function POST(req: Request) {
     next_action: typeof body.next_action === "string" ? body.next_action : "",
     notes: typeof body.notes === "string" ? body.notes : "",
     tags: Array.isArray(body.tags) ? (body.tags as string[]) : [],
+    meta:
+      body.meta && typeof body.meta === "object"
+        ? (body.meta as NewLead["meta"])
+        : {},
   };
 
   try {

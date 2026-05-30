@@ -20,6 +20,22 @@ const SOURCES: { value: LeadSource; label: string }[] = [
   { value: "cold", label: "Cold" },
 ];
 
+const CATEGORIES = [
+  "ristorante",
+  "barbiere",
+  "estetista",
+  "parrucchiere",
+  "bar",
+  "studio",
+  "altro",
+];
+
+const PUGLIA_CITIES = [
+  "Bari", "Lecce", "Modugno", "Bitritto", "Triggiano", "Capurso", "Valenzano",
+  "Brindisi", "Taranto", "Foggia", "Andria", "Barletta", "Trani", "Bitonto",
+  "Molfetta", "Monopoli", "Polignano", "Gallipoli", "Nardò", "Ostuni",
+];
+
 const inputClass =
   "w-full rounded-sm border border-spectre-cyan/20 bg-black/50 px-3 py-2 font-mono text-sm text-spectre-text placeholder:text-spectre-muted/40 focus:border-spectre-cyan/50 focus:outline-none focus:ring-1 focus:ring-spectre-cyan/40";
 const labelClass =
@@ -35,9 +51,14 @@ export default function NewLeadModal({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [value, setValue] = useState("");
-  const [status, setStatus] = useState<LeadStatus>("cold");
+  const [status, setStatus] = useState<LeadStatus>("todo");
   const [source, setSource] = useState<LeadSource>("cold");
   const [nextAction, setNextAction] = useState("");
+  const [category, setCategory] = useState("ristorante");
+  const [rating, setRating] = useState("");
+  const [reviews, setReviews] = useState("");
+  const [address, setAddress] = useState("");
+  const [pasted, setPasted] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,10 +68,46 @@ export default function NewLeadModal({
     setEmail("");
     setPhone("");
     setValue("");
-    setStatus("cold");
-    setSource("cold");
+    setStatus("todo");
+    setSource("maps");
     setNextAction("");
+    setCategory("ristorante");
+    setRating("");
+    setReviews("");
+    setAddress("");
+    setPasted("");
     setError(null);
+  };
+
+  // Parse a Google Maps copy-paste: name, rating, reviews, phone, address.
+  const parsePaste = (text: string) => {
+    setPasted(text);
+    if (!text.trim()) return;
+    const ratingM = text.match(/([1-5][.,]\d)/);
+    if (ratingM && !rating) setRating(ratingM[1].replace(",", "."));
+    const revM = text.match(/\((\d+)\)/) || text.match(/(\d+)\s*recensioni/i);
+    if (revM && !reviews) setReviews(revM[1]);
+    const phoneM =
+      text.match(/(?:\+39\s?)?(\d{3})\s?(\d{3})\s?(\d{3,4})/) ||
+      text.match(/(?:\+39\s?)?(0\d{1,3})\s?(\d{6,8})/);
+    if (phoneM && !phone) setPhone(phoneM.slice(1).join("").replace(/\s/g, ""));
+    const addrM = text.match(
+      /((?:Via|Viale|Corso|Piazza|Largo|Vicolo|Strada|Lungomare|Vle)\s+[^,\n]+,?\s*\d*[^\n,]*)/i,
+    );
+    if (addrM && !address) setAddress(addrM[1].trim());
+    const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (lines.length && !name) {
+      const first = lines[0].replace(/\s*\d+[.,]\d+\s*[★(].*$/, "").trim();
+      if (first.length > 2 && first.length < 80) {
+        setName(first);
+        setCompany(first);
+      }
+    }
+    const low = (name || text).toLowerCase();
+    if (/barber|barbier/.test(low)) setCategory("barbiere");
+    else if (/estetic|beauty|nail/.test(low)) setCategory("estetista");
+    else if (/parrucchier|hair|salon/.test(low)) setCategory("parrucchiere");
+    else if (/ristorant|trattoria|pizzeri|osteria/.test(low)) setCategory("ristorante");
   };
 
   const close = () => {
@@ -80,6 +137,14 @@ export default function NewLeadModal({
           status,
           source,
           next_action: nextAction.trim(),
+          probability: 30,
+          tags: [category, "manuale"],
+          meta: {
+            category,
+            rating: rating ? Number(rating) : undefined,
+            reviews: reviews ? Number(reviews) : undefined,
+            address: address.trim() || undefined,
+          },
         }),
       });
       const json: ApiResponse<Lead> = await res.json();
@@ -112,7 +177,7 @@ export default function NewLeadModal({
             exit={{ opacity: 0, y: 20, scale: 0.98 }}
             transition={{ duration: 0.2 }}
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-md rounded-sm border border-spectre-cyan/25 bg-spectre-panel/95 p-6 shadow-glass"
+            className="relative max-h-[90vh] w-full max-w-md overflow-y-auto rounded-sm border border-spectre-cyan/25 bg-spectre-panel/95 p-5 shadow-glass sm:p-6"
           >
             <button
               type="button"
@@ -128,6 +193,20 @@ export default function NewLeadModal({
             </h2>
 
             <form onSubmit={submit} className="flex flex-col gap-3">
+              <div>
+                <label className={labelClass} htmlFor="nl-paste">
+                  Incolla da Google Maps (auto-compila)
+                </label>
+                <textarea
+                  id="nl-paste"
+                  rows={2}
+                  className={inputClass}
+                  value={pasted}
+                  onChange={(e) => parsePaste(e.target.value)}
+                  placeholder="Incolla nome, rating, recensioni, telefono, indirizzo…"
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={labelClass} htmlFor="nl-name">
@@ -216,6 +295,71 @@ export default function NewLeadModal({
                     ))}
                   </select>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className={labelClass} htmlFor="nl-cat">
+                    Categoria
+                  </label>
+                  <select
+                    id="nl-cat"
+                    className={inputClass}
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                  >
+                    {CATEGORIES.map((c) => (
+                      <option key={c} value={c} className="bg-spectre-panel">
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass} htmlFor="nl-rating">
+                    Rating
+                  </label>
+                  <input
+                    id="nl-rating"
+                    inputMode="decimal"
+                    className={inputClass}
+                    value={rating}
+                    onChange={(e) => setRating(e.target.value.replace(/[^0-9.]/g, ""))}
+                    placeholder="4.7"
+                  />
+                </div>
+                <div>
+                  <label className={labelClass} htmlFor="nl-reviews">
+                    Recensioni
+                  </label>
+                  <input
+                    id="nl-reviews"
+                    inputMode="numeric"
+                    className={inputClass}
+                    value={reviews}
+                    onChange={(e) => setReviews(e.target.value.replace(/[^0-9]/g, ""))}
+                    placeholder="312"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className={labelClass} htmlFor="nl-address">
+                  Indirizzo
+                </label>
+                <input
+                  id="nl-address"
+                  className={inputClass}
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="Via Roma 1, Bari"
+                  list="nl-cities"
+                />
+                <datalist id="nl-cities">
+                  {PUGLIA_CITIES.map((c) => (
+                    <option key={c} value={c} />
+                  ))}
+                </datalist>
               </div>
 
               <div>

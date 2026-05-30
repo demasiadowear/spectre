@@ -132,11 +132,12 @@ export interface OracleInput {
 }
 
 const STATUS_BASE: Record<LeadStatus, number> = {
-  cold: 20,
-  warm: 42,
-  hot: 65,
-  proposal: 56,
-  negotiation: 70,
+  todo: 18,
+  step1_sent: 32,
+  replied: 50,
+  step2_sent: 60,
+  preview_sent: 68,
+  negotiating: 74,
   closed: 95,
   lost: 8,
 };

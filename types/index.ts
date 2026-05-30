@@ -2,14 +2,47 @@
 // AYRO SPECTRE — Core type definitions
 // ============================================================
 
+// 8-stage WhatsApp sales funnel (AYROMEX pitch process).
 export type LeadStatus =
-  | "cold"
-  | "warm"
-  | "hot"
-  | "proposal"
-  | "negotiation"
+  | "todo"
+  | "step1_sent"
+  | "replied"
+  | "step2_sent"
+  | "preview_sent"
+  | "negotiating"
   | "closed"
   | "lost";
+
+/**
+ * Structured business + funnel metadata, stored as a JSON text column on
+ * `leads` (SQLite has no JSON type). Drives the pitch engine (message
+ * generation, next-best-action, stale detection) and contact links.
+ */
+export interface LeadMeta {
+  rating?: number;
+  reviews?: number;
+  address?: string;
+  /** activity category: ristorante, barbiere, estetista, parrucchiere… */
+  category?: string;
+  ig?: string;
+  fb?: string;
+  maps_url?: string;
+  // Funnel timestamps (ISO) — set when the lead enters each stage.
+  step1_at?: string;
+  replied_at?: string;
+  step2_at?: string;
+  preview_at?: string;
+  closed_at?: string;
+  // Outcome.
+  closed_price?: number;
+  lost_reason?: string;
+  // Operator overrides for the generated WhatsApp messages.
+  custom_step1?: string;
+  custom_step2?: string;
+  custom_step3?: string;
+  /** Live preview URL pasted into the Step 3 delivery message. */
+  preview_url?: string;
+}
 
 export type LeadSource = "maps" | "linkedin" | "referral" | "cold";
 
@@ -55,6 +88,7 @@ export interface Lead {
   created_at: string;
   updated_at: string;
   graph_connections: string[];
+  meta: LeadMeta;
 }
 
 export interface Interaction {

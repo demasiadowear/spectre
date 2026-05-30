@@ -25,38 +25,44 @@ export interface StatusMeta {
 }
 
 export const LEAD_STATUS: Record<LeadStatus, StatusMeta> = {
-  cold: {
-    label: "Cold",
+  todo: {
+    label: "Da contattare",
     hex: "#5b7a8c",
     badge: "border-slate-400/30 text-slate-300 bg-slate-400/10",
     dot: "bg-slate-400",
   },
-  warm: {
-    label: "Warm",
+  step1_sent: {
+    label: "Step 1 inviato",
     hex: "#00f0ff",
     badge: "border-spectre-cyan/30 text-spectre-cyan bg-spectre-cyan/10",
     dot: "bg-spectre-cyan",
   },
-  hot: {
-    label: "Hot",
+  replied: {
+    label: "Ha risposto",
     hex: "#ffbe0b",
     badge: "border-spectre-amber/40 text-spectre-amber bg-spectre-amber/10",
     dot: "bg-spectre-amber",
   },
-  proposal: {
-    label: "Proposal",
+  step2_sent: {
+    label: "Step 2 inviato",
     hex: "#a855f7",
     badge: "border-purple-400/40 text-purple-300 bg-purple-400/10",
     dot: "bg-purple-400",
   },
-  negotiation: {
-    label: "Negotiation",
+  preview_sent: {
+    label: "Preview inviata",
     hex: "#ff006e",
     badge: "border-spectre-magenta/40 text-spectre-magenta bg-spectre-magenta/10",
     dot: "bg-spectre-magenta",
   },
+  negotiating: {
+    label: "Trattativa",
+    hex: "#ff6a00",
+    badge: "border-[#ff6a00]/40 text-[#ff8c42] bg-[#ff6a00]/10",
+    dot: "bg-[#ff6a00]",
+  },
   closed: {
-    label: "Closed",
+    label: "Chiuso",
     hex: "#38b000",
     badge: "border-spectre-green/40 text-spectre-green bg-spectre-green/10",
     dot: "bg-spectre-green",
@@ -69,13 +75,26 @@ export const LEAD_STATUS: Record<LeadStatus, StatusMeta> = {
   },
 };
 
-/** Pipeline column order for the VISOR kanban radar. */
+/** Compact column header label for the VISOR kanban. */
+export const STATUS_SHORT: Record<LeadStatus, string> = {
+  todo: "Da contattare",
+  step1_sent: "Aspetto risposta",
+  replied: "Devo rispondere",
+  step2_sent: "Da preparare",
+  preview_sent: "Preview live",
+  negotiating: "Trattativa",
+  closed: "Chiusi",
+  lost: "Lost",
+};
+
+/** Pipeline column order for the VISOR kanban radar (lost shown apart). */
 export const PIPELINE_ORDER: LeadStatus[] = [
-  "cold",
-  "warm",
-  "hot",
-  "proposal",
-  "negotiation",
+  "todo",
+  "step1_sent",
+  "replied",
+  "step2_sent",
+  "preview_sent",
+  "negotiating",
   "closed",
 ];
 

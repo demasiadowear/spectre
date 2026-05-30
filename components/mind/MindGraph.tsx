@@ -40,12 +40,17 @@ const FILTERS: {
   statuses: LeadStatus[];
   hex: string;
 }[] = [
-  { key: "cold", label: "Freddi", statuses: ["cold"], hex: LEAD_STATUS.cold.hex },
-  { key: "active", label: "Attivi", statuses: ["warm", "hot"], hex: SPECTRE.cyan },
+  { key: "cold", label: "Da contattare", statuses: ["todo"], hex: LEAD_STATUS.todo.hex },
+  {
+    key: "active",
+    label: "Attivi",
+    statuses: ["step1_sent", "replied", "step2_sent"],
+    hex: SPECTRE.cyan,
+  },
   {
     key: "deal",
     label: "Trattativa",
-    statuses: ["proposal", "negotiation"],
+    statuses: ["preview_sent", "negotiating"],
     hex: SPECTRE.magenta,
   },
   {

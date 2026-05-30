@@ -112,7 +112,7 @@ export default function OracleConsole({ leads }: OracleConsoleProps) {
           lead_name: selectedLead?.name ?? "",
           company: selectedLead?.company ?? "",
           value: selectedLead?.value ?? price,
-          status: selectedLead?.status ?? "warm",
+          status: selectedLead?.status ?? "replied",
           proposed_price: price,
           days_to_followup: days,
           bundle_ayrohub: bundles.ayrohub,

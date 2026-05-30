@@ -7,11 +7,12 @@ import type { ApiResponse, LeadSource, LeadStatus } from "@/types";
 
 const SOURCES: LeadSource[] = ["maps", "linkedin", "referral", "cold"];
 const STATUSES: LeadStatus[] = [
-  "cold",
-  "warm",
-  "hot",
-  "proposal",
-  "negotiation",
+  "todo",
+  "step1_sent",
+  "replied",
+  "step2_sent",
+  "preview_sent",
+  "negotiating",
   "closed",
   "lost",
 ];
@@ -34,7 +35,7 @@ function toNewLead(raw: unknown): NewLead | null {
     : "maps";
   const status = STATUSES.includes(it.status as LeadStatus)
     ? (it.status as LeadStatus)
-    : "cold";
+    : "todo";
   return {
     name,
     company,

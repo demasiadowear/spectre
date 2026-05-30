@@ -57,17 +57,26 @@ for (const r of dataRows) {
 
   const notes =
     `${rating}★ · ${reviews.toLocaleString("it-IT")} recensioni · NESSUN sito web. ` +
-    `${address}. Angolo vendita: traffico regalato a TheFork/Google. Maps: ${maps}`;
+    `Angolo vendita: traffico regalato a TheFork/Google.`;
 
-  // Lead "vivo" ma freddo: alta priorità ma non ancora contattato.
+  // meta strutturato → alimenta il pitch engine (messaggi, next-action, contatti).
+  const meta = JSON.stringify({
+    rating: Number(rating),
+    reviews,
+    address,
+    category: "ristorante",
+    maps_url: maps,
+  });
+
+  // Lead "vivo" ma da contattare: alta priorità, inizio funnel.
   const probability = 30;
   const tags = JSON.stringify(["restaurant", "bari", "no-website", "ayromex-web", "hunter"]);
 
   await db.execute({
     sql: `INSERT OR REPLACE INTO leads
       (id, name, company, email, phone, source, status, value, probability,
-       last_contact, next_action, notes, tags, created_at, updated_at, graph_connections)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       last_contact, next_action, notes, tags, created_at, updated_at, graph_connections, meta)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       id,
       name,
@@ -75,7 +84,7 @@ for (const r of dataRows) {
       "",
       phone,
       "maps",
-      "cold",
+      "todo",
       value,
       probability,
       nowIso,
@@ -85,6 +94,7 @@ for (const r of dataRows) {
       nowIso,
       nowIso,
       "[]",
+      meta,
     ],
   });
   inserted++;

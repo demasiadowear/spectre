@@ -39,7 +39,7 @@ function toImportPayload(lead: ScoredLead, category: string) {
     email: "",
     phone: lead.phone,
     source: "maps" as const,
-    status: "cold" as const,
+    status: "todo" as const,
     value: lead.estimated_value,
     probability: Math.max(5, Math.min(95, lead.hunter_score)),
     next_action: "Cold call — script Hunter pronto",

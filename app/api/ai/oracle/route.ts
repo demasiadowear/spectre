@@ -8,11 +8,12 @@ import type { ApiResponse, LeadStatus, OraclePrediction } from "@/types";
 // Claude first, deterministic mock fallback otherwise.
 
 const STATUSES: LeadStatus[] = [
-  "cold",
-  "warm",
-  "hot",
-  "proposal",
-  "negotiation",
+  "todo",
+  "step1_sent",
+  "replied",
+  "step2_sent",
+  "preview_sent",
+  "negotiating",
   "closed",
   "lost",
 ];
@@ -38,7 +39,7 @@ export async function POST(req: Request) {
 
   const status = STATUSES.includes(body.status as LeadStatus)
     ? (body.status as LeadStatus)
-    : "warm";
+    : "replied";
 
   const input: OracleInput = {
     lead_id: str(body.lead_id),
