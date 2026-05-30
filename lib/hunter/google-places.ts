@@ -2,11 +2,12 @@ import type { HunterParams, RawLead } from "@/types/hunter";
 
 // ============================================================
 // Lead Hunter search via the Google Places API (New) Text Search.
-// Server-only (reads GOOGLE_PLACES_API_KEY). One POST to
-// places:searchText returns name, address, phone, website, rating and
-// review count in a single call — no separate Geocoding or per-place
+// Server-only (reads GOOGLE_PLACES_API_KEY). Paginated POSTs (up to 3
+// pages ≈ 60 results) to places:searchText return name, address, phone,
+// website, rating and review count — no separate Geocoding or per-place
 // Details requests, so website status is always authoritative (the
-// New API ships websiteUri inside the search result).
+// New API ships websiteUri inside the search result). The large pool
+// matters: the caller's only-no-website filter often drops most results.
 // Errors are non-blocking: on any failure we return [] and the caller
 // falls back to mock data. Results cached 5 min per query.
 //
@@ -17,6 +18,10 @@ import type { HunterParams, RawLead } from "@/types/hunter";
 const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_PLACES_API_KEY;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const SEARCH_URL = "https://places.googleapis.com/v1/places:searchText";
+const MAX_PAGES = 3; // 3 × 20 = up to 60 results
+const PAGE_SIZE = 20; // Text Search (New) hard max per page
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 // Only the fields we map to RawLead — keeps the response (and billing
 // SKU tier) lean.
@@ -30,6 +35,7 @@ const FIELD_MASK = [
   "places.userRatingCount",
   "places.location",
   "places.types",
+  "nextPageToken",
 ].join(",");
 
 interface CacheEntry {
@@ -61,6 +67,7 @@ interface NewPlace {
 
 interface TextSearchResponse {
   places?: NewPlace[];
+  nextPageToken?: string;
 }
 
 function toRawLead(
@@ -88,10 +95,37 @@ function toRawLead(
   };
 }
 
+async function fetchPage(
+  apiKey: string,
+  body: Record<string, unknown>,
+): Promise<TextSearchResponse | null> {
+  const res = await fetch(SEARCH_URL, {
+    method: "POST",
+    cache: "no-store",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": apiKey,
+      "X-Goog-FieldMask": FIELD_MASK,
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    console.error(
+      "[hunter] Places (New) HTTP error:",
+      res.status,
+      detail.slice(0, 300),
+    );
+    return null;
+  }
+  return (await res.json()) as TextSearchResponse;
+}
+
 export async function searchGooglePlaces(
   params: HunterParams,
 ): Promise<RawLead[]> {
   if (!GOOGLE_PLACES_API_KEY) return [];
+  const apiKey = GOOGLE_PLACES_API_KEY;
 
   const key = cacheKey(params);
   const cached = cache.get(key);
@@ -100,38 +134,46 @@ export async function searchGooglePlaces(
   }
 
   try {
-    // Text Search resolves the city from the query itself ("parrucchiere
-    // a Bari"), so no separate Geocoding call is needed. radius is not
-    // used by Text Search (it ranks by relevance); switch to searchNearby
-    // + a geocoded centre if strict-radius filtering is ever required.
+    // Text Search resolves the city from the query itself ("ristoranti a
+    // Bari"), so no Geocoding / locationBias is needed. We paginate up to
+    // MAX_PAGES (≈60 results) so the caller's only-no-website filter has a
+    // large pool. radius is not used by Text Search (ranks by relevance).
     const textQuery = `${params.category} a ${params.location}`.trim();
-    const maxResultCount = Math.min(20, Math.max(1, params.limit ?? 20));
+    const baseBody: Record<string, unknown> = {
+      textQuery,
+      languageCode: "it",
+      pageSize: PAGE_SIZE,
+    };
 
-    const res = await fetch(SEARCH_URL, {
-      method: "POST",
-      cache: "no-store",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY,
-        "X-Goog-FieldMask": FIELD_MASK,
-      },
-      body: JSON.stringify({ textQuery, languageCode: "it", maxResultCount }),
-    });
+    const collected: NewPlace[] = [];
+    const seen = new Set<string>();
+    let pageToken: string | undefined;
 
-    if (!res.ok) {
-      const detail = await res.text().catch(() => "");
-      console.error(
-        "[hunter] Places (New) HTTP error:",
-        res.status,
-        detail.slice(0, 300),
-      );
-      return [];
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const body = pageToken ? { ...baseBody, pageToken } : baseBody;
+      let json = await fetchPage(apiKey, body);
+
+      // New-API page tokens are normally valid immediately; if a paged
+      // request comes back empty, retry once after a short delay (token
+      // propagation). No fixed delay on the happy path (that's legacy-only).
+      if (pageToken && (!json || !json.places?.length)) {
+        await sleep(1500);
+        json = await fetchPage(apiKey, body);
+      }
+      if (!json) break;
+
+      for (const p of json.places ?? []) {
+        const id = p.id ?? "";
+        if (id && seen.has(id)) continue;
+        if (id) seen.add(id);
+        collected.push(p);
+      }
+
+      pageToken = json.nextPageToken;
+      if (!pageToken) break;
     }
 
-    const json = (await res.json()) as TextSearchResponse;
-    const places = Array.isArray(json.places) ? json.places : [];
-    const leads = places.map((p, i) => toRawLead(p, params.category, i));
-
+    const leads = collected.map((p, i) => toRawLead(p, params.category, i));
     cache.set(key, { at: Date.now(), leads });
     return leads;
   } catch (err) {
