@@ -9,7 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.100.0",
+    "@google/generative-ai": "^0.24.1",
     "@libsql/client": "^0.17.3",
     "@react-pdf/renderer": "^4.5.1",
     "class-variance-authority": "^0.7.1",

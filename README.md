@@ -9,7 +9,7 @@ Exoscheletro di vendita personale con interfaccia HUD cyberpunk. Tool **solo-ten
 - Next.js 14 (App Router) · TypeScript strict
 - Tailwind CSS 3.4 · Framer Motion · Lucide
 - Turso (libSQL / SQLite edge) — con **fallback automatico a dati mock**
-- Claude API (Anthropic) per i moduli AI — con **mock fallback**
+- Google Gemini per i moduli AI · Google Places per il Lead Hunter — con **mock fallback**
 - NextAuth (Credentials, JWT) — single-tenant, con **dev bypass**
 
 ## Setup
@@ -36,11 +36,11 @@ Senza variabili d'ambiente l'app gira completamente su **dati mock** (20 lead it
    TURSO_AUTH_TOKEN=...
    ```
 
-### Con Claude (AI reale)
+### Con Gemini (AI reale) + Google Places (Hunter reale)
 
 ```
-ANTHROPIC_API_KEY=sk-ant-...
-ANTHROPIC_MODEL=claude-sonnet-4-6
+GEMINI_API_KEY=AIza...          # https://aistudio.google.com/app/apikey
+GOOGLE_PLACES_API_KEY=AIza...   # Places API + Geocoding API su Google Cloud
 ```
 
 ### Autenticazione (single-tenant)
