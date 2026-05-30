@@ -247,14 +247,14 @@ export default function HandWizard({ leads }: HandWizardProps) {
               </span>
               <span
                 className={cn(
-                  "font-mono text-[11px] uppercase tracking-[0.2em]",
+                  "hidden font-mono text-[11px] uppercase tracking-[0.2em] sm:inline",
                   active ? "text-spectre-text" : "text-spectre-muted",
                 )}
               >
                 {label}
               </span>
               {i < STEP_LABELS.length - 1 && (
-                <span className="mx-1 h-px w-6 bg-spectre-cyan/20" />
+                <span className="mx-1 h-px w-4 bg-spectre-cyan/20 sm:w-6" />
               )}
             </div>
           );

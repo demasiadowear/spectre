@@ -47,6 +47,13 @@ function toImportPayload(lead: ScoredLead, category: string) {
       lead.has_website ? "ha sito" : "NO SITO"
     }`,
     tags: [category, lead.priority, "hunter"],
+    // Feed the pitch engine: rating/reviews/address/category live in meta.
+    meta: {
+      rating: lead.rating,
+      reviews: lead.reviews,
+      address: lead.address,
+      category,
+    },
   };
 }
 

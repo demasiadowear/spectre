@@ -319,19 +319,52 @@ function detectObjection(text: string): ObjectionType | null {
   return null;
 }
 
+type Tone = NonNullable<WhisperResponse["client_tone"]>;
+
+const TONE_NOTE: Record<Tone, string> = {
+  freddo: "Cliente distaccato: scalda con una domanda sul suo problema concreto.",
+  scettico: "Dubita per esperienze passate: rassicura con prova sui suoi numeri reali.",
+  interessato: "C'è apertura: porta verso il next step senza fretta.",
+  irritato: "È sulla difensiva: abbassa la pressione, ascolta e riformula il valore.",
+  esitante: "Non è sicuro: quantifica il costo dell'inazione, riduci il rischio percepito.",
+  entusiasta: "È caldo: spingi alla chiusura e blocca uno slot ora.",
+  neutro: "Tono neutro: mantieni il ritmo e guida verso il prossimo passo.",
+};
+
+function detectTone(text: string, objection: ObjectionType | null): Tone {
+  const l = text.toLowerCase();
+  if (/(irrita|infastid|basta|perde(re)? tempo|non ho voglia|seccat|scocci)/.test(l))
+    return "irritato";
+  if (/(non sono sicuro|non saprei|ci penso|forse|vediamo|magari|devo pensar)/.test(l))
+    return "esitante";
+  if (/(funziona davvero|sicur|già provato|non mi fido|rischio|garanz)/.test(l))
+    return "scettico";
+  if (/(perfetto|ottim|interessant|mi piace|volentieri|partiamo|ci sto|bene)/.test(l))
+    return objection ? "interessato" : "entusiasta";
+  if (/(va bene|ok|non saprei|telefono squilla)/.test(l)) return "neutro";
+  return objection ? "scettico" : "neutro";
+}
+
 export function mockWhisper(input: WhisperInput): WhisperResponse {
   const tail = input.messages.slice(-6).map((m) => m.text).join(" ");
   const objection = detectObjection(tail);
+  const tone = detectTone(tail, objection);
+  const base = {
+    client_tone: tone,
+    tone_note: TONE_NOTE[tone],
+  };
   if (!objection) {
     return {
       detected_objection: null,
       confidence: 0.45,
+      ...base,
       responses: DEFAULT_RESPONSES,
     };
   }
   return {
     detected_objection: objection,
     confidence: 0.78,
+    ...base,
     responses: PLAYBOOK[objection],
   };
 }

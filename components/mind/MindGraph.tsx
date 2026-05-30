@@ -415,11 +415,11 @@ export default function MindGraph({ leads, edges }: MindGraphProps) {
         <AnimatePresence>
           {selectedLead && (
             <motion.aside
-              initial={{ x: 320, opacity: 0 }}
+              initial={{ x: "100%", opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
-              exit={{ x: 320, opacity: 0 }}
+              exit={{ x: "100%", opacity: 0 }}
               transition={{ type: "spring", stiffness: 260, damping: 30 }}
-              className="absolute right-0 top-0 z-30 flex h-full w-[300px] flex-col border-l border-spectre-green/20 bg-spectre-panel/95 backdrop-blur-2xl"
+              className="absolute right-0 top-0 z-30 flex h-full w-full flex-col border-l border-spectre-green/20 bg-spectre-panel/95 backdrop-blur-2xl sm:w-[300px]"
             >
               <div className="flex items-start justify-between border-b border-white/10 p-4">
                 <div>

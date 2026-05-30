@@ -162,9 +162,22 @@ export type ObjectionType =
 
 export type ResponseAngle = "value" | "urgency" | "social";
 
+export type ClientTone =
+  | "freddo"
+  | "scettico"
+  | "interessato"
+  | "irritato"
+  | "esitante"
+  | "entusiasta"
+  | "neutro";
+
 export interface WhisperResponse {
   detected_objection: ObjectionType | null;
   confidence: number;
+  /** Tone inferred from the client's language (not audio). */
+  client_tone?: ClientTone;
+  /** One-line read on the emotional state + how to handle it. */
+  tone_note?: string;
   responses: {
     type: ResponseAngle;
     text: string;

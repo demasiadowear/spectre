@@ -51,6 +51,10 @@ function toNewLead(raw: unknown): NewLead | null {
     tags: Array.isArray(it.tags)
       ? (it.tags.filter((t) => typeof t === "string") as string[])
       : [],
+    meta:
+      it.meta && typeof it.meta === "object"
+        ? (it.meta as NewLead["meta"])
+        : {},
   };
 }
 

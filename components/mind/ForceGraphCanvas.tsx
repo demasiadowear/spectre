@@ -321,7 +321,7 @@ export default function ForceGraphCanvas({
     };
 
     const interaction = {
-      mode: "none" as "none" | "pan" | "drag",
+      mode: "none" as "none" | "pan" | "drag" | "pinch",
       dragNode: null as MindNode | null,
       pressNode: null as MindNode | null,
       lastX: 0,
@@ -329,17 +329,21 @@ export default function ForceGraphCanvas({
       moved: false,
     };
 
-    const localXY = (e: MouseEvent) => {
+    const localXY = (clientX: number, clientY: number) => {
       const rect = canvas.getBoundingClientRect();
-      return { sx: e.clientX - rect.left, sy: e.clientY - rect.top };
+      return { sx: clientX - rect.left, sy: clientY - rect.top };
     };
 
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      const { sx, sy } = localXY(e);
+    // Active pointers (mouse OR touch). 2 pointers → pinch-zoom.
+    const pointers = new Map<number, { x: number; y: number }>();
+    let pinchStartDist = 0;
+    let pinchStartK = 1;
+    const dist = (a: { x: number; y: number }, b: { x: number; y: number }) =>
+      Math.hypot(a.x - b.x, a.y - b.y);
+
+    const zoomAround = (clientX: number, clientY: number, newK: number) => {
+      const { sx, sy } = localXY(clientX, clientY);
       const t = transformRef.current;
-      const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
-      const newK = clamp(t.k * factor, MIN_ZOOM, MAX_ZOOM);
       transformRef.current = {
         k: newK,
         x: sx - (sx - t.x) * (newK / t.k),
@@ -347,8 +351,32 @@ export default function ForceGraphCanvas({
       };
     };
 
-    const onMouseDown = (e: MouseEvent) => {
-      const { sx, sy } = localXY(e);
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+      zoomAround(e.clientX, e.clientY, clamp(transformRef.current.k * factor, MIN_ZOOM, MAX_ZOOM));
+    };
+
+    const onPointerDown = (e: PointerEvent) => {
+      canvas.setPointerCapture?.(e.pointerId);
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (pointers.size === 2) {
+        // Entering pinch — abandon any node drag.
+        if (interaction.dragNode) {
+          interaction.dragNode.fx = null;
+          interaction.dragNode.fy = null;
+          sim.alphaTarget(0);
+          interaction.dragNode = null;
+        }
+        interaction.mode = "pinch";
+        const [a, b] = Array.from(pointers.values());
+        pinchStartDist = dist(a, b) || 1;
+        pinchStartK = transformRef.current.k;
+        return;
+      }
+
+      const { sx, sy } = localXY(e.clientX, e.clientY);
       const node = pickNode(sx, sy);
       interaction.pressNode = node;
       interaction.moved = false;
@@ -366,9 +394,20 @@ export default function ForceGraphCanvas({
       canvas.style.cursor = "grabbing";
     };
 
-    const onMouseMove = (e: MouseEvent) => {
-      const { sx, sy } = localXY(e);
+    const onPointerMove = (e: PointerEvent) => {
+      if (pointers.has(e.pointerId)) {
+        pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      }
+
+      if (interaction.mode === "pinch" && pointers.size >= 2) {
+        const [a, b] = Array.from(pointers.values());
+        const d = dist(a, b) || 1;
+        const newK = clamp((pinchStartK * d) / pinchStartDist, MIN_ZOOM, MAX_ZOOM);
+        zoomAround((a.x + b.x) / 2, (a.y + b.y) / 2, newK);
+        return;
+      }
       if (interaction.mode === "drag" && interaction.dragNode) {
+        const { sx, sy } = localXY(e.clientX, e.clientY);
         const w = screenToWorld(sx, sy);
         interaction.dragNode.fx = w.x;
         interaction.dragNode.fy = w.y;
@@ -387,7 +426,9 @@ export default function ForceGraphCanvas({
         interaction.moved = true;
         return;
       }
-      // Hover hit-test
+      // Hover hit-test (mouse only — touch has no hover).
+      if (e.pointerType !== "mouse") return;
+      const { sx, sy } = localXY(e.clientX, e.clientY);
       const node = pickNode(sx, sy);
       const id = node ? node.id : null;
       if (id !== hoverIdRef.current) {
@@ -397,45 +438,49 @@ export default function ForceGraphCanvas({
       }
     };
 
-    const endInteraction = (e: MouseEvent) => {
+    const onPointerUp = (e: PointerEvent) => {
+      pointers.delete(e.pointerId);
+      canvas.releasePointerCapture?.(e.pointerId);
+
+      if (interaction.mode === "pinch") {
+        // Drop back to single-finger pan if one pointer remains.
+        if (pointers.size === 1) {
+          const [p] = Array.from(pointers.values());
+          interaction.mode = "pan";
+          interaction.lastX = p.x;
+          interaction.lastY = p.y;
+          interaction.moved = true;
+        } else {
+          interaction.mode = "none";
+        }
+        return;
+      }
+
       if (interaction.mode === "drag" && interaction.dragNode) {
         interaction.dragNode.fx = null;
         interaction.dragNode.fy = null;
         sim.alphaTarget(0);
       }
-      // Treat a press without movement over a node as a click.
-      if (!interaction.moved && interaction.pressNode) {
+      // A press without movement over a node = tap/click.
+      if (!interaction.moved && interaction.pressNode && pointers.size === 0) {
         cbRef.current.onNodeClick(interaction.pressNode);
       }
-      interaction.mode = "none";
-      interaction.dragNode = null;
-      interaction.pressNode = null;
-      const { sx, sy } = localXY(e);
-      canvas.style.cursor = pickNode(sx, sy) ? "pointer" : "grab";
-    };
-
-    const onMouseLeave = () => {
-      if (interaction.mode === "drag" && interaction.dragNode) {
-        interaction.dragNode.fx = null;
-        interaction.dragNode.fy = null;
-        sim.alphaTarget(0);
+      if (pointers.size === 0) {
+        interaction.mode = "none";
+        interaction.dragNode = null;
+        interaction.pressNode = null;
+        const { sx, sy } = localXY(e.clientX, e.clientY);
+        canvas.style.cursor =
+          e.pointerType === "mouse" && pickNode(sx, sy) ? "pointer" : "grab";
       }
-      interaction.mode = "none";
-      interaction.dragNode = null;
-      interaction.pressNode = null;
-      if (hoverIdRef.current !== null) {
-        hoverIdRef.current = null;
-        cbRef.current.onNodeHover(null);
-      }
-      canvas.style.cursor = "grab";
     };
 
     canvas.style.cursor = "grab";
     canvas.addEventListener("wheel", onWheel, { passive: false });
-    canvas.addEventListener("mousedown", onMouseDown);
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", endInteraction);
-    canvas.addEventListener("mouseleave", onMouseLeave);
+    canvas.addEventListener("pointerdown", onPointerDown);
+    canvas.addEventListener("pointermove", onPointerMove);
+    canvas.addEventListener("pointerup", onPointerUp);
+    canvas.addEventListener("pointercancel", onPointerUp);
 
     return () => {
       cancelAnimationFrame(rafRef.current);
@@ -443,10 +488,10 @@ export default function ForceGraphCanvas({
       simRef.current = null;
       fitRef.current = null;
       canvas.removeEventListener("wheel", onWheel);
-      canvas.removeEventListener("mousedown", onMouseDown);
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", endInteraction);
-      canvas.removeEventListener("mouseleave", onMouseLeave);
+      canvas.removeEventListener("pointerdown", onPointerDown);
+      canvas.removeEventListener("pointermove", onPointerMove);
+      canvas.removeEventListener("pointerup", onPointerUp);
+      canvas.removeEventListener("pointercancel", onPointerUp);
     };
   }, [nodes, links, size.w, size.h]);
 
