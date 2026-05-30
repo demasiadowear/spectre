@@ -3,25 +3,141 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #050505;
+  --foreground: #e0e0e0;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  * {
+    border-color: rgba(0, 240, 255, 0.15);
+  }
+
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-ui), ui-sans-serif, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+  }
+
+  ::selection {
+    background: rgba(0, 240, 255, 0.25);
+    color: #ffffff;
+  }
+
+  /* Custom cyberpunk scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0a0a0f;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(0, 240, 255, 0.25);
+    border-radius: 0;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 240, 255, 0.5);
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 240, 255, 0.25) #0a0a0f;
   }
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  /* Global scanline overlay (fixed, non-interactive) */
+  .spectre-scanlines {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.03) 0px,
+      rgba(255, 255, 255, 0.03) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    mix-blend-mode: overlay;
+    opacity: 0.5;
+  }
+
+  /* Slow moving scan beam */
+  .spectre-scanbeam {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 140px;
+    z-index: 59;
+    pointer-events: none;
+    background: linear-gradient(
+      to bottom,
+      transparent,
+      rgba(0, 240, 255, 0.04),
+      transparent
+    );
+    animation: scan 7s linear infinite;
+  }
+
+  /* HUD grid backdrop */
+  .spectre-grid {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-image: linear-gradient(
+        rgba(0, 240, 255, 0.045) 1px,
+        transparent 1px
+      ),
+      linear-gradient(90deg, rgba(0, 240, 255, 0.045) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(ellipse at center, black 30%, transparent 85%);
+    -webkit-mask-image: radial-gradient(
+      ellipse at center,
+      black 30%,
+      transparent 85%
+    );
+    animation: grid-pulse 6s ease-in-out infinite;
+  }
+
+  .text-glow-cyan {
+    text-shadow: 0 0 12px rgba(0, 240, 255, 0.55);
+  }
+  .text-glow-magenta {
+    text-shadow: 0 0 12px rgba(255, 0, 110, 0.55);
+  }
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+  /* Loading grid shimmer surface */
+  .shimmer-surface {
+    background: linear-gradient(
+      90deg,
+      rgba(0, 240, 255, 0.04) 25%,
+      rgba(0, 240, 255, 0.14) 50%,
+      rgba(0, 240, 255, 0.04) 75%
+    );
+    background-size: 200% 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spectre-scanbeam,
+  .spectre-grid,
+  .shimmer-surface {
+    animation: none !important;
   }
 }
