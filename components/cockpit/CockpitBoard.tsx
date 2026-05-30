@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { AlertTriangle, ChevronRight } from "lucide-react";
-import { LEAD_STATUS } from "@/lib/constants";
+import { LEAD_STATUS, statusCardClass, statusIsFill } from "@/lib/constants";
 import { cn, formatCurrency } from "@/lib/utils";
 import { isStale, nextBestAction, waitingHours } from "@/lib/pitch";
 import LeadActionPanel from "@/components/visor/LeadActionPanel";
@@ -161,33 +161,62 @@ function ActionRow({
 }) {
   const action = nextBestAction(lead);
   const sm = LEAD_STATUS[lead.status as LeadStatus];
+  const fill = statusIsFill(lead.status);
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        "flex w-full items-center gap-3 rounded-sm border bg-surface p-3 text-left transition-colors hover:border-accent/40",
-        urgent ? "border-border border-l-[3px] border-l-accent" : "border-border",
+        "flex w-full items-center gap-3 rounded-sm p-3 text-left transition-colors",
+        statusCardClass(lead.status),
+        !fill && "hover:border-accent/40",
       )}
     >
-      {urgent && <AlertTriangle className="h-4 w-4 shrink-0 text-spectre-magenta" />}
+      {urgent && (
+        <AlertTriangle
+          className={cn("h-4 w-4 shrink-0", fill ? "text-white" : "text-accent")}
+        />
+      )}
       <div className="min-w-0 flex-1">
-        <p className="truncate font-display text-sm font-medium text-spectre-text">
+        <p
+          className={cn(
+            "truncate font-display text-sm font-medium",
+            fill ? "text-white" : "text-spectre-text",
+          )}
+        >
           {lead.name}
         </p>
-        <p className="truncate font-mono text-[11px] text-spectre-muted">
+        <p
+          className={cn(
+            "truncate text-[11px]",
+            fill ? "text-white/75" : "text-spectre-muted",
+          )}
+        >
           {action.title}
         </p>
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1">
-        <span className={cn("rounded-sm border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.1em]", sm.badge)}>
-          {sm.label}
-        </span>
-        <span className="font-mono text-[11px] text-spectre-cyan">
+        {fill ? (
+          <span className="rounded-sm border border-white/40 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.1em] text-white">
+            {sm.label}
+          </span>
+        ) : (
+          <span
+            className={cn(
+              "rounded-sm border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.1em]",
+              sm.badge,
+            )}
+          >
+            {sm.label}
+          </span>
+        )}
+        <span className={cn("text-[11px]", fill ? "text-white" : "text-accent")}>
           {formatCurrency(lead.value)}
         </span>
       </div>
-      <ChevronRight className="h-4 w-4 shrink-0 text-spectre-muted" />
+      <ChevronRight
+        className={cn("h-4 w-4 shrink-0", fill ? "text-white/70" : "text-spectre-muted")}
+      />
     </button>
   );
 }

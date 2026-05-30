@@ -24,69 +24,105 @@ export interface StatusMeta {
   /** Tailwind classes for badge surfaces. */
   badge: string;
   dot: string;
+  /** Left-border colour class (status family) for cards. */
+  leftBorder: string;
+  /** Column-header underline colour class. */
+  headerAccent: string;
 }
 
 export const LEAD_STATUS: Record<LeadStatus, StatusMeta> = {
   todo: {
     label: "Da contattare",
-    hex: "#A89B85",
-    badge: "border-text2/30 text-text2 bg-text2/10",
-    dot: "bg-text2",
+    hex: "#8A877E",
+    badge: "border-fn-todo/45 text-fn-todo bg-fn-todo/12",
+    dot: "bg-fn-todo",
+    leftBorder: "border-l-fn-todo",
+    headerAccent: "border-fn-todo",
   },
   step1_sent: {
-    label: "Step 1 inviato",
-    hex: "#C2410C",
-    badge: "border-spectre-cyan/40 text-spectre-cyan bg-spectre-cyan/10",
-    dot: "bg-spectre-cyan",
+    label: "1° contatto",
+    hex: "#9A7B1E",
+    badge: "border-fn-step1/45 text-fn-step1 bg-fn-step1/12",
+    dot: "bg-fn-step1",
+    leftBorder: "border-l-fn-step1",
+    headerAccent: "border-fn-step1",
   },
   replied: {
     label: "Ha risposto",
-    hex: "#B07D2B",
-    badge: "border-spectre-amber/40 text-spectre-amber bg-spectre-amber/10",
-    dot: "bg-spectre-amber",
+    hex: "#1D6E8C",
+    badge: "border-fn-replied/45 text-fn-replied bg-fn-replied/12",
+    dot: "bg-fn-replied",
+    leftBorder: "border-l-fn-replied",
+    headerAccent: "border-fn-replied",
   },
   step2_sent: {
-    label: "Step 2 inviato",
-    hex: "#A86A4E",
-    badge: "border-[#A86A4E]/45 text-[#A86A4E] bg-[#A86A4E]/12",
-    dot: "bg-[#A86A4E]",
+    label: "2° contatto",
+    hex: "#C58A1A",
+    badge: "border-fn-step2/45 text-fn-step2 bg-fn-step2/12",
+    dot: "bg-fn-step2",
+    leftBorder: "border-l-fn-step2",
+    headerAccent: "border-fn-step2",
   },
   preview_sent: {
-    label: "Preview inviata",
-    hex: "#B0492B",
-    badge: "border-spectre-magenta/40 text-spectre-magenta bg-spectre-magenta/10",
-    dot: "bg-spectre-magenta",
+    label: "Anteprima",
+    hex: "#7A4F9E",
+    badge: "border-fn-preview/45 text-fn-preview bg-fn-preview/12",
+    dot: "bg-fn-preview",
+    leftBorder: "border-l-fn-preview",
+    headerAccent: "border-fn-preview",
   },
   negotiating: {
-    label: "Trattativa",
-    hex: "#CD7F32",
-    badge: "border-[#CD7F32]/45 text-[#CD7F32] bg-[#CD7F32]/12",
-    dot: "bg-[#CD7F32]",
+    label: "In trattativa",
+    hex: "#A8431E",
+    badge: "border-fn-negotiating/45 text-fn-negotiating bg-fn-negotiating/12",
+    dot: "bg-fn-negotiating",
+    leftBorder: "border-l-fn-negotiating",
+    headerAccent: "border-fn-negotiating",
   },
   closed: {
     label: "Chiuso",
-    hex: "#5C7A5C",
-    badge: "border-spectre-green/45 text-spectre-green bg-spectre-green/12",
-    dot: "bg-spectre-green",
+    hex: "#3B6B34",
+    badge: "border-fn-closed/45 text-fn-closed bg-fn-closed/12",
+    dot: "bg-fn-closed",
+    leftBorder: "border-l-fn-closed",
+    headerAccent: "border-fn-closed",
   },
   lost: {
-    label: "Lost",
-    hex: "#8A8170",
-    badge: "border-text2/25 text-text2 bg-text2/10",
-    dot: "bg-text2",
+    label: "Perso",
+    hex: "#9A6B5E",
+    badge: "border-fn-lost/40 text-fn-lost bg-fn-lost/10",
+    dot: "bg-fn-lost",
+    leftBorder: "border-l-fn-lost",
+    headerAccent: "border-fn-lost",
   },
 };
 
-/** Compact column header label for the VISOR kanban. */
+/**
+ * Card container classes per status: left-border 4px in the status colour;
+ * "negotiating" gets a full rust fill (white text handled by callers via
+ * `statusIsFill`); "lost" is dimmed.
+ */
+export function statusCardClass(status: LeadStatus): string {
+  if (status === "negotiating")
+    return "border border-fn-negotiating bg-fn-negotiating";
+  const dim = status === "lost" ? " opacity-[0.78]" : "";
+  return `border border-border border-l-[4px] ${LEAD_STATUS[status].leftBorder} bg-surface${dim}`;
+}
+
+export function statusIsFill(status: LeadStatus): boolean {
+  return status === "negotiating";
+}
+
+/** Compact column header label for the VISOR kanban (canale-agnostiche). */
 export const STATUS_SHORT: Record<LeadStatus, string> = {
   todo: "Da contattare",
-  step1_sent: "Aspetto risposta",
-  replied: "Devo rispondere",
-  step2_sent: "Da preparare",
-  preview_sent: "Preview live",
-  negotiating: "Trattativa",
+  step1_sent: "1° contatto",
+  replied: "Ha risposto",
+  step2_sent: "2° contatto",
+  preview_sent: "Anteprima",
+  negotiating: "In trattativa",
   closed: "Chiusi",
-  lost: "Lost",
+  lost: "Persi",
 };
 
 /** Pipeline column order for the VISOR kanban radar (lost shown apart). */

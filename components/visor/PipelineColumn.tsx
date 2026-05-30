@@ -40,8 +40,13 @@ export default function PipelineColumn({
 
   return (
     <div className="flex w-[210px] shrink-0 flex-col">
-      <div className="mb-2 flex items-center justify-between px-1">
-        <span className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-spectre-text">
+      <div
+        className={cn(
+          "mb-2 flex items-center justify-between border-b-2 px-1 pb-1.5",
+          meta.headerAccent,
+        )}
+      >
+        <span className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.16em] text-spectre-text">
           <span className={cn("h-2 w-2 rounded-full", meta.dot)} />
           {meta.label}
           <span className="text-spectre-muted">· {leads.length}</span>

@@ -1,27 +1,35 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Activity, Radio, Wallet } from "lucide-react";
+import { useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { useHudStore } from "@/lib/store";
 import { formatCurrency } from "@/lib/utils";
 import VoiceInterface from "@/components/voice/VoiceInterface";
 import ThemeToggle from "@/components/layout/ThemeToggle";
 import type { ApiResponse, Lead } from "@/types";
 
-/** Top HUD bar: live clock, system status, active-lead + open-value counters. */
+const MODULE_NAMES: Record<string, string> = {
+  "/visor": "Pipeline",
+  "/cockpit": "Cockpit",
+  "/hunter": "Hunter",
+  "/whisper": "Whisper",
+  "/hand": "Hand",
+  "/oracle": "Oracle",
+  "/territorio": "Territorio",
+  "/forecast": "Forecast",
+};
+
+/** D3 topbar: SPECTRE logo · modulo corrente · € in trattativa · toggle. */
 export default function HUDHeader() {
-  const activeLeads = useHudStore((s) => s.activeLeads);
-  const dealValueOpen = useHudStore((s) => s.dealValueOpen);
+  const negotiatingValue = useHudStore((s) => s.negotiatingValue);
   const setHudStats = useHudStore((s) => s.setHudStats);
-  const [now, setNow] = useState<Date | null>(null);
+  const pathname = usePathname();
 
-  useEffect(() => {
-    setNow(new Date());
-    const id = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(id);
-  }, []);
+  const moduleName =
+    Object.entries(MODULE_NAMES).find(([href]) => pathname.startsWith(href))?.[1] ??
+    "SPECTRE";
 
-  // Seed counters from the API on first paint if VISOR hasn't yet.
+  // Seed counters on first paint if VISOR hasn't yet.
   useEffect(() => {
     const state = useHudStore.getState();
     if (state.activeLeads !== 0 || state.dealValueOpen !== 0) return;
@@ -36,6 +44,9 @@ export default function HUDHeader() {
         setHudStats({
           activeLeads: active.length,
           dealValueOpen: active.reduce((sum, l) => sum + l.value, 0),
+          negotiatingValue: json.data
+            .filter((l) => l.status === "negotiating")
+            .reduce((sum, l) => sum + l.value, 0),
         });
       })
       .catch(() => undefined);
@@ -44,49 +55,31 @@ export default function HUDHeader() {
     };
   }, [setHudStats]);
 
-  const time = now
-    ? now.toLocaleTimeString("it-IT", { hour12: false })
-    : "--:--:--";
-  const date = now
-    ? now.toLocaleDateString("it-IT", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      })
-    : "—";
-
   return (
-    <header className="sticky top-0 z-40 flex h-12 items-center justify-between gap-2 border-b border-border bg-surface px-3 backdrop-blur-xl sm:px-5">
-      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-        <span className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.25em] text-spectre-green">
-          <Radio className="h-3 w-3 animate-pulse" />
-          <span className="hidden sm:inline">system online</span>
+    <header className="sticky top-0 z-40 flex h-12 items-center justify-between gap-3 bg-header px-3 text-header-text sm:px-5">
+      <div className="flex min-w-0 items-center gap-3">
+        <span className="font-display text-sm font-bold uppercase tracking-[0.35em] text-header-text">
+          SPECTRE
         </span>
-        <span className="hidden h-3 w-px bg-spectre-cyan/20 sm:block" />
-        <span className="hidden font-mono text-[11px] uppercase tracking-[0.2em] text-spectre-muted sm:block">
-          {date}
+        <span className="h-4 w-px bg-header-muted/40" />
+        <span className="truncate text-[12px] uppercase tracking-[0.2em] text-header-muted">
+          {moduleName}
         </span>
       </div>
 
-      <div className="flex items-center gap-2.5 sm:gap-4">
-        <span className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-spectre-amber">
-          <Wallet className="h-3 w-3 shrink-0" />
-          <span className="hidden sm:inline">{formatCurrency(dealValueOpen)} aperto</span>
-          <span className="sm:hidden">{formatCurrency(dealValueOpen)}</span>
-        </span>
-        <span className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-spectre-cyan">
-          <Activity className="h-3 w-3 shrink-0" />
-          {activeLeads}
-          <span className="hidden sm:inline"> lead attivi</span>
-        </span>
-
-        <span className="hidden h-4 w-px bg-border sm:block" />
-        <ThemeToggle />
+      <div className="flex items-center gap-3 sm:gap-4">
+        {negotiatingValue > 0 && (
+          <span className="flex items-baseline gap-1.5 text-[12px]">
+            <span className="font-semibold tabular-nums text-header-accent">
+              {formatCurrency(negotiatingValue)}
+            </span>
+            <span className="hidden text-[10px] uppercase tracking-[0.15em] text-header-muted sm:inline">
+              in trattativa
+            </span>
+          </span>
+        )}
         <VoiceInterface />
-
-        <span className="hidden font-mono text-sm tabular-nums tracking-widest text-spectre-text text-glow-cyan sm:inline">
-          {time}
-        </span>
+        <ThemeToggle />
       </div>
     </header>
   );

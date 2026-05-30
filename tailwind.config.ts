@@ -16,6 +16,7 @@ const config: Config = {
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./lib/**/*.{js,ts}",
   ],
   theme: {
     extend: {
@@ -35,6 +36,22 @@ const config: Config = {
         success: v("--c-success"),
         ochre: v("--c-amber"),
         scrim: v("--c-scrim"),
+
+        // Header (D3 black topbar — own light/dark vars).
+        header: v("--c-header"),
+        "header-text": v("--c-header-text"),
+        "header-muted": v("--c-header-muted"),
+        "header-accent": v("--c-header-accent"),
+
+        // Funnel status family (8 stati, terra desaturata, tema-aware).
+        "fn-todo": v("--fn-todo"),
+        "fn-step1": v("--fn-step1"),
+        "fn-replied": v("--fn-replied"),
+        "fn-step2": v("--fn-step2"),
+        "fn-preview": v("--fn-preview"),
+        "fn-negotiating": v("--fn-negotiating"),
+        "fn-closed": v("--fn-closed"),
+        "fn-lost": v("--fn-lost"),
 
         background: v("--c-bg"),
         foreground: v("--c-text"),

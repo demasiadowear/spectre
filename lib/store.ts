@@ -9,6 +9,7 @@ import { create } from "zustand";
 interface HudStats {
   activeLeads: number;
   dealValueOpen: number;
+  negotiatingValue: number;
 }
 
 interface HudState extends HudStats {
@@ -18,5 +19,6 @@ interface HudState extends HudStats {
 export const useHudStore = create<HudState>((set) => ({
   activeLeads: 0,
   dealValueOpen: 0,
+  negotiatingValue: 0,
   setHudStats: (stats) => set(stats),
 }));

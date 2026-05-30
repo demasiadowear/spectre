@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import { Building2 } from "lucide-react";
 import PulseRing from "@/components/ui/spectre/PulseRing";
-import { probabilityHex } from "@/lib/constants";
+import { probabilityHex, statusCardClass, statusIsFill } from "@/lib/constants";
 import { cn, daysSince, formatCurrency } from "@/lib/utils";
 import type { Lead } from "@/types";
 
@@ -26,6 +26,7 @@ export default function LeadCard({
   onSelect,
 }: LeadCardProps) {
   const stale = daysSince(lead.last_contact) > 7;
+  const fill = statusIsFill(lead.status);
 
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
     e.dataTransfer.setData("text/plain", lead.id);
@@ -55,36 +56,55 @@ export default function LeadCard({
           }
         }}
         className={cn(
-          "cursor-pointer rounded-sm border border-border bg-surface p-2.5 backdrop-blur-sm transition-colors hover:border-spectre-cyan/40",
-          dragging && "border-spectre-cyan/60 opacity-40",
+          "cursor-pointer rounded-sm p-2.5 transition-colors",
+          statusCardClass(lead.status),
+          !fill && "hover:border-accent/40",
+          dragging && "opacity-40",
         )}
       >
         <div className="flex items-start justify-between gap-2">
-          <span className="flex min-w-0 items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-spectre-muted">
+          <span
+            className={cn(
+              "flex min-w-0 items-center gap-1 text-[10px] uppercase tracking-wider",
+              fill ? "text-white/75" : "text-spectre-muted",
+            )}
+          >
             <Building2 className="h-3 w-3 shrink-0" />
             <span className="truncate">{lead.company}</span>
           </span>
-          {stale && <PulseRing tone="magenta" size={7} className="mt-0.5 shrink-0" />}
+          {stale && !fill && (
+            <PulseRing tone="magenta" size={7} className="mt-0.5 shrink-0" />
+          )}
         </div>
 
-        <p className="mt-1 truncate font-display text-sm font-medium text-spectre-text">
+        <p
+          className={cn(
+            "mt-1 truncate font-display text-sm font-medium",
+            fill ? "text-white" : "text-spectre-text",
+          )}
+        >
           {lead.name}
         </p>
 
         <div className="mt-2 flex items-center justify-between">
-          <span className="font-mono text-xs text-spectre-cyan">
+          <span className={cn("text-xs", fill ? "text-white" : "text-accent")}>
             {formatCurrency(lead.value)}
           </span>
           <span
-            className="font-mono text-[10px] tabular-nums"
-            style={{ color: probabilityHex(lead.probability) }}
+            className="text-[10px] tabular-nums"
+            style={{ color: fill ? "#fff" : probabilityHex(lead.probability) }}
           >
             {lead.probability}%
           </span>
         </div>
 
         {lead.next_action && (
-          <p className="mt-1.5 truncate font-mono text-[10px] text-spectre-muted/70">
+          <p
+            className={cn(
+              "mt-1.5 truncate text-[10px]",
+              fill ? "text-white/80" : "text-spectre-muted/70",
+            )}
+          >
             → {lead.next_action}
           </p>
         )}

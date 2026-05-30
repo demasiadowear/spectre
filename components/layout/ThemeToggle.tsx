@@ -26,7 +26,7 @@ export default function ThemeToggle() {
       type="button"
       onClick={toggle}
       aria-label={theme === "dark" ? "Tema chiaro" : "Tema scuro"}
-      className="flex h-7 w-7 items-center justify-center rounded-sm border border-border text-text2 transition-colors hover:border-accent/50 hover:text-accent"
+      className="flex h-7 w-7 items-center justify-center rounded-sm border border-header-muted/40 text-header-muted transition-colors hover:border-header-accent hover:text-header-accent"
     >
       {theme === "dark" ? (
         <Sun className="h-3.5 w-3.5" strokeWidth={1.6} />

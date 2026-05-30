@@ -60,6 +60,16 @@ function stamp(status: LeadStatus, meta: LeadMeta): LeadMeta {
   return meta;
 }
 
+// Channel of last contact (interactions.type) — icon + label.
+const CHANNEL_META: Record<string, { icon: string; label: string }> = {
+  call: { icon: "📞", label: "Chiamata" },
+  whatsapp: { icon: "💬", label: "WhatsApp" },
+  email: { icon: "✉️", label: "Email" },
+  meeting: { icon: "🤝", label: "Incontro" },
+  note: { icon: "📝", label: "Nota" },
+};
+const CHANNELS = ["call", "whatsapp", "email", "meeting"] as const;
+
 export default function LeadActionPanel({
   lead,
   closedCount,
@@ -69,10 +79,30 @@ export default function LeadActionPanel({
   const [busy, setBusy] = useState(false);
   const [notes, setNotes] = useState("");
   const [copied, setCopied] = useState<number | null>(null);
+  const [lastChannel, setLastChannel] = useState<string | null>(null);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setNotes(lead?.notes ?? "");
+  }, [lead]);
+
+  // Load the most recent interaction to show the channel tag.
+  useEffect(() => {
+    if (!lead) {
+      setLastChannel(null);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/interactions?leadId=${lead.id}`)
+      .then((r) => r.json())
+      .then((j) => {
+        if (cancelled) return;
+        setLastChannel(j.success && j.data?.length ? j.data[0].type : null);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
   }, [lead]);
 
   if (!lead) return null;
@@ -111,6 +141,29 @@ export default function LeadActionPanel({
     } finally {
       setBusy(false);
     }
+  }
+
+  // Log a contact via a chosen channel → interactions + last_contact.
+  async function logChannel(type: string) {
+    if (!lead || busy) return;
+    setBusy(true);
+    try {
+      await fetch("/api/interactions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lead_id: lead.id,
+          type,
+          content: `Contatto via ${CHANNEL_META[type]?.label ?? type}`,
+        }),
+      });
+      setLastChannel(type);
+    } catch {
+      /* non-fatal */
+    } finally {
+      setBusy(false);
+    }
+    void patch({ last_contact: nowIso() });
   }
 
   function advance(status: LeadStatus, extra: Partial<LeadMeta> = {}) {
@@ -230,7 +283,12 @@ export default function LeadActionPanel({
               >
                 {sm.label}
               </span>
-              <span className="rounded-sm border border-[#C2410C]/40 bg-[#C2410C]/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.15em] text-[#E2632B]">
+              {lastChannel && CHANNEL_META[lastChannel] && (
+                <span className="rounded-sm border border-border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.12em] text-text2">
+                  {CHANNEL_META[lastChannel].icon} {CHANNEL_META[lastChannel].label}
+                </span>
+              )}
+              <span className="rounded-sm border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.15em] text-accent">
                 {pricing.tier} · {formatCurrency(pricing.prezzo)}
               </span>
             </div>
@@ -329,13 +387,38 @@ export default function LeadActionPanel({
             )}
           </div>
 
+          {/* Registra contatto (canale) */}
+          <div className="mt-3">
+            <p className="mb-1.5 text-[9px] uppercase tracking-[0.2em] text-text2">
+              Registra contatto
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {CHANNELS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => logChannel(c)}
+                  className={cn(
+                    "inline-flex min-h-[32px] items-center gap-1 rounded-sm border px-2.5 text-[11px] disabled:opacity-50",
+                    lastChannel === c
+                      ? "border-accent bg-accent/10 text-accent"
+                      : "border-border text-text2 hover:border-accent/40",
+                  )}
+                >
+                  {CHANNEL_META[c].icon} {CHANNEL_META[c].label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Next best action */}
           <div
             className={cn(
               "mt-4 rounded-sm border p-3",
               action.urgent
-                ? "border-spectre-magenta/50 bg-spectre-magenta/10"
-                : "border-[#C2410C]/40 bg-[#C2410C]/10",
+                ? "border-danger/50 bg-danger/10"
+                : "border-accent/40 bg-accent/10",
             )}
           >
             <p className="font-display text-sm font-bold text-spectre-text">
@@ -351,7 +434,7 @@ export default function LeadActionPanel({
                 onClick={() => runAction(action.kind)}
                 className={cn(
                   "mt-2.5 inline-flex min-h-[40px] items-center rounded-sm px-4 font-mono text-xs font-bold uppercase tracking-[0.12em] text-onaccent disabled:opacity-50",
-                  action.urgent ? "bg-spectre-magenta" : "bg-[#C2410C]",
+                  action.urgent ? "bg-danger" : "bg-accent",
                 )}
               >
                 → {action.cta}

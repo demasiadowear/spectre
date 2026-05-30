@@ -4,7 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import { Download, LayoutGrid, List, Phone, Plus, Search } from "lucide-react";
 import { useHudStore } from "@/lib/store";
 import { useVoiceStore } from "@/lib/voice/store";
-import { LEAD_STATUS, PIPELINE_ORDER, STATUS_SHORT } from "@/lib/constants";
+import {
+  LEAD_STATUS,
+  PIPELINE_ORDER,
+  STATUS_SHORT,
+  statusCardClass,
+  statusIsFill,
+} from "@/lib/constants";
 import { cn, formatCurrency } from "@/lib/utils";
 import { isMobilePhone, isStale, nextBestAction } from "@/lib/pitch";
 import GlassCard from "@/components/ui/spectre/GlassCard";
@@ -48,6 +54,9 @@ export default function VisorBoard({ initialLeads }: VisorBoardProps) {
     setHudStats({
       activeLeads: active.length,
       dealValueOpen: active.reduce((sum, l) => sum + l.value, 0),
+      negotiatingValue: leads
+        .filter((l) => l.status === "negotiating")
+        .reduce((sum, l) => sum + l.value, 0),
     });
   }, [leads, setHudStats]);
 
@@ -373,38 +382,55 @@ export default function VisorBoard({ initialLeads }: VisorBoardProps) {
 /** Compact, fully tappable lead row for the mobile-first list view. */
 function LeadRow({ lead, onClick }: { lead: Lead; onClick: () => void }) {
   const meta = LEAD_STATUS[lead.status];
-  const stale = isStale(lead);
   const action = nextBestAction(lead);
   const mobile = isMobilePhone(lead.phone);
+  const fill = statusIsFill(lead.status);
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        "w-full rounded-sm border bg-surface p-3 text-left transition-colors hover:border-accent/40",
-        stale ? "border-border border-l-[3px] border-l-accent" : "border-border",
+        "w-full rounded-sm p-3 text-left transition-colors",
+        statusCardClass(lead.status),
+        !fill && "hover:border-accent/40",
       )}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate font-display text-sm font-medium text-spectre-text">
+          <p
+            className={cn(
+              "truncate font-display text-sm font-medium",
+              fill ? "text-white" : "text-spectre-text",
+            )}
+          >
             {mobile ? "📱 " : "☎ "}
             {lead.name}
           </p>
-          <p className="mt-0.5 truncate font-mono text-[11px] text-spectre-muted">
+          <p
+            className={cn(
+              "mt-0.5 truncate text-[11px]",
+              fill ? "text-white/75" : "text-spectre-muted",
+            )}
+          >
             {action.title}
           </p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
-          <span
-            className={cn(
-              "rounded-sm border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.1em]",
-              meta.badge,
-            )}
-          >
-            {meta.label}
-          </span>
-          <span className="font-mono text-[11px] text-spectre-cyan">
+          {fill ? (
+            <span className="rounded-sm border border-white/40 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.1em] text-white">
+              {meta.label}
+            </span>
+          ) : (
+            <span
+              className={cn(
+                "rounded-sm border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.1em]",
+                meta.badge,
+              )}
+            >
+              {meta.label}
+            </span>
+          )}
+          <span className={cn("text-[11px]", fill ? "text-white" : "text-accent")}>
             {formatCurrency(lead.value)}
           </span>
         </div>

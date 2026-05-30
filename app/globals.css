@@ -10,39 +10,69 @@
 
 :root,
 [data-theme="light"] {
-  --c-bg: 244 239 230; /* #F4EFE6 carta */
-  --c-surface: 252 250 245; /* #FCFAF5 */
-  --c-surface2: 239 232 218; /* #EFE8DA inset/sottile */
-  --c-border: 224 215 199; /* #E0D7C7 */
-  --c-border-strong: 201 188 165; /* #C9BCA5 */
-  --c-text: 58 51 39; /* #3A3327 */
-  --c-text2: 140 123 99; /* #8C7B63 */
-  --c-accent: 194 65 12; /* #C2410C terracotta */
-  --c-accent-hover: 154 52 18; /* #9A3412 */
-  --c-onaccent: 252 250 245; /* testo su accento */
-  --c-danger: 176 73 43; /* #B0492B mattone (urgente/lost) */
-  --c-amber: 176 125 43; /* #B07D2B ocra */
-  --c-success: 92 122 92; /* #5C7A5C salvia (chiuso/vinto) */
-  --c-scrim: 58 51 39; /* scrim modale (caldo) */
-  --c-shadow: 58 51 39;
+  --c-bg: 222 220 213; /* #DEDCD5 pietra */
+  --c-surface: 251 250 247; /* #FBFAF7 */
+  --c-surface2: 233 231 224; /* #E9E7E0 inset */
+  --c-border: 203 200 191; /* #CBC8BF */
+  --c-border-strong: 21 20 15; /* #15140F */
+  --c-text: 21 20 15; /* #15140F quasi-nero */
+  --c-text2: 110 107 98; /* #6E6B62 */
+  --c-accent: 168 67 30; /* #A8431E ruggine */
+  --c-accent-hover: 138 54 23; /* #8A3617 */
+  --c-onaccent: 251 250 247;
+  --c-danger: 168 67 30; /* ruggine (urgente) */
+  --c-amber: 154 123 30; /* #9A7B1E ocra */
+  --c-success: 59 107 52; /* #3B6B34 verde bosco */
+  --c-scrim: 21 20 15;
+  --c-shadow: 21 20 15;
+
+  /* Header D3 (nera piena) */
+  --c-header: 21 20 15; /* #15140F */
+  --c-header-text: 255 255 255;
+  --c-header-muted: 154 150 140; /* #9A968C */
+  --c-header-accent: 232 116 63; /* #E8743F ruggine chiara */
+
+  /* Funnel — 8 stati, terra desaturata */
+  --fn-todo: 138 135 126; /* #8A877E pietra */
+  --fn-step1: 154 123 30; /* #9A7B1E ocra */
+  --fn-replied: 29 110 140; /* #1D6E8C petrolio */
+  --fn-step2: 197 138 26; /* #C58A1A ocra carico */
+  --fn-preview: 122 79 158; /* #7A4F9E prugna */
+  --fn-negotiating: 168 67 30; /* #A8431E ruggine */
+  --fn-closed: 59 107 52; /* #3B6B34 verde bosco */
+  --fn-lost: 154 107 94; /* #9A6B5E terracotta spenta */
 }
 
 [data-theme="dark"] {
-  --c-bg: 31 27 21; /* #1F1B15 */
-  --c-surface: 42 37 29; /* #2A251D */
-  --c-surface2: 51 45 35; /* #332D23 */
-  --c-border: 58 51 42; /* #3A332A */
-  --c-border-strong: 74 65 53; /* #4A4135 */
-  --c-text: 240 234 221; /* #F0EADD */
-  --c-text2: 168 155 133; /* #A89B85 */
-  --c-accent: 226 99 43; /* #E2632B */
-  --c-accent-hover: 240 129 74; /* #F0814A */
-  --c-onaccent: 31 27 21; /* testo su accento (scuro) */
-  --c-danger: 217 105 74; /* #D9694A */
-  --c-amber: 201 154 78; /* #C99A4E */
+  --c-bg: 23 22 19; /* #171613 */
+  --c-surface: 32 30 26; /* #201E1A */
+  --c-surface2: 42 40 34; /* #2A2822 */
+  --c-border: 50 47 41; /* #322F29 */
+  --c-border-strong: 90 85 74; /* #5A554A */
+  --c-text: 242 239 231; /* #F2EFE7 */
+  --c-text2: 146 142 131; /* #928E83 */
+  --c-accent: 216 90 48; /* #D85A30 */
+  --c-accent-hover: 232 116 63; /* #E8743F */
+  --c-onaccent: 23 22 19;
+  --c-danger: 216 90 48;
+  --c-amber: 201 168 71; /* #C9A847 */
   --c-success: 127 163 127; /* #7FA37F */
-  --c-scrim: 10 8 6;
+  --c-scrim: 8 7 5;
   --c-shadow: 0 0 0;
+
+  --c-header: 14 13 11; /* #0E0D0B */
+  --c-header-text: 242 239 231;
+  --c-header-muted: 146 142 131;
+  --c-header-accent: 232 116 63;
+
+  --fn-todo: 167 163 153;
+  --fn-step1: 201 168 71;
+  --fn-replied: 79 163 194;
+  --fn-step2: 224 176 85;
+  --fn-preview: 169 130 204;
+  --fn-negotiating: 216 90 48;
+  --fn-closed: 127 163 127;
+  --fn-lost: 185 142 128;
 }
 
 @layer base {
