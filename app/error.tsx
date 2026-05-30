@@ -38,7 +38,7 @@ export default function GlobalError({
           </p>
 
           {error.digest && (
-            <code className="mt-4 rounded-sm border border-spectre-magenta/20 bg-black/50 px-2 py-1 font-mono text-[10px] text-spectre-muted">
+            <code className="mt-4 rounded-sm border border-spectre-magenta/20 bg-surface px-2 py-1 font-mono text-[10px] text-spectre-muted">
               trace: {error.digest}
             </code>
           )}

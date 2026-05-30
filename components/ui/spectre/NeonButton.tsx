@@ -4,41 +4,49 @@ import { forwardRef, type ButtonHTMLAttributes } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
+// Calm buttons: outline by default, solid accent when `filled`. No neon.
 const neonButton = cva(
-  "relative inline-flex items-center justify-center gap-2 rounded-sm border font-mono text-xs uppercase tracking-[0.2em] transition-all duration-200 select-none disabled:opacity-40 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-1",
+  "relative inline-flex items-center justify-center gap-2 rounded-sm border font-ui text-xs font-medium uppercase tracking-[0.12em] transition-colors duration-200 select-none disabled:opacity-40 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-offset-0",
   {
     variants: {
       variant: {
-        cyan: "border-spectre-cyan/40 text-spectre-cyan hover:bg-spectre-cyan/10 hover:shadow-neon-cyan hover:border-spectre-cyan focus-visible:ring-spectre-cyan",
+        cyan: "border-accent/50 text-accent hover:bg-accent/10 hover:border-accent focus-visible:ring-accent",
         magenta:
-          "border-spectre-magenta/40 text-spectre-magenta hover:bg-spectre-magenta/10 hover:shadow-neon-magenta hover:border-spectre-magenta focus-visible:ring-spectre-magenta",
+          "border-danger/50 text-danger hover:bg-danger/10 hover:border-danger focus-visible:ring-danger",
         amber:
-          "border-spectre-amber/40 text-spectre-amber hover:bg-spectre-amber/10 hover:shadow-neon-amber hover:border-spectre-amber focus-visible:ring-spectre-amber",
+          "border-ochre/50 text-ochre hover:bg-ochre/10 hover:border-ochre focus-visible:ring-ochre",
         green:
-          "border-spectre-green/40 text-spectre-green hover:bg-spectre-green/10 hover:shadow-neon-green hover:border-spectre-green focus-visible:ring-spectre-green",
+          "border-success/50 text-success hover:bg-success/10 hover:border-success focus-visible:ring-success",
         ghost:
-          "border-transparent text-spectre-muted hover:text-spectre-text hover:border-spectre-cyan/20",
+          "border-transparent text-text2 hover:text-text hover:border-border",
       },
       size: {
         sm: "h-8 px-3",
         md: "h-10 px-5",
         lg: "h-12 px-7 text-sm",
       },
-      filled: {
-        true: "",
-        false: "",
-      },
+      filled: { true: "", false: "" },
     },
     compoundVariants: [
       {
         filled: true,
         variant: "cyan",
-        class: "bg-spectre-cyan/15 shadow-neon-cyan",
+        class: "bg-accent text-onaccent border-accent hover:bg-accent-hover hover:border-accent-hover",
       },
       {
         filled: true,
         variant: "magenta",
-        class: "bg-spectre-magenta/15 shadow-neon-magenta",
+        class: "bg-danger text-onaccent border-danger hover:bg-danger",
+      },
+      {
+        filled: true,
+        variant: "green",
+        class: "bg-success text-onaccent border-success hover:bg-success",
+      },
+      {
+        filled: true,
+        variant: "amber",
+        class: "bg-ochre text-onaccent border-ochre hover:bg-ochre",
       },
     ],
     defaultVariants: { variant: "cyan", size: "md", filled: false },

@@ -208,7 +208,7 @@ export default function LeadActionPanel({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={onClose}
-        className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm"
+        className="fixed inset-0 z-[60] bg-scrim/60 backdrop-blur-sm"
       />
       <motion.aside
         key="panel"
@@ -216,10 +216,10 @@ export default function LeadActionPanel({
         animate={{ x: 0 }}
         exit={{ x: "100%" }}
         transition={{ type: "tween", duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-        className="fixed inset-y-0 right-0 z-[61] flex w-full flex-col border-l border-spectre-cyan/20 bg-spectre-panel/98 backdrop-blur-2xl sm:max-w-[460px]"
+        className="fixed inset-y-0 right-0 z-[61] flex w-full flex-col border-l border-border bg-spectre-panel/98 backdrop-blur-2xl sm:max-w-[460px]"
       >
         {/* Header */}
-        <div className="flex items-start justify-between gap-3 border-b border-white/10 p-4">
+        <div className="flex items-start justify-between gap-3 border-b border-border p-4">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span
@@ -230,7 +230,7 @@ export default function LeadActionPanel({
               >
                 {sm.label}
               </span>
-              <span className="rounded-sm border border-[#ff6a00]/40 bg-[#ff6a00]/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.15em] text-[#ff8c42]">
+              <span className="rounded-sm border border-[#C2410C]/40 bg-[#C2410C]/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.15em] text-[#E2632B]">
                 {pricing.tier} · {formatCurrency(pricing.prezzo)}
               </span>
             </div>
@@ -264,7 +264,7 @@ export default function LeadActionPanel({
             type="button"
             onClick={onClose}
             aria-label="Chiudi"
-            className="shrink-0 rounded-sm p-1.5 text-spectre-muted transition-colors hover:bg-white/5 hover:text-spectre-magenta"
+            className="shrink-0 rounded-sm p-1.5 text-spectre-muted transition-colors hover:bg-surface2 hover:text-spectre-magenta"
           >
             <X className="h-5 w-5" />
           </button>
@@ -278,7 +278,7 @@ export default function LeadActionPanel({
                 href={waUrl(lead.phone, messages[primaryStep - 1].text)}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex min-h-[36px] items-center gap-1.5 rounded-sm bg-[#25D366] px-3 font-mono text-[11px] font-semibold text-black"
+                className="inline-flex min-h-[36px] items-center gap-1.5 rounded-sm bg-[#25D366] px-3 font-mono text-[11px] font-semibold text-onaccent"
               >
                 <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
               </a>
@@ -303,7 +303,7 @@ export default function LeadActionPanel({
               href={googleSearchUrl(lead)}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex min-h-[36px] items-center gap-1.5 rounded-sm border border-white/15 bg-white/5 px-3 font-mono text-[11px] text-spectre-muted"
+              className="inline-flex min-h-[36px] items-center gap-1.5 rounded-sm border border-border bg-surface2 px-3 font-mono text-[11px] text-spectre-muted"
             >
               <Search className="h-3.5 w-3.5" /> Cerca
             </a>
@@ -335,7 +335,7 @@ export default function LeadActionPanel({
               "mt-4 rounded-sm border p-3",
               action.urgent
                 ? "border-spectre-magenta/50 bg-spectre-magenta/10"
-                : "border-[#ff6a00]/40 bg-[#ff6a00]/10",
+                : "border-[#C2410C]/40 bg-[#C2410C]/10",
             )}
           >
             <p className="font-display text-sm font-bold text-spectre-text">
@@ -350,8 +350,8 @@ export default function LeadActionPanel({
                 disabled={busy}
                 onClick={() => runAction(action.kind)}
                 className={cn(
-                  "mt-2.5 inline-flex min-h-[40px] items-center rounded-sm px-4 font-mono text-xs font-bold uppercase tracking-[0.12em] text-black disabled:opacity-50",
-                  action.urgent ? "bg-spectre-magenta" : "bg-[#ff6a00]",
+                  "mt-2.5 inline-flex min-h-[40px] items-center rounded-sm px-4 font-mono text-xs font-bold uppercase tracking-[0.12em] text-onaccent disabled:opacity-50",
+                  action.urgent ? "bg-spectre-magenta" : "bg-[#C2410C]",
                 )}
               >
                 → {action.cta}
@@ -368,8 +368,8 @@ export default function LeadActionPanel({
                   key={m.step}
                   open={primary}
                   className={cn(
-                    "group rounded-sm border bg-black/30",
-                    primary ? "border-spectre-cyan/40" : "border-white/10",
+                    "group rounded-sm border bg-surface",
+                    primary ? "border-spectre-cyan/40" : "border-border",
                   )}
                 >
                   <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 font-mono text-[10px] uppercase tracking-[0.15em] text-spectre-cyan">
@@ -377,7 +377,7 @@ export default function LeadActionPanel({
                     <span className="text-spectre-muted/50 group-open:hidden">▾</span>
                   </summary>
                   <div className="px-3 pb-3">
-                    <pre className="whitespace-pre-wrap break-words rounded-sm bg-black/40 p-2.5 font-sans text-[12px] leading-relaxed text-spectre-text/90">
+                    <pre className="whitespace-pre-wrap break-words rounded-sm bg-surface p-2.5 font-sans text-[12px] leading-relaxed text-spectre-text/90">
                       {m.text}
                     </pre>
                     <div className="mt-2 flex flex-wrap gap-2">
@@ -385,7 +385,7 @@ export default function LeadActionPanel({
                         type="button"
                         disabled={busy}
                         onClick={() => sendStep(m.step)}
-                        className="inline-flex min-h-[36px] items-center gap-1.5 rounded-sm bg-[#25D366] px-3 font-mono text-[11px] font-semibold text-black disabled:opacity-50"
+                        className="inline-flex min-h-[36px] items-center gap-1.5 rounded-sm bg-[#25D366] px-3 font-mono text-[11px] font-semibold text-onaccent disabled:opacity-50"
                       >
                         <MessageCircle className="h-3.5 w-3.5" />
                         {mobile ? "Apri WhatsApp" : "Copia per WA"}
@@ -393,7 +393,7 @@ export default function LeadActionPanel({
                       <button
                         type="button"
                         onClick={() => copyOnly(m.step)}
-                        className="inline-flex min-h-[36px] items-center gap-1.5 rounded-sm border border-white/15 px-3 font-mono text-[11px] text-spectre-muted"
+                        className="inline-flex min-h-[36px] items-center gap-1.5 rounded-sm border border-border px-3 font-mono text-[11px] text-spectre-muted"
                       >
                         {copied === m.step ? (
                           <Check className="h-3.5 w-3.5 text-spectre-green" />
@@ -419,7 +419,7 @@ export default function LeadActionPanel({
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
               placeholder="Es: ha già Instagram attivo, chiamare dopo le 15…"
-              className="w-full resize-y rounded-sm border border-spectre-cyan/20 bg-black/50 px-3 py-2 font-mono text-[12px] text-spectre-text placeholder:text-spectre-muted/40 focus:border-spectre-cyan/50 focus:outline-none"
+              className="w-full resize-y rounded-sm border border-border bg-surface px-3 py-2 font-mono text-[12px] text-spectre-text placeholder:text-spectre-muted/40 focus:border-spectre-cyan/50 focus:outline-none"
             />
             {notes.trim() !== (lead.notes ?? "").trim() && (
               <button
@@ -435,7 +435,7 @@ export default function LeadActionPanel({
         </div>
 
         {/* Status footer (always reachable, no drag needed) */}
-        <div className="border-t border-white/10 p-3">
+        <div className="border-t border-border p-3">
           <p className="mb-2 font-mono text-[9px] uppercase tracking-[0.2em] text-spectre-muted">
             Cambia stato
           </p>

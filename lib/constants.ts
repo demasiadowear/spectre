@@ -3,14 +3,16 @@ import type { LeadStatus, RelationType } from "@/types";
 // ============================================================
 // Palette (raw hex for JS/SVG/Canvas usage — Tailwind handles CSS)
 // ============================================================
+// Earth palette for JS-driven colours (map pins, bars, gauges). Static
+// mid-tones that read on both light and dark surfaces.
 export const SPECTRE = {
-  ink: "#050505",
-  panel: "#0a0a0f",
-  cyan: "#00f0ff",
-  magenta: "#ff006e",
-  amber: "#ffbe0b",
-  green: "#38b000",
-  text: "#e0e0e0",
+  ink: "#3A3327",
+  panel: "#FCFAF5",
+  cyan: "#C2410C", // accent terracotta
+  magenta: "#B0492B", // brick
+  amber: "#B07D2B", // ochre
+  green: "#5C7A5C", // salvia
+  text: "#3A3327",
 } as const;
 
 // ============================================================
@@ -27,51 +29,51 @@ export interface StatusMeta {
 export const LEAD_STATUS: Record<LeadStatus, StatusMeta> = {
   todo: {
     label: "Da contattare",
-    hex: "#5b7a8c",
-    badge: "border-slate-400/30 text-slate-300 bg-slate-400/10",
-    dot: "bg-slate-400",
+    hex: "#A89B85",
+    badge: "border-text2/30 text-text2 bg-text2/10",
+    dot: "bg-text2",
   },
   step1_sent: {
     label: "Step 1 inviato",
-    hex: "#00f0ff",
-    badge: "border-spectre-cyan/30 text-spectre-cyan bg-spectre-cyan/10",
+    hex: "#C2410C",
+    badge: "border-spectre-cyan/40 text-spectre-cyan bg-spectre-cyan/10",
     dot: "bg-spectre-cyan",
   },
   replied: {
     label: "Ha risposto",
-    hex: "#ffbe0b",
+    hex: "#B07D2B",
     badge: "border-spectre-amber/40 text-spectre-amber bg-spectre-amber/10",
     dot: "bg-spectre-amber",
   },
   step2_sent: {
     label: "Step 2 inviato",
-    hex: "#a855f7",
-    badge: "border-purple-400/40 text-purple-300 bg-purple-400/10",
-    dot: "bg-purple-400",
+    hex: "#A86A4E",
+    badge: "border-[#A86A4E]/45 text-[#A86A4E] bg-[#A86A4E]/12",
+    dot: "bg-[#A86A4E]",
   },
   preview_sent: {
     label: "Preview inviata",
-    hex: "#ff006e",
+    hex: "#B0492B",
     badge: "border-spectre-magenta/40 text-spectre-magenta bg-spectre-magenta/10",
     dot: "bg-spectre-magenta",
   },
   negotiating: {
     label: "Trattativa",
-    hex: "#ff6a00",
-    badge: "border-[#ff6a00]/40 text-[#ff8c42] bg-[#ff6a00]/10",
-    dot: "bg-[#ff6a00]",
+    hex: "#CD7F32",
+    badge: "border-[#CD7F32]/45 text-[#CD7F32] bg-[#CD7F32]/12",
+    dot: "bg-[#CD7F32]",
   },
   closed: {
     label: "Chiuso",
-    hex: "#38b000",
-    badge: "border-spectre-green/40 text-spectre-green bg-spectre-green/10",
+    hex: "#5C7A5C",
+    badge: "border-spectre-green/45 text-spectre-green bg-spectre-green/12",
     dot: "bg-spectre-green",
   },
   lost: {
     label: "Lost",
-    hex: "#52525b",
-    badge: "border-zinc-500/30 text-zinc-400 bg-zinc-500/10",
-    dot: "bg-zinc-500",
+    hex: "#8A8170",
+    badge: "border-text2/25 text-text2 bg-text2/10",
+    dot: "bg-text2",
   },
 };
 

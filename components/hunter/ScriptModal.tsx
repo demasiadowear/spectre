@@ -43,7 +43,7 @@ function Section({
 }) {
   return (
     <div
-      className="rounded-sm border border-white/10 bg-black/30 p-4"
+      className="rounded-sm border border-border bg-surface p-4"
       style={{ borderLeft: `2px solid ${accent}` }}
     >
       <p className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.25em] text-spectre-muted">
@@ -131,7 +131,7 @@ export default function ScriptModal({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-scrim/50 p-4 backdrop-blur-sm"
           onClick={onClose}
         >
           <motion.div
@@ -148,7 +148,7 @@ export default function ScriptModal({
               className="flex max-h-[88vh] flex-col overflow-hidden"
             >
               {/* Header */}
-              <div className="flex items-start justify-between border-b border-white/10 p-5">
+              <div className="flex items-start justify-between border-b border-border p-5">
                 <div className="min-w-0">
                   <p className="flex items-center gap-2 font-display text-base font-bold text-spectre-text">
                     <FileText className="h-4 w-4 text-spectre-cyan" strokeWidth={1.5} />
@@ -184,13 +184,13 @@ export default function ScriptModal({
 
                 {script && !loading && (
                   <div className="flex flex-col gap-3">
-                    <Section label="Apertura" accent="#00f0ff">
+                    <Section label="Apertura" accent="#C2410C">
                       <p className="text-sm leading-relaxed text-spectre-text">
                         {script.opening}
                       </p>
                     </Section>
 
-                    <Section label="Rapport & Pain Points" accent="#ff006e">
+                    <Section label="Rapport & Pain Points" accent="#B0492B">
                       <p className="text-sm leading-relaxed text-spectre-text">
                         {script.rapport}
                       </p>
@@ -207,25 +207,25 @@ export default function ScriptModal({
                       </ul>
                     </Section>
 
-                    <Section label="Soluzione AYROMEX" accent="#38b000">
+                    <Section label="Soluzione AYROMEX" accent="#5C7A5C">
                       <p className="text-sm leading-relaxed text-spectre-text">
                         {script.solution}
                       </p>
                     </Section>
 
-                    <Section label="Social Proof" accent="#ffbe0b">
+                    <Section label="Social Proof" accent="#B07D2B">
                       <p className="text-sm italic leading-relaxed text-spectre-muted">
                         {script.social_proof}
                       </p>
                     </Section>
 
-                    <Section label="Prezzo" accent="#00f0ff">
+                    <Section label="Prezzo" accent="#C2410C">
                       <p className="font-mono text-sm font-bold leading-relaxed text-spectre-cyan">
                         {script.price_anchor}
                       </p>
                     </Section>
 
-                    <Section label="Chiusura" accent="#ff006e">
+                    <Section label="Chiusura" accent="#B0492B">
                       <p className="text-sm leading-relaxed text-spectre-text">
                         {script.closing}
                       </p>
@@ -250,7 +250,7 @@ export default function ScriptModal({
               </div>
 
               {/* Footer actions */}
-              <div className="flex flex-wrap items-center gap-2 border-t border-white/10 p-4">
+              <div className="flex flex-wrap items-center gap-2 border-t border-border p-4">
                 <NeonButton
                   variant="cyan"
                   size="sm"

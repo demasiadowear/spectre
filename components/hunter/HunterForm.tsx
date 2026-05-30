@@ -17,7 +17,7 @@ interface HunterFormProps {
 const LABEL =
   "font-mono text-[10px] uppercase tracking-[0.25em] text-spectre-muted";
 const FIELD =
-  "w-full rounded-sm border border-spectre-cyan/20 bg-black/40 px-3 py-2.5 font-mono text-sm text-spectre-text outline-none transition focus:border-spectre-cyan/60 focus:shadow-neon-cyan";
+  "w-full rounded-sm border border-border bg-surface px-3 py-2.5 font-mono text-sm text-spectre-text outline-none transition focus:border-spectre-cyan/60 focus:shadow-neon-cyan";
 
 export default function HunterForm({
   onHunt,
@@ -126,7 +126,7 @@ export default function HunterForm({
         <button
           type="button"
           onClick={() => setOnlyNoWebsite((v) => !v)}
-          className="flex items-center justify-between rounded-sm border border-spectre-cyan/15 bg-black/30 px-3 py-2.5 transition hover:border-spectre-cyan/30"
+          className="flex items-center justify-between rounded-sm border border-border bg-surface px-3 py-2.5 transition hover:border-spectre-cyan/30"
         >
           <span className="flex items-center gap-2">
             <Globe className="h-4 w-4 text-spectre-muted" strokeWidth={1.5} />
@@ -136,7 +136,7 @@ export default function HunterForm({
           </span>
           <span
             className={`relative h-5 w-9 rounded-full transition-colors ${
-              onlyNoWebsite ? "bg-spectre-magenta/70" : "bg-white/10"
+              onlyNoWebsite ? "bg-spectre-magenta/70" : "bg-surface2"
             }`}
           >
             <span

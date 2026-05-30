@@ -25,7 +25,7 @@ export default function ModuleHeader({
 }: ModuleHeaderProps) {
   return (
     <div className="relative mb-6">
-      <span className="pointer-events-none absolute -top-6 right-0 select-none font-display text-[7rem] font-bold leading-none text-white opacity-[0.03]">
+      <span className="pointer-events-none absolute -top-6 right-0 select-none font-display text-[7rem] font-bold leading-none text-text opacity-[0.03]">
         {index}
       </span>
       <span

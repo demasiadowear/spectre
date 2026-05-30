@@ -64,9 +64,9 @@ export default function ForecastBoard({ initialLeads }: ForecastBoardProps) {
   const targetPct = target > 0 ? Math.min(100, Math.round((projected / target) * 100)) : 0;
 
   const scenarios = [
-    { label: "Pessimista", value: f.pessimista, hex: "#52525b", note: "solo deal molto probabili" },
-    { label: "Realista", value: f.realista, hex: "#00f0ff", note: "pipeline pesata per probabilità" },
-    { label: "Ottimista", value: f.ottimista, hex: "#38b000", note: "se spingi le chiusure" },
+    { label: "Pessimista", value: f.pessimista, hex: "#8A8170", note: "solo deal molto probabili" },
+    { label: "Realista", value: f.realista, hex: "#C2410C", note: "pipeline pesata per probabilità" },
+    { label: "Ottimista", value: f.ottimista, hex: "#5C7A5C", note: "se spingi le chiusure" },
   ];
   const maxScenario = Math.max(1, f.ottimista, target);
 
@@ -110,27 +110,27 @@ export default function ForecastBoard({ initialLeads }: ForecastBoardProps) {
       </div>
 
       {/* Target progress */}
-      <div className="rounded-sm border border-spectre-cyan/15 bg-black/40 p-4">
+      <div className="rounded-sm border border-border bg-surface p-4">
         <div className="mb-2 flex items-center justify-between font-mono text-[11px]">
           <span className="text-spectre-muted">
             {gap > 0 ? `Mancano ${formatCurrency(gap)} al target` : "🎉 Target raggiunto"}
           </span>
           <span className="text-spectre-text">{targetPct}%</span>
         </div>
-        <div className="h-2.5 w-full overflow-hidden rounded-full bg-white/5">
+        <div className="h-2.5 w-full overflow-hidden rounded-full bg-surface2">
           <div
             className="h-full rounded-full transition-all duration-700"
             style={{
               width: `${targetPct}%`,
-              backgroundColor: gap > 0 ? "#00f0ff" : "#38b000",
-              boxShadow: `0 0 8px ${gap > 0 ? "#00f0ff" : "#38b000"}`,
+              backgroundColor: gap > 0 ? "#C2410C" : "#5C7A5C",
+              boxShadow: `0 0 8px ${gap > 0 ? "#C2410C" : "#5C7A5C"}`,
             }}
           />
         </div>
       </div>
 
       {/* Scenarios */}
-      <div className="rounded-sm border border-spectre-cyan/15 bg-black/40 p-4">
+      <div className="rounded-sm border border-border bg-surface p-4">
         <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.25em] text-spectre-muted">
           Scenari di chiusura pipeline
         </p>
@@ -143,7 +143,7 @@ export default function ForecastBoard({ initialLeads }: ForecastBoardProps) {
                   {formatCurrency(s.value)}
                 </span>
               </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-white/5">
+              <div className="h-2 w-full overflow-hidden rounded-full bg-surface2">
                 <div
                   className="h-full rounded-full transition-all duration-700"
                   style={{
@@ -160,7 +160,7 @@ export default function ForecastBoard({ initialLeads }: ForecastBoardProps) {
       </div>
 
       {/* Pipeline by stage */}
-      <div className="rounded-sm border border-spectre-cyan/15 bg-black/40 p-4">
+      <div className="rounded-sm border border-border bg-surface p-4">
         <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.25em] text-spectre-muted">
           Pipeline per stadio
         </p>

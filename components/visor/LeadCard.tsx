@@ -55,7 +55,7 @@ export default function LeadCard({
           }
         }}
         className={cn(
-          "cursor-pointer rounded-sm border border-spectre-cyan/15 bg-black/50 p-2.5 backdrop-blur-sm transition-colors hover:border-spectre-cyan/40",
+          "cursor-pointer rounded-sm border border-border bg-surface p-2.5 backdrop-blur-sm transition-colors hover:border-spectre-cyan/40",
           dragging && "border-spectre-cyan/60 opacity-40",
         )}
       >

@@ -52,7 +52,7 @@ export default function VoiceCommandsModal({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-scrim/50 p-4 backdrop-blur-sm"
         >
           <motion.div
             initial={{ opacity: 0, y: 20, scale: 0.98 }}
@@ -63,7 +63,7 @@ export default function VoiceCommandsModal({
             className="w-full max-w-md"
           >
             <GlassCard corners glow="cyan" className="max-h-[80vh] overflow-hidden">
-              <div className="flex items-center justify-between border-b border-white/10 p-4">
+              <div className="flex items-center justify-between border-b border-border p-4">
                 <p className="flex items-center gap-2 font-display text-sm font-bold tracking-[0.15em] text-spectre-text">
                   <Mic className="h-4 w-4 text-spectre-cyan" strokeWidth={1.5} />
                   COMANDI VOCALI SPECTRE

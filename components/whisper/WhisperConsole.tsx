@@ -121,7 +121,7 @@ const TONE_META: Record<
   irritato: { label: "🔥 Irritato", cls: "border-spectre-magenta/40 text-spectre-magenta bg-spectre-magenta/10" },
   esitante: { label: "😐 Esitante", cls: "border-spectre-amber/40 text-spectre-amber bg-spectre-amber/10" },
   entusiasta: { label: "🚀 Entusiasta", cls: "border-spectre-green/40 text-spectre-green bg-spectre-green/10" },
-  neutro: { label: "• Neutro", cls: "border-white/20 text-spectre-muted bg-white/5" },
+  neutro: { label: "• Neutro", cls: "border-border text-spectre-muted bg-surface2" },
 };
 
 function nowStamp(): string {
@@ -574,7 +574,7 @@ export default function WhisperConsole() {
               <select
                 onChange={(e) => pickLead(e.target.value)}
                 defaultValue=""
-                className="w-full rounded-sm border border-spectre-magenta/20 bg-black/50 px-2.5 py-2 font-mono text-xs text-spectre-text focus:border-spectre-magenta/50 focus:outline-none"
+                className="w-full rounded-sm border border-spectre-magenta/20 bg-surface px-2.5 py-2 font-mono text-xs text-spectre-text focus:border-spectre-magenta/50 focus:outline-none"
               >
                 <option value="" className="bg-spectre-panel">
                   — scegli un lead —
@@ -593,13 +593,13 @@ export default function WhisperConsole() {
               value={leadName}
               onChange={(e) => setLeadName(e.target.value)}
               placeholder="Contatto"
-              className="w-full rounded-sm border border-spectre-magenta/20 bg-black/50 px-2.5 py-2 font-mono text-xs text-spectre-text placeholder:text-spectre-muted/40 focus:border-spectre-magenta/50 focus:outline-none"
+              className="w-full rounded-sm border border-spectre-magenta/20 bg-surface px-2.5 py-2 font-mono text-xs text-spectre-text placeholder:text-spectre-muted/40 focus:border-spectre-magenta/50 focus:outline-none"
             />
             <input
               value={company}
               onChange={(e) => setCompany(e.target.value)}
               placeholder="Azienda"
-              className="w-full rounded-sm border border-spectre-magenta/20 bg-black/50 px-2.5 py-2 font-mono text-xs text-spectre-text placeholder:text-spectre-muted/40 focus:border-spectre-magenta/50 focus:outline-none"
+              className="w-full rounded-sm border border-spectre-magenta/20 bg-surface px-2.5 py-2 font-mono text-xs text-spectre-text placeholder:text-spectre-muted/40 focus:border-spectre-magenta/50 focus:outline-none"
             />
           </div>
 
@@ -611,7 +611,7 @@ export default function WhisperConsole() {
                 <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-spectre-muted">
                   Sto sentendo:
                 </span>
-                <div className="flex overflow-hidden rounded-sm border border-white/15">
+                <div className="flex overflow-hidden rounded-sm border border-border">
                   {(["cliente", "tu"] as const).map((s) => (
                     <button
                       key={s}
@@ -665,7 +665,7 @@ export default function WhisperConsole() {
           )}
 
           {leadId && (
-            <div className="mt-3 border-t border-white/10 pt-3">
+            <div className="mt-3 border-t border-border pt-3">
               <NeonButton
                 variant="green"
                 size="sm"
@@ -698,7 +698,7 @@ export default function WhisperConsole() {
           </div>
 
           {whisper?.client_tone && (
-            <div className="mb-3 flex flex-col gap-1.5 rounded-sm border border-white/10 bg-black/30 p-2.5">
+            <div className="mb-3 flex flex-col gap-1.5 rounded-sm border border-border bg-surface p-2.5">
               <div className="flex items-center gap-2">
                 <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-spectre-muted">
                   Tono cliente
@@ -727,13 +727,13 @@ export default function WhisperConsole() {
                   <span>Confidenza</span>
                   <span className="text-spectre-text">{confidencePct}%</span>
                 </div>
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/5">
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface2">
                   <motion.div
                     className="h-full rounded-full bg-spectre-magenta"
                     initial={{ width: 0 }}
                     animate={{ width: `${confidencePct}%` }}
                     transition={{ duration: 0.5, ease: "easeOut" }}
-                    style={{ boxShadow: "0 0 8px #ff006e" }}
+                    style={{ boxShadow: "0 0 8px #B0492B" }}
                   />
                 </div>
               </div>
@@ -768,7 +768,7 @@ export default function WhisperConsole() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.25, delay: i * 0.06 }}
-                    className={`group relative w-full rounded-md border ${meta.border} bg-black/40 p-3.5 text-left backdrop-blur-xl transition-all hover:bg-white/[0.04]`}
+                    className={`group relative w-full rounded-md border ${meta.border} bg-surface p-3.5 text-left backdrop-blur-xl transition-all hover:bg-surface2`}
                   >
                     <div className="mb-2 flex items-center justify-between">
                       <span className={`font-mono text-[10px] uppercase tracking-[0.25em] ${meta.text}`}>
@@ -862,8 +862,8 @@ export default function WhisperConsole() {
                   <div
                     className={`max-w-[82%] rounded-md border px-3 py-2 ${
                       line.speaker === "cliente"
-                        ? "border-spectre-cyan/25 bg-spectre-cyan/[0.04]"
-                        : "border-white/10 bg-white/[0.03]"
+                        ? "border-border bg-spectre-cyan/[0.04]"
+                        : "border-border bg-surface2"
                     }`}
                   >
                     <div className="mb-0.5 flex items-center gap-2">
@@ -894,7 +894,7 @@ export default function WhisperConsole() {
           {/* Interim (live, not yet finalized) */}
           {interim && (
             <div className="flex justify-start">
-              <div className="max-w-[82%] rounded-md border border-dashed border-spectre-magenta/30 bg-black/30 px-3 py-2">
+              <div className="max-w-[82%] rounded-md border border-dashed border-spectre-magenta/30 bg-surface px-3 py-2">
                 <p className="text-sm italic leading-snug text-spectre-muted">{interim}…</p>
               </div>
             </div>

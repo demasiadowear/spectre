@@ -152,7 +152,7 @@ export default function HunterResults({
                 <span className="text-spectre-muted">({lead.reviews})</span>
               </span>
               {lead.has_website ? (
-                <span className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.15em] text-spectre-muted">
+                <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.15em] text-spectre-muted">
                   <Globe className="h-3 w-3" strokeWidth={1.5} /> Ha sito
                 </span>
               ) : (

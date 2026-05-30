@@ -78,11 +78,11 @@ export default function TerritoryMap({ initialLeads }: TerritoryMapProps) {
 
   return (
     <>
-      <div className="relative overflow-hidden rounded-sm border border-spectre-cyan/15">
+      <div className="relative overflow-hidden rounded-sm border border-border">
         <div ref={containerRef} className="h-[68vh] min-h-[360px] w-full bg-spectre-ink" />
 
         {/* Legend */}
-        <div className="pointer-events-none absolute bottom-3 left-3 z-[500] flex flex-col gap-1 rounded-sm border border-white/10 bg-black/70 p-2 backdrop-blur">
+        <div className="pointer-events-none absolute bottom-3 left-3 z-[500] flex flex-col gap-1 rounded-sm border border-border bg-scrim/60 p-2 backdrop-blur">
           {PIPELINE_ORDER.map((s) => (
             <span key={s} className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.1em] text-spectre-muted">
               <span className="h-2 w-2 rounded-full" style={{ backgroundColor: LEAD_STATUS[s].hex }} />

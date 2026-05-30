@@ -54,7 +54,7 @@ export default function HeatmapList({ leads }: HeatmapListProps) {
                     {formatCurrency(lead.value)}
                   </span>
                 </div>
-                <div className="h-1.5 w-full overflow-hidden rounded-sm bg-white/5">
+                <div className="h-1.5 w-full overflow-hidden rounded-sm bg-surface2">
                   <div
                     className={cn("h-full rounded-sm transition-all duration-500")}
                     style={{ width: `${pct}%`, backgroundColor: color, boxShadow: `0 0 8px ${color}` }}

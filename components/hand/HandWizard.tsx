@@ -35,7 +35,7 @@ const BUNDLES = [
 type BundleKey = (typeof BUNDLES)[number]["key"];
 
 const inputClass =
-  "w-full rounded-sm border border-spectre-cyan/20 bg-black/50 px-3 py-2 font-mono text-sm text-spectre-text placeholder:text-spectre-muted/40 focus:border-spectre-cyan/50 focus:outline-none focus:ring-1 focus:ring-spectre-cyan/40";
+  "w-full rounded-sm border border-border bg-surface px-3 py-2 font-mono text-sm text-spectre-text placeholder:text-spectre-muted/40 focus:border-spectre-cyan/50 focus:outline-none focus:ring-1 focus:ring-spectre-cyan/40";
 const labelClass =
   "mb-1 block font-mono text-[10px] uppercase tracking-[0.2em] text-spectre-muted";
 
@@ -240,7 +240,7 @@ export default function HandWizard({ leads }: HandWizardProps) {
                   done && "border-spectre-green/50 text-spectre-green",
                   !active &&
                     !done &&
-                    "border-spectre-cyan/20 text-spectre-muted",
+                    "border-border text-spectre-muted",
                 )}
               >
                 {done ? <Check className="h-3 w-3" /> : n}
@@ -291,7 +291,7 @@ export default function HandWizard({ leads }: HandWizardProps) {
                   />
                 </div>
                 {showSuggestions && suggestions.length > 0 && (
-                  <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-sm border border-spectre-cyan/25 bg-spectre-panel/95 backdrop-blur-xl">
+                  <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-sm border border-border bg-spectre-panel/95 backdrop-blur-xl">
                     {suggestions.map((lead) => (
                       <li key={lead.id}>
                         <button
@@ -405,7 +405,7 @@ export default function HandWizard({ leads }: HandWizardProps) {
                         "rounded-sm border px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider transition-all",
                         tone === t
                           ? "border-spectre-cyan bg-spectre-cyan/10 text-spectre-cyan shadow-neon-cyan"
-                          : "border-spectre-cyan/20 text-spectre-muted hover:border-spectre-cyan/40",
+                          : "border-border text-spectre-muted hover:border-spectre-cyan/40",
                       )}
                     >
                       {t}
@@ -428,7 +428,7 @@ export default function HandWizard({ leads }: HandWizardProps) {
                         "rounded-sm border px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider transition-all",
                         bundles[key]
                           ? "border-spectre-magenta bg-spectre-magenta/10 text-spectre-magenta shadow-neon-magenta"
-                          : "border-spectre-cyan/20 text-spectre-muted hover:border-spectre-cyan/40",
+                          : "border-border text-spectre-muted hover:border-spectre-cyan/40",
                       )}
                     >
                       {label}
@@ -487,14 +487,14 @@ export default function HandWizard({ leads }: HandWizardProps) {
                           "flex-1 rounded-sm border px-3 py-2 font-mono text-[11px] uppercase tracking-wider transition-all",
                           activeTier === tier.name
                             ? "border-spectre-amber bg-spectre-amber/10 text-spectre-amber shadow-neon-amber"
-                            : "border-spectre-cyan/20 text-spectre-muted hover:border-spectre-cyan/40",
+                            : "border-border text-spectre-muted hover:border-spectre-cyan/40",
                         )}
                       >
                         {tier.name}
                       </button>
                     ))}
                   </div>
-                  <div className="mt-3 rounded-sm border border-spectre-amber/20 bg-black/30 p-4">
+                  <div className="mt-3 rounded-sm border border-spectre-amber/20 bg-surface p-4">
                     <p className="font-mono text-2xl font-bold text-spectre-amber">
                       {formatCurrency(activeTierData.price)}
                     </p>
@@ -517,7 +517,7 @@ export default function HandWizard({ leads }: HandWizardProps) {
                   <h3 className="mb-1 font-mono text-[11px] uppercase tracking-[0.2em] text-spectre-cyan">
                     Script follow-up
                   </h3>
-                  <p className="rounded-sm border border-spectre-cyan/15 bg-black/40 p-3 font-mono text-xs leading-relaxed text-spectre-text/80">
+                  <p className="rounded-sm border border-border bg-surface p-3 font-mono text-xs leading-relaxed text-spectre-text/80">
                     {proposal.followup_script}
                   </p>
                 </div>

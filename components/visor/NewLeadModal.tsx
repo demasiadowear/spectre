@@ -37,7 +37,7 @@ const PUGLIA_CITIES = [
 ];
 
 const inputClass =
-  "w-full rounded-sm border border-spectre-cyan/20 bg-black/50 px-3 py-2 font-mono text-sm text-spectre-text placeholder:text-spectre-muted/40 focus:border-spectre-cyan/50 focus:outline-none focus:ring-1 focus:ring-spectre-cyan/40";
+  "w-full rounded-sm border border-border bg-surface px-3 py-2 font-mono text-sm text-spectre-text placeholder:text-spectre-muted/40 focus:border-spectre-cyan/50 focus:outline-none focus:ring-1 focus:ring-spectre-cyan/40";
 const labelClass =
   "mb-1 block font-mono text-[10px] uppercase tracking-[0.2em] text-spectre-muted";
 
@@ -168,7 +168,7 @@ export default function NewLeadModal({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/60 p-4 backdrop-blur-sm"
           onClick={close}
         >
           <motion.div
@@ -177,7 +177,7 @@ export default function NewLeadModal({
             exit={{ opacity: 0, y: 20, scale: 0.98 }}
             transition={{ duration: 0.2 }}
             onClick={(e) => e.stopPropagation()}
-            className="relative max-h-[90vh] w-full max-w-md overflow-y-auto rounded-sm border border-spectre-cyan/25 bg-spectre-panel/95 p-5 shadow-glass sm:p-6"
+            className="relative max-h-[90vh] w-full max-w-md overflow-y-auto rounded-sm border border-border bg-spectre-panel/95 p-5 shadow-glass sm:p-6"
           >
             <button
               type="button"

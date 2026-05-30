@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { Space_Grotesk, JetBrains_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import DevModeBanner from "@/components/layout/DevModeBanner";
@@ -32,16 +33,14 @@ export const metadata: Metadata = {
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  // Theme persisted in a cookie (default LIGHT) → set server-side, no flash.
+  const theme =
+    cookies().get("theme")?.value === "dark" ? "dark" : "light";
   return (
-    <html lang="it">
+    <html lang="it" data-theme={theme}>
       <body
         className={`${display.variable} ${mono.variable} ${ui.variable} font-ui antialiased`}
       >
-        {/* Ambient HUD layers — present on every screen, login included. */}
-        <div className="spectre-grid" aria-hidden />
-        <div className="spectre-scanbeam" aria-hidden />
-        <div className="spectre-scanlines" aria-hidden />
-
         <DevModeBanner />
         {children}
       </body>

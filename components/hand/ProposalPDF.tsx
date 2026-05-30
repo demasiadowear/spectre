@@ -13,10 +13,10 @@ import type { ProposalContent } from "@/types";
 // palette (ink text, cyan/magenta accents) on a light page.
 
 const C = {
-  ink: "#050505",
-  cyan: "#0091a8",
-  magenta: "#ff006e",
-  muted: "#5b6470",
+  ink: "#3A3327",
+  cyan: "#9A3412",
+  magenta: "#B0492B",
+  muted: "#8C7B63",
   line: "#d8dde3",
 };
 

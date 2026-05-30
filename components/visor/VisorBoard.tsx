@@ -242,7 +242,7 @@ export default function VisorBoard({ initialLeads }: VisorBoardProps) {
         <NeonButton variant="ghost" size="sm" onClick={exportCsv}>
           <Download className="h-3.5 w-3.5" /> CSV
         </NeonButton>
-        <div className="ml-auto flex overflow-hidden rounded-sm border border-spectre-cyan/20">
+        <div className="ml-auto flex overflow-hidden rounded-sm border border-border">
           <button
             type="button"
             onClick={() => setView("list")}
@@ -281,7 +281,7 @@ export default function VisorBoard({ initialLeads }: VisorBoardProps) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Cerca lead…"
-            className="w-full rounded-sm border border-spectre-cyan/20 bg-black/50 py-2 pl-8 pr-3 font-mono text-xs text-spectre-text placeholder:text-spectre-muted/40 focus:border-spectre-cyan/50 focus:outline-none"
+            className="w-full rounded-sm border border-border bg-surface py-2 pl-8 pr-3 font-mono text-xs text-spectre-text placeholder:text-spectre-muted/40 focus:border-spectre-cyan/50 focus:outline-none"
           />
         </div>
       </div>
@@ -295,7 +295,7 @@ export default function VisorBoard({ initialLeads }: VisorBoardProps) {
               "shrink-0 rounded-sm border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.1em] transition-colors",
               filter === c.key
                 ? "border-spectre-cyan/60 bg-spectre-cyan/15 text-spectre-cyan"
-                : "border-white/10 text-spectre-muted hover:border-spectre-cyan/30",
+                : "border-border text-spectre-muted hover:border-spectre-cyan/30",
             )}
           >
             {c.label} · {c.count}
@@ -381,8 +381,8 @@ function LeadRow({ lead, onClick }: { lead: Lead; onClick: () => void }) {
       type="button"
       onClick={onClick}
       className={cn(
-        "w-full rounded-sm border bg-black/40 p-3 text-left transition-colors hover:border-spectre-cyan/40",
-        stale ? "border-spectre-magenta/40" : "border-spectre-cyan/15",
+        "w-full rounded-sm border bg-surface p-3 text-left transition-colors hover:border-accent/40",
+        stale ? "border-border border-l-[3px] border-l-accent" : "border-border",
       )}
     >
       <div className="flex items-start justify-between gap-2">

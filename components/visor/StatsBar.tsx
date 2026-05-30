@@ -56,7 +56,7 @@ export default function StatsBar({ leads }: StatsBarProps) {
           className={`rounded-sm border p-3 ${
             c.highlight
               ? "border-spectre-green/40 bg-spectre-green/5"
-              : "border-spectre-cyan/15 bg-black/40"
+              : "border-border bg-surface"
           }`}
         >
           <p className="font-mono text-[9px] uppercase tracking-[0.15em] text-spectre-muted">

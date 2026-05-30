@@ -5,6 +5,7 @@ import { Activity, Radio, Wallet } from "lucide-react";
 import { useHudStore } from "@/lib/store";
 import { formatCurrency } from "@/lib/utils";
 import VoiceInterface from "@/components/voice/VoiceInterface";
+import ThemeToggle from "@/components/layout/ThemeToggle";
 import type { ApiResponse, Lead } from "@/types";
 
 /** Top HUD bar: live clock, system status, active-lead + open-value counters. */
@@ -55,7 +56,7 @@ export default function HUDHeader() {
     : "—";
 
   return (
-    <header className="sticky top-0 z-40 flex h-12 items-center justify-between gap-2 border-b border-spectre-cyan/15 bg-black/50 px-3 backdrop-blur-xl sm:px-5">
+    <header className="sticky top-0 z-40 flex h-12 items-center justify-between gap-2 border-b border-border bg-surface px-3 backdrop-blur-xl sm:px-5">
       <div className="flex min-w-0 items-center gap-2 sm:gap-3">
         <span className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.25em] text-spectre-green">
           <Radio className="h-3 w-3 animate-pulse" />
@@ -79,7 +80,8 @@ export default function HUDHeader() {
           <span className="hidden sm:inline"> lead attivi</span>
         </span>
 
-        <span className="hidden h-4 w-px bg-spectre-cyan/20 sm:block" />
+        <span className="hidden h-4 w-px bg-border sm:block" />
+        <ThemeToggle />
         <VoiceInterface />
 
         <span className="hidden font-mono text-sm tabular-nums tracking-widest text-spectre-text text-glow-cyan sm:inline">

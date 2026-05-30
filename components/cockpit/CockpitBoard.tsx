@@ -81,7 +81,7 @@ export default function CockpitBoard({ initialLeads }: CockpitBoardProps) {
             {todoToday}
           </p>
         </div>
-        <div className="rounded-sm border border-spectre-cyan/15 bg-black/40 p-3">
+        <div className="rounded-sm border border-border bg-surface p-3">
           <p className="font-mono text-[9px] uppercase tracking-[0.15em] text-spectre-muted">
             Lead aperti
           </p>
@@ -89,7 +89,7 @@ export default function CockpitBoard({ initialLeads }: CockpitBoardProps) {
             {openLeads.length}
           </p>
         </div>
-        <div className="rounded-sm border border-spectre-cyan/15 bg-black/40 p-3">
+        <div className="rounded-sm border border-border bg-surface p-3">
           <p className="font-mono text-[9px] uppercase tracking-[0.15em] text-spectre-muted">
             Pipeline
           </p>
@@ -166,8 +166,8 @@ function ActionRow({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex w-full items-center gap-3 rounded-sm border bg-black/40 p-3 text-left transition-colors hover:border-spectre-cyan/40",
-        urgent ? "border-spectre-magenta/40" : "border-spectre-cyan/15",
+        "flex w-full items-center gap-3 rounded-sm border bg-surface p-3 text-left transition-colors hover:border-accent/40",
+        urgent ? "border-border border-l-[3px] border-l-accent" : "border-border",
       )}
     >
       {urgent && <AlertTriangle className="h-4 w-4 shrink-0 text-spectre-magenta" />}

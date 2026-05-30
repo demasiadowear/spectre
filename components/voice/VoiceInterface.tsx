@@ -12,29 +12,29 @@ const STATUS_META: Record<
   VoiceStatus,
   { label: string; color: string; ring: string }
 > = {
-  idle: { label: "VOCE", color: "#00f0ff", ring: "border-spectre-cyan/30" },
+  idle: { label: "VOCE", color: "#C2410C", ring: "border-spectre-cyan/30" },
   listening: {
     label: "IN ASCOLTO",
-    color: "#ff006e",
+    color: "#B0492B",
     ring: "border-spectre-magenta/70 shadow-neon-magenta",
   },
   processing: {
     label: "ANALISI",
-    color: "#ffbe0b",
+    color: "#B07D2B",
     ring: "border-spectre-amber/60 shadow-neon-amber",
   },
   speaking: {
     label: "SPECTRE",
-    color: "#00f0ff",
+    color: "#C2410C",
     ring: "border-spectre-cyan/70 shadow-neon-cyan",
   },
-  muted: { label: "MUTO", color: "#6b7280", ring: "border-white/15" },
+  muted: { label: "MUTO", color: "#8C7B63", ring: "border-border" },
 };
 
 function Waveform({ status }: { status: VoiceStatus }) {
   const active =
     status === "listening" || status === "speaking" || status === "processing";
-  const color = status === "processing" ? "#ffbe0b" : "#00f0ff";
+  const color = status === "processing" ? "#B07D2B" : "#C2410C";
   const bars = [10, 18, 8, 22, 12, 16, 6];
   return (
     <div className="flex h-5 items-center gap-[2px]">
@@ -141,7 +141,7 @@ export default function VoiceInterface() {
           onKeyDown={onFallbackKey}
           placeholder="comando…"
           aria-label="Comando vocale testuale"
-          className="h-7 w-28 rounded-sm border border-spectre-cyan/20 bg-black/40 px-2 font-mono text-[11px] text-spectre-text outline-none focus:border-spectre-cyan/50"
+          className="h-7 w-28 rounded-sm border border-border bg-surface px-2 font-mono text-[11px] text-spectre-text outline-none focus:border-spectre-cyan/50"
         />
         <MicOff className="h-4 w-4 text-spectre-muted" strokeWidth={1.5} />
       </div>
@@ -167,7 +167,7 @@ export default function VoiceInterface() {
           onPointerUp={onPointerUp}
           onPointerLeave={clearPress}
           aria-label="Comandi vocali"
-          className={`flex h-9 w-9 items-center justify-center rounded-sm border bg-black/40 transition-all duration-200 ${meta.ring} ${
+          className={`flex h-9 w-9 items-center justify-center rounded-sm border bg-surface transition-all duration-200 ${meta.ring} ${
             voice.status === "listening" ? "animate-pulse" : ""
           }`}
         >
@@ -183,7 +183,7 @@ export default function VoiceInterface() {
         </button>
 
         {/* Hover tooltip */}
-        <span className="pointer-events-none absolute right-0 top-11 z-50 whitespace-nowrap rounded-sm border border-spectre-cyan/20 bg-black/90 px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-spectre-text opacity-0 backdrop-blur transition-opacity duration-150 group-hover:opacity-100">
+        <span className="pointer-events-none absolute right-0 top-11 z-50 whitespace-nowrap rounded-sm border border-border bg-scrim/80 px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-spectre-text opacity-0 backdrop-blur transition-opacity duration-150 group-hover:opacity-100">
           {voice.status === "idle"
             ? "Attiva voce · tieni premuto per i comandi"
             : "Click per silenziare"}
@@ -191,7 +191,7 @@ export default function VoiceInterface() {
 
         {/* Live interim transcript */}
         {voice.status === "listening" && voice.interimTranscript && (
-          <span className="pointer-events-none absolute right-0 top-11 z-40 max-w-[200px] truncate rounded-sm border border-spectre-magenta/20 bg-black/90 px-2 py-1 font-mono text-[10px] text-spectre-magenta backdrop-blur">
+          <span className="pointer-events-none absolute right-0 top-11 z-40 max-w-[200px] truncate rounded-sm border border-spectre-magenta/20 bg-scrim/80 px-2 py-1 font-mono text-[10px] text-spectre-magenta backdrop-blur">
             {voice.interimTranscript}
           </span>
         )}

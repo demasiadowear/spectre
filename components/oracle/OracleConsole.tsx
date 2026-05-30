@@ -60,7 +60,7 @@ function clampPrice(v: number): number {
 }
 
 const inputClass =
-  "w-full rounded-sm border border-spectre-amber/20 bg-black/50 px-3 py-2 font-mono text-sm text-spectre-text focus:border-spectre-amber/50 focus:outline-none";
+  "w-full rounded-sm border border-spectre-amber/20 bg-surface px-3 py-2 font-mono text-sm text-spectre-text focus:border-spectre-amber/50 focus:outline-none";
 const labelClass =
   "mb-1.5 block font-mono text-[10px] uppercase tracking-[0.2em] text-spectre-muted";
 
@@ -232,7 +232,7 @@ export default function OracleConsole({ leads }: OracleConsoleProps) {
                 value={price}
                 onChange={(e) => setPrice(Number(e.target.value))}
                 onBlur={() => setPrice((p) => clampPrice(p))}
-                className="w-24 rounded-sm border border-spectre-amber/30 bg-black/50 px-2 py-1 text-right font-mono text-sm font-bold text-spectre-amber focus:border-spectre-amber/60 focus:outline-none"
+                className="w-24 rounded-sm border border-spectre-amber/30 bg-surface px-2 py-1 text-right font-mono text-sm font-bold text-spectre-amber focus:border-spectre-amber/60 focus:outline-none"
               />
             </div>
           </div>
@@ -244,7 +244,7 @@ export default function OracleConsole({ leads }: OracleConsoleProps) {
             value={Math.min(price, 5000)}
             onChange={(e) => setPrice(Number(e.target.value))}
             className="w-full cursor-pointer accent-spectre-amber"
-            style={{ accentColor: "#ffbe0b" }}
+            style={{ accentColor: "#B07D2B" }}
           />
           <div className="mt-2 flex flex-wrap gap-1.5">
             {[750, 990, 1200, 1500, 2500].map((p) => (
@@ -280,7 +280,7 @@ export default function OracleConsole({ leads }: OracleConsoleProps) {
             value={days}
             onChange={(e) => setDays(Number(e.target.value))}
             className="w-full cursor-pointer"
-            style={{ accentColor: "#00f0ff" }}
+            style={{ accentColor: "#C2410C" }}
           />
           <div className="mt-1 flex justify-between font-mono text-[9px] text-spectre-muted/60">
             <span>Oggi</span>
@@ -413,7 +413,7 @@ export default function OracleConsole({ leads }: OracleConsoleProps) {
                           )}
                         </span>
                       </div>
-                      <div className="h-2 w-full overflow-hidden rounded-full bg-white/5">
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-surface2">
                         <motion.div
                           className="h-full rounded-full"
                           initial={{ width: 0 }}
@@ -429,7 +429,7 @@ export default function OracleConsole({ leads }: OracleConsoleProps) {
 
               {/* Insight + recommendation */}
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-md border border-spectre-cyan/20 bg-spectre-cyan/[0.03] p-4">
+                <div className="rounded-md border border-border bg-spectre-cyan/[0.03] p-4">
                   <div className="mb-2 flex items-center gap-2">
                     <Activity className="h-3.5 w-3.5 text-spectre-cyan" />
                     <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-spectre-cyan">

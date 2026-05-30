@@ -9,7 +9,7 @@ import NeonButton from "@/components/ui/spectre/NeonButton";
 import PulseRing from "@/components/ui/spectre/PulseRing";
 
 const INPUT =
-  "w-full rounded-sm border border-spectre-cyan/20 bg-black/40 px-3 py-2.5 font-mono text-sm text-spectre-text placeholder:text-spectre-muted/50 outline-none transition focus:border-spectre-cyan/60 focus:shadow-neon-cyan";
+  "w-full rounded-sm border border-border bg-surface px-3 py-2.5 font-mono text-sm text-spectre-text placeholder:text-spectre-muted/50 outline-none transition focus:border-spectre-cyan/60 focus:shadow-neon-cyan";
 
 export default function LoginForm() {
   const router = useRouter();
