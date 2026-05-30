@@ -44,3 +44,5 @@ next-env.d.ts
 # generated artifacts
 dev-server.log
 leads-*.csv
+
+ayrobackup-leads-*.json
