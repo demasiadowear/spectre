@@ -35,10 +35,10 @@ export default function HunterForm({
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!location.trim() || loading) return;
+    if (!location.trim() || !category.trim() || loading) return;
     onHunt({
       location: location.trim(),
-      category,
+      category: category.trim(),
       radius,
       min_rating: minRating,
       only_no_website: onlyNoWebsite,
@@ -63,18 +63,23 @@ export default function HunterForm({
           </label>
 
           <label className="flex flex-col gap-1.5">
-            <span className={LABEL}>Categoria</span>
-            <select
+            <span className={LABEL}>Categoria attività</span>
+            <input
+              type="text"
+              list="hunter-categories"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className={`${FIELD} cursor-pointer`}
-            >
+              placeholder="ristoranti, fioraio, officina, palestra…"
+              className={FIELD}
+              required
+            />
+            <datalist id="hunter-categories">
               {HUNTER_CATEGORIES.map((c) => (
-                <option key={c.value} value={c.value} className="bg-spectre-panel">
+                <option key={c.value} value={c.value}>
                   {c.label}
                 </option>
               ))}
-            </select>
+            </datalist>
           </label>
         </div>
 

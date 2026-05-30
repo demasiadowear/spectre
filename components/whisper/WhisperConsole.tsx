@@ -18,6 +18,7 @@ import {
   Play,
   Radio,
   RotateCcw,
+  Save,
 } from "lucide-react";
 import GlassCard from "@/components/ui/spectre/GlassCard";
 import NeonButton from "@/components/ui/spectre/NeonButton";
@@ -132,8 +133,11 @@ export default function WhisperConsole() {
   const [supported, setSupported] = useState(false);
 
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [leadId, setLeadId] = useState("");
   const [leadName, setLeadName] = useState("");
   const [company, setCompany] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
   const [listening, setListening] = useState(false);
   const [interim, setInterim] = useState("");
@@ -446,12 +450,71 @@ export default function WhisperConsole() {
   }, []);
 
   const pickLead = (id: string) => {
+    setLeadId(id);
+    setSavedMsg(null);
     const l = leads.find((x) => x.id === id);
     if (l) {
       setLeadName(l.name);
       setCompany(l.company);
     }
   };
+
+  function toneToSentiment(t?: WhisperResponse["client_tone"]): string {
+    if (t === "irritato" || t === "freddo" || t === "scettico") return "negative";
+    if (t === "interessato" || t === "entusiasta") return "positive";
+    return "neutral";
+  }
+
+  // Save what Whisper understood (tone + objection + next move) into the
+  // lead's card: an interaction record + a visible promemoria in its notes.
+  async function saveToLead() {
+    if (!leadId || saving) return;
+    const lead = leads.find((l) => l.id === leadId);
+    if (!lead) return;
+    setSaving(true);
+    setSavedMsg(null);
+    const w = whisper;
+    const toneLabel = w?.client_tone ? TONE_META[w.client_tone].label : "—";
+    const obj = w?.detected_objection ? OBJECTION_LABEL[w.detected_objection] : "nessuna";
+    const next = w?.responses?.[0]?.text ?? w?.tone_note ?? "";
+    const date = new Date().toLocaleString("it-IT", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    const summary =
+      `📞 Whisper ${date} · Tono: ${toneLabel} · Obiezione: ${obj}` +
+      (w?.tone_note ? `\n${w.tone_note}` : "") +
+      (next ? `\n→ Cosa rispondere: ${next}` : "");
+    try {
+      await fetch("/api/interactions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lead_id: leadId,
+          type: "call",
+          content: summary,
+          sentiment: toneToSentiment(w?.client_tone),
+          ai_summary: w?.tone_note ?? "",
+        }),
+      });
+      const newNotes = `${lead.notes ? lead.notes + "\n\n" : ""}${summary}`;
+      await fetch(`/api/leads/${leadId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: newNotes, last_contact: new Date().toISOString() }),
+      });
+      setLeads((prev) =>
+        prev.map((l) => (l.id === leadId ? { ...l, notes: newNotes } : l)),
+      );
+      setSavedMsg("Promemoria salvato nella scheda lead ✓");
+    } catch {
+      setSavedMsg("Errore nel salvataggio.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   const objection = whisper?.detected_objection ?? null;
   const confidencePct = whisper ? Math.round(whisper.confidence * 100) : 0;
@@ -598,6 +661,25 @@ export default function WhisperConsole() {
                 {running ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
                 {running ? "Pausa" : demoFinished ? "Replay" : "Avvia demo"}
               </NeonButton>
+            </div>
+          )}
+
+          {leadId && (
+            <div className="mt-3 border-t border-white/10 pt-3">
+              <NeonButton
+                variant="green"
+                size="sm"
+                onClick={saveToLead}
+                disabled={saving || (!whisper && feed.length === 0)}
+              >
+                <Save className="h-3.5 w-3.5" />
+                {saving ? "Salvataggio…" : "Salva nella scheda lead"}
+              </NeonButton>
+              {savedMsg && (
+                <p className="mt-1.5 font-mono text-[10px] text-spectre-green">
+                  {savedMsg}
+                </p>
+              )}
             </div>
           )}
         </GlassCard>

@@ -51,11 +51,12 @@ const URGENCY: Record<
   },
 };
 
-const PRICE_MIN = 500;
+const PRICE_MIN = 100;
 const PRICE_MAX = 50000;
 
-function snapPrice(v: number): number {
-  return clamp(Math.round(v / 500) * 500, PRICE_MIN, PRICE_MAX);
+/** Free price — clamp to range, no 500-step snapping (e.g. €750 is valid). */
+function clampPrice(v: number): number {
+  return clamp(Math.round(v) || PRICE_MIN, PRICE_MIN, PRICE_MAX);
 }
 
 const inputClass =
@@ -65,9 +66,7 @@ const labelClass =
 
 export default function OracleConsole({ leads }: OracleConsoleProps) {
   const [leadId, setLeadId] = useState(leads[0]?.id ?? "");
-  const [price, setPrice] = useState(
-    leads[0] ? snapPrice(leads[0].value) : 5000,
-  );
+  const [price, setPrice] = useState(leads[0]?.value || 1200);
   const [days, setDays] = useState(7);
   const [bundles, setBundles] = useState<Record<BundleKey, boolean>>({
     ayrohub: false,
@@ -94,7 +93,7 @@ export default function OracleConsole({ leads }: OracleConsoleProps) {
   const pickLead = (id: string) => {
     setLeadId(id);
     const lead = leads.find((l) => l.id === id);
-    if (lead) setPrice(snapPrice(lead.value));
+    if (lead) setPrice(lead.value || PRICE_MIN);
   };
 
   const toggleBundle = (key: BundleKey) =>
@@ -113,7 +112,7 @@ export default function OracleConsole({ leads }: OracleConsoleProps) {
           company: selectedLead?.company ?? "",
           value: selectedLead?.value ?? price,
           status: selectedLead?.status ?? "replied",
-          proposed_price: price,
+          proposed_price: clampPrice(price),
           days_to_followup: days,
           bundle_ayrohub: bundles.ayrohub,
           bundle_ayrodesk24: bundles.ayrodesk24,
@@ -150,7 +149,7 @@ export default function OracleConsole({ leads }: OracleConsoleProps) {
     );
     if (lead) {
       setLeadId(lead.id);
-      setPrice(snapPrice(lead.value));
+      setPrice(lead.value || PRICE_MIN);
       setAutoSim((n) => n + 1);
     }
   }, [pendingAction, consumeAction, leads]);
@@ -218,27 +217,50 @@ export default function OracleConsole({ leads }: OracleConsoleProps) {
           )}
         </div>
 
-        {/* Price slider */}
+        {/* Price — free numeric input + fine slider + quick chips */}
         <div>
-          <div className="mb-1.5 flex items-center justify-between">
+          <div className="mb-1.5 flex items-center justify-between gap-2">
             <span className={labelClass + " mb-0"}>Prezzo proposto</span>
-            <span className="font-mono text-sm font-bold text-spectre-amber">
-              {formatCurrency(price)}
-            </span>
+            <div className="flex items-center gap-1">
+              <span className="font-mono text-sm font-bold text-spectre-amber">€</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={PRICE_MIN}
+                max={PRICE_MAX}
+                step={10}
+                value={price}
+                onChange={(e) => setPrice(Number(e.target.value))}
+                onBlur={() => setPrice((p) => clampPrice(p))}
+                className="w-24 rounded-sm border border-spectre-amber/30 bg-black/50 px-2 py-1 text-right font-mono text-sm font-bold text-spectre-amber focus:border-spectre-amber/60 focus:outline-none"
+              />
+            </div>
           </div>
           <input
             type="range"
             min={PRICE_MIN}
-            max={PRICE_MAX}
-            step={500}
-            value={price}
+            max={5000}
+            step={50}
+            value={Math.min(price, 5000)}
             onChange={(e) => setPrice(Number(e.target.value))}
             className="w-full cursor-pointer accent-spectre-amber"
             style={{ accentColor: "#ffbe0b" }}
           />
-          <div className="mt-1 flex justify-between font-mono text-[9px] text-spectre-muted/60">
-            <span>{formatCurrency(PRICE_MIN)}</span>
-            <span>{formatCurrency(PRICE_MAX)}</span>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {[750, 990, 1200, 1500, 2500].map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setPrice(p)}
+                className={`rounded-sm border px-2 py-0.5 font-mono text-[10px] transition-colors ${
+                  price === p
+                    ? "border-spectre-amber bg-spectre-amber/15 text-spectre-amber"
+                    : "border-spectre-amber/20 text-spectre-muted hover:border-spectre-amber/40"
+                }`}
+              >
+                €{p}
+              </button>
+            ))}
           </div>
         </div>
 
