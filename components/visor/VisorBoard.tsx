@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useHudStore } from "@/lib/store";
 import { useVoiceStore } from "@/lib/voice/store";
 import { PIPELINE_ORDER } from "@/lib/constants";
+import GlassCard from "@/components/ui/spectre/GlassCard";
 import HeatmapList from "./HeatmapList";
 import NewLeadModal from "./NewLeadModal";
 import PipelineColumn from "./PipelineColumn";
@@ -131,44 +132,57 @@ export default function VisorBoard({ initialLeads }: VisorBoardProps) {
     <>
       <QuickActions onNewLead={() => setModalOpen(true)} />
 
-      {hasVoiceFilter && (
-        <div className="mt-3 flex items-center gap-2">
-          <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-spectre-magenta">
-            Filtro vocale: {voiceQuery || voiceStatus} · {filteredLeads.length}{" "}
-            lead
-          </span>
-          <button
-            type="button"
-            onClick={() => {
-              setVoiceQuery("");
-              setVoiceStatus("");
-            }}
-            className="rounded-sm border border-spectre-magenta/30 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.15em] text-spectre-magenta transition hover:bg-spectre-magenta/10"
-          >
-            ✕ pulisci
-          </button>
-        </div>
-      )}
+      {leads.length === 0 ? (
+        <GlassCard corners className="mt-4 py-12 text-center">
+          <p className="font-mono text-sm text-spectre-muted">
+            Nessun lead nel database.
+          </p>
+          <p className="mt-2 font-mono text-sm text-spectre-cyan">
+            Clicca “NUOVO LEAD” o usa l’Hunter per trovare attività.
+          </p>
+        </GlassCard>
+      ) : (
+        <>
+          {hasVoiceFilter && (
+            <div className="mt-3 flex items-center gap-2">
+              <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-spectre-magenta">
+                Filtro vocale: {voiceQuery || voiceStatus} ·{" "}
+                {filteredLeads.length} lead
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setVoiceQuery("");
+                  setVoiceStatus("");
+                }}
+                className="rounded-sm border border-spectre-magenta/30 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.15em] text-spectre-magenta transition hover:bg-spectre-magenta/10"
+              >
+                ✕ pulisci
+              </button>
+            </div>
+          )}
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="overflow-x-auto pb-3">
-          <div className="flex gap-3" style={{ minWidth: "max-content" }}>
-            {PIPELINE_ORDER.map((status) => (
-              <PipelineColumn
-                key={status}
-                status={status}
-                leads={byStatus[status]}
-                draggingId={draggingId}
-                onDragStartCard={setDraggingId}
-                onDragEndCard={() => setDraggingId(null)}
-                onDropLead={handleDrop}
-              />
-            ))}
+          <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+            <div className="overflow-x-auto pb-3">
+              <div className="flex gap-3" style={{ minWidth: "max-content" }}>
+                {PIPELINE_ORDER.map((status) => (
+                  <PipelineColumn
+                    key={status}
+                    status={status}
+                    leads={byStatus[status]}
+                    draggingId={draggingId}
+                    onDragStartCard={setDraggingId}
+                    onDragEndCard={() => setDraggingId(null)}
+                    onDropLead={handleDrop}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <HeatmapList leads={filteredLeads} />
           </div>
-        </div>
-
-        <HeatmapList leads={filteredLeads} />
-      </div>
+        </>
+      )}
 
       <NewLeadModal
         open={modalOpen}
