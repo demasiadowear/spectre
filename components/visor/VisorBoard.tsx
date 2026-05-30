@@ -36,6 +36,7 @@ export default function VisorBoard({ initialLeads }: VisorBoardProps) {
   const [view, setView] = useState<"list" | "kanban">("list");
   const [filter, setFilter] = useState<FilterKey>("all");
   const [query, setQuery] = useState("");
+  const [segment, setSegment] = useState<"all" | "ristoranti" | "beauty">("all");
   const setHudStats = useHudStore((s) => s.setHudStats);
 
   const pendingAction = useVoiceStore((s) => s.pendingAction);
@@ -107,9 +108,17 @@ export default function VisorBoard({ initialLeads }: VisorBoardProps) {
     setSelected((cur) => (cur && cur.id === updated.id ? updated : cur));
   }
 
+  const segmentLeads = useMemo(
+    () =>
+      segment === "all"
+        ? leads
+        : leads.filter((l) => (l.meta.segmento ?? "ristoranti") === segment),
+    [leads, segment],
+  );
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return leads.filter((l) => {
+    return segmentLeads.filter((l) => {
       if (filter === "wa" && !isMobilePhone(l.phone)) return false;
       if (filter === "fisso" && isMobilePhone(l.phone)) return false;
       if (
@@ -122,7 +131,7 @@ export default function VisorBoard({ initialLeads }: VisorBoardProps) {
       if (q && !`${l.name} ${l.company}`.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [leads, filter, query]);
+  }, [segmentLeads, filter, query]);
 
   const byStatus = useMemo(() => {
     const map = Object.fromEntries(
@@ -227,15 +236,29 @@ export default function VisorBoard({ initialLeads }: VisorBoardProps) {
   }
 
   const filterChips: { key: FilterKey; label: string; count: number }[] = [
-    { key: "all", label: "Tutti", count: leads.length },
+    { key: "all", label: "Tutti", count: segmentLeads.length },
     ...PIPELINE_ORDER.map((s) => ({
       key: s as FilterKey,
       label: STATUS_SHORT[s],
-      count: leads.filter((l) => l.status === s).length,
+      count: segmentLeads.filter((l) => l.status === s).length,
     })),
-    { key: "lost", label: "Lost", count: leads.filter((l) => l.status === "lost").length },
-    { key: "wa", label: "📱 WhatsApp", count: leads.filter((l) => isMobilePhone(l.phone)).length },
-    { key: "fisso", label: "☎ Fisso", count: leads.filter((l) => !isMobilePhone(l.phone)).length },
+    { key: "lost", label: "Lost", count: segmentLeads.filter((l) => l.status === "lost").length },
+    { key: "wa", label: "📱 WhatsApp", count: segmentLeads.filter((l) => isMobilePhone(l.phone)).length },
+    { key: "fisso", label: "☎ Fisso", count: segmentLeads.filter((l) => !isMobilePhone(l.phone)).length },
+  ];
+
+  const segOptions: { key: "all" | "ristoranti" | "beauty"; label: string; count: number }[] = [
+    { key: "all", label: "Tutti", count: leads.length },
+    {
+      key: "ristoranti",
+      label: "🍝 Ristoranti",
+      count: leads.filter((l) => (l.meta.segmento ?? "ristoranti") === "ristoranti").length,
+    },
+    {
+      key: "beauty",
+      label: "💅 Beauty",
+      count: leads.filter((l) => l.meta.segmento === "beauty").length,
+    },
   ];
 
   return (
@@ -277,9 +300,33 @@ export default function VisorBoard({ initialLeads }: VisorBoardProps) {
         </div>
       </div>
 
+      {/* Segmento */}
+      <div className="mt-3 flex items-center gap-2">
+        <span className="hidden text-[10px] uppercase tracking-[0.2em] text-text2 sm:inline">
+          Segmento
+        </span>
+        <div className="flex overflow-hidden rounded-sm border border-border">
+          {segOptions.map((o) => (
+            <button
+              key={o.key}
+              type="button"
+              onClick={() => setSegment(o.key)}
+              className={cn(
+                "px-3 py-1.5 text-[11px] uppercase tracking-[0.1em] transition-colors",
+                segment === o.key
+                  ? "bg-accent text-onaccent"
+                  : "text-text2 hover:text-text",
+              )}
+            >
+              {o.label} · {o.count}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Stats */}
       <div className="mt-3">
-        <StatsBar leads={leads} />
+        <StatsBar leads={segmentLeads} />
       </div>
 
       {/* Search + filters */}
