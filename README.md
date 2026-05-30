@@ -1,36 +1,87 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AYRO SPECTRE
 
-## Getting Started
+> L'ombra digitale che chiude i deal mentre respiri.
 
-First, run the development server:
+Exoscheletro di vendita personale con interfaccia HUD cyberpunk. Tool **solo-tenant** per AYROMEX. 5 moduli neurali: **Visor** (dashboard pipeline), **Whisper** (assistente call real-time), **Hand** (generatore proposte), **Oracle** (predizione chiusura), **Mind** (grafo relazionale).
+
+## Stack
+
+- Next.js 14 (App Router) · TypeScript strict
+- Tailwind CSS 3.4 · Framer Motion · Lucide
+- Turso (libSQL / SQLite edge) — con **fallback automatico a dati mock**
+- Claude API (Anthropic) per i moduli AI — con **mock fallback**
+- NextAuth (Credentials, JWT) — single-tenant, con **dev bypass**
+
+## Setup
 
 ```bash
+npm install
+cp .env.local.example .env.local   # tutto opzionale
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Apri http://localhost:3000 → redirect a `/visor`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Modalità demo (zero config)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Senza variabili d'ambiente l'app gira completamente su **dati mock** (20 lead italiani realistici in `lib/mock-data.ts`) e **AI mock**. Perfetto per sviluppo e demo offline.
 
-## Learn More
+### Con Turso (dati persistenti)
 
-To learn more about Next.js, take a look at the following resources:
+1. Crea un database su [turso.tech](https://turso.tech) (`turso db create spectre`).
+2. Applica schema + seed (20 lead): `turso db shell spectre < lib/turso/schema.sql`.
+3. Compila in `.env.local` (`turso db show --url spectre` e `turso db tokens create spectre`):
+   ```
+   TURSO_DATABASE_URL=libsql://your-db.turso.io
+   TURSO_AUTH_TOKEN=...
+   ```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Con Claude (AI reale)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+ANTHROPIC_API_KEY=sk-ant-...
+ANTHROPIC_MODEL=claude-sonnet-4-6
+```
 
-## Deploy on Vercel
+### Autenticazione (single-tenant)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+SPECTRE è un tool personale: un solo operatore.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Senza `SPECTRE_PASSWORD`** → l'app gira aperta, con il banner `DEV MODE — NO AUTH`. Comodo in locale.
+- **Con `SPECTRE_PASSWORD`** → ogni rotta è protetta dal middleware e reindirizza a `/login` (sessione JWT). Username da `SPECTRE_USER` (default `puccio`).
+
+```
+NEXTAUTH_SECRET=...        # npx auth secret
+SPECTRE_USER=puccio
+SPECTRE_PASSWORD=il-tuo-codice
+```
+
+## API
+
+| Metodo | Endpoint | Funzione |
+|--------|----------|----------|
+| GET / POST | `/api/leads` | Lista / crea lead |
+| GET / PATCH / DELETE | `/api/leads/[id]` | Dettaglio / aggiorna / elimina |
+| GET / POST | `/api/interactions` | Interazioni (`?leadId=`) |
+| GET / POST | `/api/proposals` | Proposte (`?leadId=`) |
+
+Tutte le risposte usano l'envelope `{ success, data?, error?, meta? }`.
+
+## Stato build
+
+- [x] PHASE 1 — Scaffold + design system + 10 componenti globali + shell HUD
+- [x] PHASE 2 — Data layer (Turso + mock) + types + seed + API
+- [x] PHASE 3 — VISOR (kanban DnD + heatmap urgenza + quick actions + nuovo lead)
+- [x] PHASE 4 — HAND (wizard 3 step + proposta Claude + export PDF)
+- [x] PHASE 5 — WHISPER (shadow mode + transcript live + contro-obiezioni) · ORACLE (simulatore + predizione animata) · MIND (force graph + scan rete)
+- [x] PHASE 6 — Auth single-tenant + transizioni rotte + error/404 + build verde
+
+**Build:** `npm run build` → 17 rotte, TypeScript strict, zero errori.
+
+## Deploy (Vercel)
+
+```bash
+npx vercel --prod
+```
+
+Imposta le env vars nel dashboard Vercel (o `vercel env add`).
