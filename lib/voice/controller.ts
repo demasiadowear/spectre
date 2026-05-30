@@ -7,7 +7,10 @@ import {
 import { speak as ttsSpeak, stopSpeaking } from "./tts";
 import { parseCommand } from "./commands";
 import type {
+  AyroAction,
+  AyroResponse,
   VoiceCommand,
+  VoiceCommandType,
   VoicePendingAction,
   VoiceReadable,
   VoiceStatus,
@@ -21,7 +24,7 @@ import type {
 // ============================================================
 
 const HELP_TEXT =
-  "Ecco cosa puoi dirmi. Apri Hunter, Visor, Hand, Oracle o Mind. Cerca parrucchiere a Milano. Genera proposta per Rossi. Simula scenario per Rossi. Cerca lead Rossi. Leggi insight. Posso anche aprire YouTube, Spotify, Google, Calendar, Gmail o il meteo. Di' stop per fermarmi.";
+  "Puoi parlarmi naturale: chiedimi quanti lead devi chiamare oggi, com'è messo un deal, quanto hai in pipeline. Oppure dammi comandi: apri Cockpit, Visor, Hunter, Hand, Oracle, Territorio o Forecast. Cerca ristoranti a Bari. Genera proposta per Rossi. Simula scenario per Rossi. Posso aprire anche YouTube, Google, Calendar o il meteo. Di' stop per fermarmi.";
 
 const SPEAK_TIMEOUT_MS = 15000;
 
@@ -162,12 +165,51 @@ export class VoiceController {
       return;
     }
 
+    // Free-form request the regex didn't catch → hand to the AYRO agent
+    // (Gemini): it answers data questions and can trigger actions.
+    if (command.type === "unknown") {
+      const ayro = await this.askAyro(text);
+      if (ayro) {
+        if (ayro.action && ayro.action.type !== "none") {
+          this.execute(this.ayroToCommand(ayro.action));
+        }
+        if (ayro.speak.trim()) await this.speakInternal(ayro.speak);
+        else this.afterSpeak();
+        return;
+      }
+    }
+
     const responseText = this.execute(command);
     if (responseText.trim()) {
       await this.speakInternal(responseText);
     } else {
       this.afterSpeak();
     }
+  }
+
+  private async askAyro(text: string): Promise<AyroResponse | null> {
+    try {
+      const res = await fetch("/api/ai/ayro", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transcript: text }),
+      });
+      const json = (await res.json()) as {
+        success: boolean;
+        data?: AyroResponse;
+      };
+      return json.success && json.data ? json.data : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private ayroToCommand(action: AyroAction): VoiceCommand {
+    return {
+      type: action.type as VoiceCommandType,
+      payload: action.payload ?? {},
+      responseText: "",
+    };
   }
 
   private execute(command: VoiceCommand): string {

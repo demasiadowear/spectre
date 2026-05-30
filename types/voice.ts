@@ -60,3 +60,27 @@ export interface VoiceReadable {
   section: string;
   text: string;
 }
+
+// ----- AYRO conversational agent (Gemini) -----
+
+export type AyroActionType =
+  | "navigate"
+  | "hunt"
+  | "search"
+  | "filter"
+  | "generate"
+  | "simulate"
+  | "none";
+
+export interface AyroAction {
+  type: AyroActionType;
+  payload?: Record<string, unknown>;
+}
+
+/** Gemini's reply when a free-form request isn't a fixed command. */
+export interface AyroResponse {
+  /** What SPECTRE says back (spoken, Italian, concise). */
+  speak: string;
+  /** Optional action to perform after speaking. */
+  action?: AyroAction;
+}
