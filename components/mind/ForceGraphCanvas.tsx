@@ -106,14 +106,17 @@ export default function ForceGraphCanvas({
   const hoverIdRef = useRef<string | null>(null);
   const didFitRef = useRef(false);
   const fitRef = useRef<(() => void) | null>(null);
+  const scheduleRef = useRef<(() => void) | null>(null);
   const cbRef = useRef({ onNodeClick, onNodeHover, onInitError });
 
   // Mirror props into refs (no simulation rebuild on these changes).
   useEffect(() => {
     selectedRef.current = selectedId;
+    scheduleRef.current?.();
   }, [selectedId]);
   useEffect(() => {
     highlightRef.current = highlightKey;
+    scheduleRef.current?.();
   }, [highlightKey]);
   useEffect(() => {
     cbRef.current = { onNodeClick, onNodeHover, onInitError };
@@ -123,6 +126,7 @@ export default function ForceGraphCanvas({
   useEffect(() => {
     if (resetSignal === 0) return;
     fitRef.current?.();
+    scheduleRef.current?.();
   }, [resetSignal]);
 
   // Measure the container.
@@ -284,22 +288,48 @@ export default function ForceGraphCanvas({
       }
     }
 
-    const frame = () => {
-      sim.tick();
-      for (const n of nodes) {
-        if (typeof n.x === "number" && typeof n.y === "number") {
-          posRef.current.set(n.id, {
-            x: n.x,
-            y: n.y,
-            vx: n.vx ?? 0,
-            vy: n.vy ?? 0,
-          });
+    // On-demand renderer: only ticks/animates while the simulation is hot
+    // or the user is interacting; otherwise it draws once and STOPS. This
+    // prevents a permanent 60fps loop that overheats mobile and crashes the
+    // tab after a while. `schedule()` is called by interactions + prop
+    // changes (hover/selection/reset) to repaint when needed.
+    let pending = false;
+    const isMoving = () =>
+      sim.alpha() > sim.alphaMin() ||
+      interaction.mode === "drag" ||
+      interaction.mode === "pan" ||
+      interaction.mode === "pinch";
+
+    const render = () => {
+      pending = false;
+      try {
+        if (sim.alpha() > sim.alphaMin() || interaction.mode === "drag") {
+          sim.tick();
+          for (const n of nodes) {
+            if (typeof n.x === "number" && typeof n.y === "number") {
+              posRef.current.set(n.id, {
+                x: n.x,
+                y: n.y,
+                vx: n.vx ?? 0,
+                vy: n.vy ?? 0,
+              });
+            }
+          }
         }
+        draw();
+      } catch {
+        /* transient canvas/context error — skip this frame, never crash */
       }
-      draw();
-      rafRef.current = requestAnimationFrame(frame);
+      if (isMoving()) schedule();
     };
-    rafRef.current = requestAnimationFrame(frame);
+
+    function schedule() {
+      if (pending) return;
+      pending = true;
+      rafRef.current = requestAnimationFrame(render);
+    }
+
+    scheduleRef.current = schedule;
     simRef.current = sim;
 
     // ----- Interaction -----
@@ -355,6 +385,7 @@ export default function ForceGraphCanvas({
       e.preventDefault();
       const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
       zoomAround(e.clientX, e.clientY, clamp(transformRef.current.k * factor, MIN_ZOOM, MAX_ZOOM));
+      schedule();
     };
 
     const onPointerDown = (e: PointerEvent) => {
@@ -373,6 +404,7 @@ export default function ForceGraphCanvas({
         const [a, b] = Array.from(pointers.values());
         pinchStartDist = dist(a, b) || 1;
         pinchStartK = transformRef.current.k;
+        schedule();
         return;
       }
 
@@ -392,6 +424,7 @@ export default function ForceGraphCanvas({
         interaction.mode = "pan";
       }
       canvas.style.cursor = "grabbing";
+      schedule();
     };
 
     const onPointerMove = (e: PointerEvent) => {
@@ -404,6 +437,7 @@ export default function ForceGraphCanvas({
         const d = dist(a, b) || 1;
         const newK = clamp((pinchStartK * d) / pinchStartDist, MIN_ZOOM, MAX_ZOOM);
         zoomAround((a.x + b.x) / 2, (a.y + b.y) / 2, newK);
+        schedule();
         return;
       }
       if (interaction.mode === "drag" && interaction.dragNode) {
@@ -412,6 +446,7 @@ export default function ForceGraphCanvas({
         interaction.dragNode.fx = w.x;
         interaction.dragNode.fy = w.y;
         interaction.moved = true;
+        schedule();
         return;
       }
       if (interaction.mode === "pan") {
@@ -424,6 +459,7 @@ export default function ForceGraphCanvas({
         interaction.lastX = e.clientX;
         interaction.lastY = e.clientY;
         interaction.moved = true;
+        schedule();
         return;
       }
       // Hover hit-test (mouse only — touch has no hover).
@@ -435,12 +471,17 @@ export default function ForceGraphCanvas({
         hoverIdRef.current = id;
         cbRef.current.onNodeHover(node);
         canvas.style.cursor = id ? "pointer" : "grab";
+        schedule();
       }
     };
 
     const onPointerUp = (e: PointerEvent) => {
       pointers.delete(e.pointerId);
-      canvas.releasePointerCapture?.(e.pointerId);
+      try {
+        canvas.releasePointerCapture?.(e.pointerId);
+      } catch {
+        /* pointer wasn't captured — ignore */
+      }
 
       if (interaction.mode === "pinch") {
         // Drop back to single-finger pan if one pointer remains.
@@ -453,6 +494,7 @@ export default function ForceGraphCanvas({
         } else {
           interaction.mode = "none";
         }
+        schedule();
         return;
       }
 
@@ -473,6 +515,7 @@ export default function ForceGraphCanvas({
         canvas.style.cursor =
           e.pointerType === "mouse" && pickNode(sx, sy) ? "pointer" : "grab";
       }
+      schedule();
     };
 
     canvas.style.cursor = "grab";
@@ -482,11 +525,15 @@ export default function ForceGraphCanvas({
     canvas.addEventListener("pointerup", onPointerUp);
     canvas.addEventListener("pointercancel", onPointerUp);
 
+    // Kick off the render loop (animates the initial layout, then settles).
+    schedule();
+
     return () => {
       cancelAnimationFrame(rafRef.current);
       sim.stop();
       simRef.current = null;
       fitRef.current = null;
+      scheduleRef.current = null;
       canvas.removeEventListener("wheel", onWheel);
       canvas.removeEventListener("pointerdown", onPointerDown);
       canvas.removeEventListener("pointermove", onPointerMove);

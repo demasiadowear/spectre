@@ -459,8 +459,8 @@ export default function WhisperConsole() {
   const active = mode === "live" ? listening : running;
 
   return (
-    <div className="mt-4 grid min-h-0 gap-4 lg:grid-cols-[minmax(0,35fr)_minmax(0,65fr)]">
-      {/* ---------- LEFT DECK ---------- */}
+    <div className="mt-4 grid min-h-0 gap-4 lg:grid-cols-[minmax(0,62fr)_minmax(0,38fr)]">
+      {/* ---------- LEFT DECK (PRIMARY: cosa rispondere) ---------- */}
       <div className="flex flex-col gap-4">
         <GlassCard corners className="p-4 sm:p-5" glow="magenta">
           {/* Mode toggle */}
@@ -667,10 +667,10 @@ export default function WhisperConsole() {
           )}
         </GlassCard>
 
-        {/* Suggestion cards */}
+        {/* Suggestion cards — PRIMARY focus: what to say now */}
         <div className="flex flex-col gap-2.5">
-          <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-spectre-muted">
-            Risposte suggerite
+          <span className="font-mono text-xs uppercase tracking-[0.3em] text-spectre-magenta">
+            ▸ Cosa rispondere
           </span>
           <AnimatePresence mode="popLayout">
             {whisper?.responses.length ? (
@@ -686,27 +686,29 @@ export default function WhisperConsole() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.25, delay: i * 0.06 }}
-                    className={`group relative w-full rounded-md border ${meta.border} bg-black/40 p-3 text-left backdrop-blur-xl transition-all hover:bg-white/[0.03]`}
+                    className={`group relative w-full rounded-md border ${meta.border} bg-black/40 p-3.5 text-left backdrop-blur-xl transition-all hover:bg-white/[0.04]`}
                   >
-                    <div className="mb-1.5 flex items-center justify-between">
-                      <span className={`font-mono text-[9px] uppercase tracking-[0.25em] ${meta.text}`}>
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className={`font-mono text-[10px] uppercase tracking-[0.25em] ${meta.text}`}>
                         {meta.label}
                       </span>
-                      <span className="flex items-center gap-1 font-mono text-[9px] uppercase tracking-[0.2em] text-spectre-muted sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
+                      <span className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.2em] text-spectre-muted">
                         {isCopied ? (
                           <>
-                            <Check className="h-3 w-3 text-spectre-green" />
+                            <Check className="h-3.5 w-3.5 text-spectre-green" />
                             <span className="text-spectre-green">Copiato</span>
                           </>
                         ) : (
                           <>
-                            <Copy className="h-3 w-3" /> Copia
+                            <Copy className="h-3.5 w-3.5" /> Copia
                           </>
                         )}
                       </span>
                     </div>
-                    <p className="text-sm leading-snug text-spectre-text">{r.text}</p>
-                    <p className="mt-1.5 font-mono text-[10px] italic leading-snug text-spectre-muted">
+                    <p className="text-[15px] font-medium leading-snug text-spectre-text">
+                      {r.text}
+                    </p>
+                    <p className="mt-2 font-mono text-[10px] italic leading-snug text-spectre-muted">
                       {r.rationale}
                     </p>
                   </motion.button>
@@ -739,7 +741,7 @@ export default function WhisperConsole() {
 
         <div
           ref={feedRef}
-          className="flex h-[48vh] min-h-[300px] flex-col gap-3 overflow-y-auto px-4 py-4 sm:h-[58vh] sm:px-5"
+          className="flex h-[30vh] min-h-[180px] flex-col gap-3 overflow-y-auto px-4 py-4 sm:h-[62vh] sm:px-5"
         >
           {feed.length === 0 && !interim && (
             <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
