@@ -51,7 +51,10 @@ export async function POST(req: Request) {
   const params: HunterParams = {
     location,
     category,
-    radius: num(body.radius, 5),
+    // Clamp to a valid positive range (KM). num() only guards
+    // missing/non-finite input — 0 and negatives are finite and would
+    // otherwise flow through as a degenerate Google radius.
+    radius: Math.max(1, Math.min(50, num(body.radius, 5))),
     min_rating: minRating,
     limit,
     only_no_website: onlyNoWebsite,

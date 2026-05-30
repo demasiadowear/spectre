@@ -1,17 +1,36 @@
 import type { HunterParams, RawLead } from "@/types/hunter";
 
 // ============================================================
-// Google Maps search via the Google Places API (legacy). Server-only
-// (reads GOOGLE_PLACES_API_KEY). Flow: Geocode city -> Nearby Search ->
-// Place Details (phone + website). Errors are non-blocking: on any
-// failure we return [] and the caller falls back to mock data.
-// Results cached 5 min per query to stay well under the free tier.
+// Lead Hunter search via the Google Places API (New) Text Search.
+// Server-only (reads GOOGLE_PLACES_API_KEY). One POST to
+// places:searchText returns name, address, phone, website, rating and
+// review count in a single call — no separate Geocoding or per-place
+// Details requests, so website status is always authoritative (the
+// New API ships websiteUri inside the search result).
+// Errors are non-blocking: on any failure we return [] and the caller
+// falls back to mock data. Results cached 5 min per query.
+//
+// Requires the "Places API (New)" enabled on the Google Cloud project
+// (the legacy Places API is not available on newer projects).
 // ============================================================
 
 const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_PLACES_API_KEY;
 const CACHE_TTL_MS = 5 * 60 * 1000;
-const MAX_RADIUS_M = 50_000; // Google Nearby Search hard cap.
-const MAX_DETAILS = 20; // Cap Place Details lookups (cost control).
+const SEARCH_URL = "https://places.googleapis.com/v1/places:searchText";
+
+// Only the fields we map to RawLead — keeps the response (and billing
+// SKU tier) lean.
+const FIELD_MASK = [
+  "places.id",
+  "places.displayName",
+  "places.formattedAddress",
+  "places.nationalPhoneNumber",
+  "places.websiteUri",
+  "places.rating",
+  "places.userRatingCount",
+  "places.location",
+  "places.types",
+].join(",");
 
 interface CacheEntry {
   at: number;
@@ -24,125 +43,44 @@ function cacheKey(params: HunterParams): string {
   return [
     params.category.toLowerCase().trim(),
     params.location.toLowerCase().trim(),
-    params.radius ?? 0,
     params.limit ?? 20,
   ].join("|");
 }
 
-// Map a few Italian category terms to a Google Places `type`. Anything
-// not listed falls back to a free-text `keyword` search (more flexible
-// for terms like "tattoo studio" or "trattoria").
-const CATEGORY_TYPE: Record<string, string> = {
-  parrucchiere: "hair_care",
-  barbiere: "hair_care",
-  estetista: "beauty_salon",
-  palestra: "gym",
-  ristorante: "restaurant",
-  pizzeria: "restaurant",
-  trattoria: "restaurant",
-  bar: "bar",
-  dentista: "dentist",
-  avvocato: "lawyer",
-  commercialista: "accounting",
-};
-
-function mapCategoryToType(category: string): string | null {
-  return CATEGORY_TYPE[category.toLowerCase().trim()] ?? null;
-}
-
-interface GeocodeResponse {
-  status?: string;
-  results?: { geometry?: { location?: { lat: number; lng: number } } }[];
-}
-
-interface NearbyPlace {
-  place_id?: string;
-  name?: string;
-  vicinity?: string;
+interface NewPlace {
+  id?: string;
+  displayName?: { text?: string; languageCode?: string };
+  formattedAddress?: string;
+  nationalPhoneNumber?: string;
+  websiteUri?: string;
   rating?: number;
-  user_ratings_total?: number;
+  userRatingCount?: number;
+  location?: { latitude?: number; longitude?: number };
   types?: string[];
-  geometry?: { location?: { lat?: number; lng?: number } };
 }
 
-interface NearbyResponse {
-  status?: string;
-  results?: NearbyPlace[];
-}
-
-interface PlaceDetail {
-  name?: string;
-  formatted_address?: string;
-  formatted_phone_number?: string;
-  website?: string;
-  rating?: number;
-  user_ratings_total?: number;
-  url?: string;
-}
-
-interface DetailsResponse {
-  status?: string;
-  result?: PlaceDetail;
-}
-
-async function geocodeCity(
-  city: string,
-  key: string,
-): Promise<{ lat: number; lng: number } | null> {
-  const url = new URL("https://maps.googleapis.com/maps/api/geocode/json");
-  url.searchParams.set("address", city);
-  url.searchParams.set("key", key);
-  const res = await fetch(url.toString(), { cache: "no-store" });
-  if (!res.ok) return null;
-  const json = (await res.json()) as GeocodeResponse;
-  return json.results?.[0]?.geometry?.location ?? null;
-}
-
-async function fetchDetails(
-  placeId: string,
-  key: string,
-): Promise<PlaceDetail | null> {
-  const url = new URL("https://maps.googleapis.com/maps/api/place/details/json");
-  url.searchParams.set("place_id", placeId);
-  url.searchParams.set(
-    "fields",
-    "name,formatted_address,formatted_phone_number,website,rating,user_ratings_total,url",
-  );
-  url.searchParams.set("key", key);
-  const res = await fetch(url.toString(), { cache: "no-store" });
-  if (!res.ok) return null;
-  const json = (await res.json()) as DetailsResponse;
-  return json.result ?? null;
+interface TextSearchResponse {
+  places?: NewPlace[];
 }
 
 function toRawLead(
-  place: NearbyPlace,
-  detail: PlaceDetail | null,
+  place: NewPlace,
   fallbackCategory: string,
   index: number,
 ): RawLead {
   const website =
-    typeof detail?.website === "string" ? detail.website.trim() : "";
-  const lat = place.geometry?.location?.lat;
-  const lng = place.geometry?.location?.lng;
+    typeof place.websiteUri === "string" ? place.websiteUri.trim() : "";
+  const lat = place.location?.latitude;
+  const lng = place.location?.longitude;
   return {
-    id: place.place_id || `gplaces-${index}`,
-    name: detail?.name || place.name || "Attività senza nome",
+    id: place.id || `gplaces-${index}`,
+    name: place.displayName?.text || "Attività senza nome",
     category: place.types?.[0] || fallbackCategory,
-    address: detail?.formatted_address || place.vicinity || "",
-    phone: detail?.formatted_phone_number ?? "",
-    rating:
-      typeof detail?.rating === "number"
-        ? detail.rating
-        : typeof place.rating === "number"
-          ? place.rating
-          : 0,
+    address: place.formattedAddress || "",
+    phone: place.nationalPhoneNumber ?? "",
+    rating: typeof place.rating === "number" ? place.rating : 0,
     reviews:
-      typeof detail?.user_ratings_total === "number"
-        ? detail.user_ratings_total
-        : typeof place.user_ratings_total === "number"
-          ? place.user_ratings_total
-          : 0,
+      typeof place.userRatingCount === "number" ? place.userRatingCount : 0,
     has_website: website.length > 0,
     website: website.length > 0 ? website : null,
     lat: typeof lat === "number" ? lat : undefined,
@@ -162,57 +100,43 @@ export async function searchGooglePlaces(
   }
 
   try {
-    const apiKey = GOOGLE_PLACES_API_KEY;
-    const coords = await geocodeCity(params.location, apiKey);
-    if (!coords) {
-      console.error("[hunter] geocode found no city:", params.location);
+    // Text Search resolves the city from the query itself ("parrucchiere
+    // a Bari"), so no separate Geocoding call is needed. radius is not
+    // used by Text Search (it ranks by relevance); switch to searchNearby
+    // + a geocoded centre if strict-radius filtering is ever required.
+    const textQuery = `${params.category} a ${params.location}`.trim();
+    const maxResultCount = Math.min(20, Math.max(1, params.limit ?? 20));
+
+    const res = await fetch(SEARCH_URL, {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY,
+        "X-Goog-FieldMask": FIELD_MASK,
+      },
+      body: JSON.stringify({ textQuery, languageCode: "it", maxResultCount }),
+    });
+
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      console.error(
+        "[hunter] Places (New) HTTP error:",
+        res.status,
+        detail.slice(0, 300),
+      );
       return [];
     }
 
-    const radiusM = Math.min(
-      MAX_RADIUS_M,
-      Math.round((params.radius ?? 5) * 1000),
-    );
-    const nearbyUrl = new URL(
-      "https://maps.googleapis.com/maps/api/place/nearbysearch/json",
-    );
-    nearbyUrl.searchParams.set("location", `${coords.lat},${coords.lng}`);
-    nearbyUrl.searchParams.set("radius", String(radiusM));
-    nearbyUrl.searchParams.set("keyword", params.category);
-    const type = mapCategoryToType(params.category);
-    if (type) nearbyUrl.searchParams.set("type", type);
-    nearbyUrl.searchParams.set("language", "it");
-    nearbyUrl.searchParams.set("key", apiKey);
-
-    const nearbyRes = await fetch(nearbyUrl.toString(), { cache: "no-store" });
-    if (!nearbyRes.ok) {
-      console.error("[hunter] Places nearby HTTP error:", nearbyRes.status);
-      return [];
-    }
-    const nearby = (await nearbyRes.json()) as NearbyResponse;
-    if (nearby.status && nearby.status !== "OK" && nearby.status !== "ZERO_RESULTS") {
-      console.error("[hunter] Places nearby status:", nearby.status);
-      return [];
-    }
-
-    const places = Array.isArray(nearby.results) ? nearby.results : [];
-    const limit = Math.min(params.limit ?? 20, MAX_DETAILS);
-
-    // Enrich each place with details (phone + website) in parallel.
-    const leads = await Promise.all(
-      places.slice(0, limit).map(async (place, i) => {
-        const detail = place.place_id
-          ? await fetchDetails(place.place_id, apiKey)
-          : null;
-        return toRawLead(place, detail, params.category, i);
-      }),
-    );
+    const json = (await res.json()) as TextSearchResponse;
+    const places = Array.isArray(json.places) ? json.places : [];
+    const leads = places.map((p, i) => toRawLead(p, params.category, i));
 
     cache.set(key, { at: Date.now(), leads });
     return leads;
   } catch (err) {
     console.error(
-      "[hunter] Google Places request failed:",
+      "[hunter] Places (New) request failed:",
       (err as Error).message,
     );
     return [];
