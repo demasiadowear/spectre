@@ -27,6 +27,9 @@ export interface LeadMeta {
   ig?: string;
   fb?: string;
   maps_url?: string;
+  /** Geo coordinates for the territory map (from Places or geocoding). */
+  lat?: number;
+  lng?: number;
   // Funnel timestamps (ISO) — set when the lead enters each stage.
   step1_at?: string;
   replied_at?: string;

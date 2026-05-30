@@ -277,16 +277,20 @@ function parseHunterBare(t: string): VoiceCommand | null {
 
 const MODULE_ROUTES: Record<string, { route: string; label: string }> = {
   visor: { route: "/visor", label: "Visor" },
+  cockpit: { route: "/cockpit", label: "Cockpit" },
   hunter: { route: "/hunter", label: "Hunter" },
   hand: { route: "/hand", label: "Hand" },
   whisper: { route: "/whisper", label: "Whisper" },
   oracle: { route: "/oracle", label: "Oracle" },
-  mind: { route: "/mind", label: "Mind" },
+  territorio: { route: "/territorio", label: "Territorio" },
+  mappa: { route: "/territorio", label: "Territorio" },
+  mappe: { route: "/territorio", label: "Territorio" },
+  forecast: { route: "/forecast", label: "Forecast" },
+  cassa: { route: "/forecast", label: "Forecast" },
   deals: { route: "/visor", label: "Visor" },
   pipeline: { route: "/visor", label: "Visor" },
-  grafo: { route: "/mind", label: "Mind" },
-  home: { route: "/visor", label: "Visor" },
-  dashboard: { route: "/visor", label: "Visor" },
+  home: { route: "/cockpit", label: "Cockpit" },
+  dashboard: { route: "/cockpit", label: "Cockpit" },
 };
 
 function clean(s: string): string {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { AudioLines, Gauge, Hand, Network, Plus } from "lucide-react";
+import { AudioLines, Gauge, Hand, LayoutDashboard, Plus } from "lucide-react";
 import NeonButton from "@/components/ui/spectre/NeonButton";
 
 interface QuickActionsProps {
@@ -30,9 +30,9 @@ export default function QuickActions({ onNewLead }: QuickActionsProps) {
         <Gauge className="h-3.5 w-3.5" />
         Oracle
       </NeonButton>
-      <NeonButton variant="cyan" size="sm" onClick={() => router.push("/mind")}>
-        <Network className="h-3.5 w-3.5" />
-        Mind
+      <NeonButton variant="cyan" size="sm" onClick={() => router.push("/cockpit")}>
+        <LayoutDashboard className="h-3.5 w-3.5" />
+        Cockpit
       </NeonButton>
     </div>
   );

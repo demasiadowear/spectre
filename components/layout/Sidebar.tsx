@@ -5,10 +5,12 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
   Eye,
+  LayoutDashboard,
   AudioLines,
   Hand,
   Gauge,
-  Network,
+  Map as MapIcon,
+  TrendingUp,
   Crosshair,
   LogOut,
   type LucideIcon,
@@ -23,11 +25,13 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { href: "/visor", label: "Visor", icon: Eye },
+  { href: "/cockpit", label: "Cockpit", icon: LayoutDashboard },
+  { href: "/hunter", label: "Hunter", icon: Crosshair },
   { href: "/whisper", label: "Whisper", icon: AudioLines },
   { href: "/hand", label: "Hand", icon: Hand },
   { href: "/oracle", label: "Oracle", icon: Gauge },
-  { href: "/mind", label: "Mind", icon: Network },
-  { href: "/hunter", label: "Hunter", icon: Crosshair },
+  { href: "/territorio", label: "Territorio", icon: MapIcon },
+  { href: "/forecast", label: "Forecast", icon: TrendingUp },
 ];
 
 interface SidebarProps {

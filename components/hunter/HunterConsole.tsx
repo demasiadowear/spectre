@@ -53,6 +53,8 @@ function toImportPayload(lead: ScoredLead, category: string) {
       reviews: lead.reviews,
       address: lead.address,
       category,
+      lat: lead.lat,
+      lng: lead.lng,
     },
   };
 }

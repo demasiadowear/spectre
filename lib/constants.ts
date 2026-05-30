@@ -172,9 +172,11 @@ export const VOICE_WAKE_WORDS = [
 
 export const SPECTRE_MODULES = [
   { key: "visor", label: "Visor", href: "/visor" },
+  { key: "cockpit", label: "Cockpit", href: "/cockpit" },
   { key: "whisper", label: "Whisper", href: "/whisper" },
   { key: "hand", label: "Hand", href: "/hand" },
   { key: "oracle", label: "Oracle", href: "/oracle" },
-  { key: "mind", label: "Mind", href: "/mind" },
+  { key: "territorio", label: "Territorio", href: "/territorio" },
+  { key: "forecast", label: "Forecast", href: "/forecast" },
   { key: "hunter", label: "Hunter", href: "/hunter" },
 ] as const;
