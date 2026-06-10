@@ -37,7 +37,7 @@ Turso, stack lock Gemini Flash, deploy Vercel).
 
 ### Stadio 2 — WA Outreach (worker, vedi `worker/README.md`)
 - whatsapp-web.js, sessione persistente sul numero WA Business AYROMEX.
-- Warm-up 10/giorno → poi 15-20/giorno; fasce 9-13/16-20, no weekend,
+- Warm-up 10/giorno → poi 15-20/giorno; invio lun-sab 9-20 (solo domenica esclusa),
   delay random 60-240s.
 - Bot Gemini Flash: obiettivo demo gratuita + **Offerta Giugno €499**
   tutto incluso (listino €980+), 100% anticipato, solo siti vetrina.

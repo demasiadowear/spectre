@@ -72,11 +72,8 @@ export const OFFER = {
   terms: "pagamento 100% anticipato, tutto incluso",
 } as const;
 
-/** Fasce orarie di invio (ora locale Europe/Rome), lun-ven. */
-export const SEND_WINDOWS = [
-  { from: 9, to: 13 },
-  { from: 16, to: 20 },
-] as const;
+/** Fascia oraria di invio (ora locale Europe/Rome), lun-sab. */
+export const SEND_WINDOWS = [{ from: 9, to: 20 }] as const;
 
 /** Delay random tra messaggi (secondi). */
 export const SEND_DELAY_MIN_S = 60;

@@ -33,7 +33,7 @@ in `WA_SESSION_DIR` (default `./.wwebjs_auth`) e non viene più richiesta.
 - **Warm-up**: parte al primo invio (`warmup_started_at`). Primi 14 giorni:
   max 10 nuovi contatti/giorno e primo messaggio **solo se approvato** in
   dashboard. Dopo: 15/giorno (cap modificabili da dashboard) e invio auto.
-- **Finestre**: lun-ven, 9-13 / 16-20 Europe/Rome. Delay random 60-240s
+- **Finestre**: invio lun-sab 9-20 Europe/Rome (solo domenica esclusa). Delay random 60-240s
   tra messaggi.
 - **Kill switch**: flag globale in `autopilot_settings`, togglabile dalla
   dashboard. Si attiva da solo su: 3 invii consecutivi falliti, 5+

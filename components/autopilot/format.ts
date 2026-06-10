@@ -58,7 +58,7 @@ export function isPendingApproval(lead: AutopilotLead): boolean {
 
 // ----- Stima invio (SOLO UI: i delay reali sono del worker) ---
 
-/** Replica di inSendWindow del worker: lun-ven, 9-13 / 16-20 Rome. */
+/** Replica di inSendWindow del worker: lun-sab, 9-20 Rome. */
 function inSendWindowRome(now = new Date()): boolean {
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat("it-IT", {
@@ -70,9 +70,9 @@ function inSendWindowRome(now = new Date()): boolean {
       .formatToParts(now)
       .map((p) => [p.type, p.value]),
   );
-  if (parts.weekday === "sab" || parts.weekday === "dom") return false;
+  if (parts.weekday === "dom") return false;
   const hour = Number(parts.hour);
-  return (hour >= 9 && hour < 13) || (hour >= 16 && hour < 20);
+  return hour >= 9 && hour < 20;
 }
 
 /** Label di stadio veritiera per la singola riga: lo stage "studiato"
@@ -119,7 +119,7 @@ export function queuedSendLabels(
       if (killSwitch) {
         label = "in coda · invio fermo (kill switch attivo)";
       } else if (!inWindow) {
-        label = "in coda · invio alla prossima finestra (lun-ven 9-13 / 16-20)";
+        label = "in coda · invio alla prossima finestra (lun-sab 9-20)";
       } else {
         label = `in coda · invio previsto entro ~${Math.max(3, Math.ceil((i + 1) * 2.5))} min`;
       }

@@ -8,7 +8,7 @@
 //
 // Sicurezza operativa:
 // - warm-up: cap contatti/giorno da autopilot_settings (10 -> 15)
-// - solo fasce 9-13 / 16-20 Europe/Rome, no weekend
+// - solo fascia lun-sab 9:00-20:00 Europe/Rome (domenica esclusa)
 // - delay random 60-240s tra messaggi
 // - kill switch globale (dashboard) controllato a ogni tick
 // - anomalie (invii falliti / non consegnati / disconnect) ->
