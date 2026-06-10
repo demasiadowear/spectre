@@ -255,6 +255,15 @@ export async function rejectMessage(leadId: string): Promise<void> {
   });
 }
 
+/** Archivio manuale dalla dashboard (qualsiasi stadio). */
+export async function archiveLead(leadId: string): Promise<void> {
+  await updatePipeline(leadId, {
+    stage: "archiviato",
+    archived_reason: "archiviato manualmente",
+    bot_paused: 1,
+  });
+}
+
 // ----- Messaggi WA -------------------------------------------
 
 export async function getWaMessages(leadId: string): Promise<WaMessage[]> {

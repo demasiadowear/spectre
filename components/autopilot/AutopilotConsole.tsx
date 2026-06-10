@@ -4,11 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   Bell,
-  CheckCircle2,
-  ExternalLink,
+  Columns3,
+  List,
   Pause,
   Play,
-  XCircle,
 } from "lucide-react";
 import GlassCard from "@/components/ui/spectre/GlassCard";
 import NeonButton from "@/components/ui/spectre/NeonButton";
@@ -18,81 +17,145 @@ import type {
   AutopilotAlert,
   AutopilotBuild,
   AutopilotLead,
-  AutopilotStage,
   AutopilotStats,
 } from "@/types/autopilot";
+import AutopilotKanban from "./AutopilotKanban";
+import AutopilotLeadDrawer from "./AutopilotLeadDrawer";
+import AutopilotLeadRow from "./AutopilotLeadRow";
+import { actionPriority, isPendingApproval, latestBuild, sortByAction } from "./format";
 
 // ============================================================
-// AUTOPILOT console — pipeline view (6 stadi), contatore
-// outreach giornaliero, coda messaggi da approvare, demo da
-// approvare e kill switch globale. Poll ogni 30s.
+// AUTOPILOT console — lista compatta (default) con ordinamento
+// "richiede azione", filtri a chip, drawer di dettaglio, kanban
+// come vista alternativa, contatore outreach e kill switch.
+// Poll ogni 30s.
 // ============================================================
 
-const STAGE_LABELS: Record<AutopilotStage, string> = {
-  nuovo: "Nuovo",
-  studiato: "Studiato",
-  contattato: "Contattato",
-  demo_richiesta: "Demo richiesta",
-  escalation: "Escalation",
-  archiviato: "Archiviato",
-};
+type ViewMode = "list" | "kanban";
 
-const STAGE_ORDER: AutopilotStage[] = [
-  "nuovo",
-  "studiato",
-  "contattato",
-  "demo_richiesta",
-  "escalation",
-  "archiviato",
+type StatusFilter =
+  | "azione"
+  | "tutti"
+  | "escalation"
+  | "da_approvare"
+  | "demo"
+  | "contattati"
+  | "nuovi"
+  | "archiviati";
+
+const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
+  { id: "azione", label: "Richiede azione" },
+  { id: "tutti", label: "Tutti" },
+  { id: "escalation", label: "Escalation" },
+  { id: "da_approvare", label: "Da approvare" },
+  { id: "demo", label: "Demo" },
+  { id: "contattati", label: "Contattati" },
+  { id: "nuovi", label: "Nuovi" },
+  { id: "archiviati", label: "Archiviati" },
 ];
 
-const STAGE_ACCENT: Record<AutopilotStage, string> = {
-  nuovo: "text-text2 border-border",
-  studiato: "text-accent border-accent/40",
-  contattato: "text-ochre border-ochre/40",
-  demo_richiesta: "text-success border-success/40",
-  escalation: "text-danger border-danger/40",
-  archiviato: "text-text2 border-border",
+const EMPTY_STATES: Record<StatusFilter, string> = {
+  azione: "Niente da fare adesso — l'autopilot lavora da solo.",
+  tutti: "Nessun lead in pipeline. Lo scout gira ogni mattina alle 6.",
+  escalation: "Nessuna escalation aperta.",
+  da_approvare: "Nessun lead da approvare oggi — la coda è pulita.",
+  demo: "Nessuna demo in corso.",
+  contattati: "Nessun lead contattato in attesa.",
+  nuovi: "Nessun lead nuovo: lo study li ha già processati tutti.",
+  archiviati: "Archivio vuoto.",
 };
 
-const TIER_BADGE: Record<string, string> = {
-  T1: "border-success/50 text-success",
-  T2: "border-ochre/50 text-ochre",
-  T3: "border-border text-text2",
-};
+function matchesStatus(lead: AutopilotLead, f: StatusFilter): boolean {
+  switch (f) {
+    case "azione":
+      return actionPriority(lead) < 3;
+    case "tutti":
+      return true;
+    case "escalation":
+      return lead.stage === "escalation";
+    case "da_approvare":
+      return isPendingApproval(lead);
+    case "demo":
+      return lead.stage === "demo_richiesta";
+    case "contattati":
+      return lead.stage === "contattato";
+    case "nuovi":
+      return lead.stage === "nuovo";
+    case "archiviati":
+      return lead.stage === "archiviato";
+  }
+}
 
-interface PipelinePayload {
-  leads: AutopilotLead[];
-  stats: AutopilotStats;
+function Chip({
+  label,
+  count,
+  active,
+  warn,
+  onClick,
+}: {
+  label: string;
+  count?: number;
+  active: boolean;
+  warn?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-full border px-3 py-1 font-ui text-xs transition-colors",
+        active
+          ? "border-border-strong bg-text text-surface"
+          : warn
+            ? "border-danger/50 bg-surface text-danger hover:bg-danger/10"
+            : "border-border bg-surface text-text hover:bg-surface2",
+      )}
+    >
+      {label}
+      {typeof count === "number" && (
+        <span className={cn("ml-1", active ? "opacity-70" : "text-text2")}>
+          {count}
+        </span>
+      )}
+    </button>
+  );
 }
 
 export default function AutopilotConsole() {
   const [leads, setLeads] = useState<AutopilotLead[]>([]);
   const [stats, setStats] = useState<AutopilotStats | null>(null);
-  const [queue, setQueue] = useState<AutopilotLead[]>([]);
   const [builds, setBuilds] = useState<AutopilotBuild[]>([]);
   const [alerts, setAlerts] = useState<AutopilotAlert[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
+
+  const [view, setView] = useState<ViewMode>("list");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("azione");
+  const [tierFilter, setTierFilter] = useState<string | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [showAlerts, setShowAlerts] = useState(false);
+
+  const [openLead, setOpenLead] = useState<AutopilotLead | null>(null);
+  const [drawerFocus, setDrawerFocus] = useState<"chat" | undefined>();
 
   const refresh = useCallback(async () => {
     try {
-      const [pipRes, queueRes, buildsRes, alertsRes] = await Promise.all([
+      const [pipRes, buildsRes, alertsRes] = await Promise.all([
         fetch("/api/autopilot/pipeline", { cache: "no-store" }),
-        fetch("/api/autopilot/queue", { cache: "no-store" }),
         fetch("/api/autopilot/builds", { cache: "no-store" }),
         fetch("/api/autopilot/alerts?unread=1", { cache: "no-store" }),
       ]);
-      const pip = (await pipRes.json()) as ApiResponse<PipelinePayload>;
-      const q = (await queueRes.json()) as ApiResponse<AutopilotLead[]>;
+      const pip = (await pipRes.json()) as ApiResponse<{
+        leads: AutopilotLead[];
+        stats: AutopilotStats;
+      }>;
       const b = (await buildsRes.json()) as ApiResponse<AutopilotBuild[]>;
       const a = (await alertsRes.json()) as ApiResponse<AutopilotAlert[]>;
       if (pip.success && pip.data) {
         setLeads(pip.data.leads);
         setStats(pip.data.stats);
       }
-      if (q.success && q.data) setQueue(q.data);
       if (b.success && b.data) setBuilds(b.data);
       if (a.success && a.data) setAlerts(a.data);
       setError(null);
@@ -107,12 +170,63 @@ export default function AutopilotConsole() {
     return () => clearInterval(t);
   }, [refresh]);
 
-  const byStage = useMemo(() => {
-    const map = new Map<AutopilotStage, AutopilotLead[]>();
-    for (const s of STAGE_ORDER) map.set(s, []);
-    for (const l of leads) map.get(l.stage)?.push(l);
-    return map;
+  // Il drawer mostra sempre la versione più fresca del lead aperto.
+  useEffect(() => {
+    if (!openLead) return;
+    const fresh = leads.find((l) => l.lead_id === openLead.lead_id);
+    if (fresh && fresh !== openLead) setOpenLead(fresh);
+  }, [leads, openLead]);
+
+  const categories = useMemo(
+    () => Array.from(new Set(leads.map((l) => l.category))).sort(),
+    [leads],
+  );
+
+  const counts = useMemo(() => {
+    const c = {} as Record<StatusFilter, number>;
+    for (const f of STATUS_FILTERS) {
+      c[f.id] = leads.filter((l) => matchesStatus(l, f.id)).length;
+    }
+    return c;
   }, [leads]);
+
+  const visible = useMemo(
+    () =>
+      sortByAction(
+        leads.filter(
+          (l) =>
+            matchesStatus(l, statusFilter) &&
+            (!tierFilter || l.tier === tierFilter) &&
+            (!categoryFilter || l.category === categoryFilter),
+        ),
+      ),
+    [leads, statusFilter, tierFilter, categoryFilter],
+  );
+
+  // ----- azioni -----------------------------------------------
+
+  async function patch(url: string, body: Record<string, unknown>, id: string) {
+    setBusyId(id);
+    try {
+      await fetch(url, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      await refresh();
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  const approve = (leadId: string, message?: string) =>
+    patch("/api/autopilot/queue", { lead_id: leadId, action: "approve", message }, leadId);
+  const reject = (leadId: string) =>
+    patch("/api/autopilot/queue", { lead_id: leadId, action: "reject" }, leadId);
+  const archive = (leadId: string) =>
+    patch("/api/autopilot/pipeline", { lead_id: leadId, action: "archive" }, leadId);
+  const approveDemo = (buildId: string) =>
+    patch("/api/autopilot/builds", { build_id: buildId, action: "approve" }, buildId);
 
   async function toggleKillSwitch() {
     if (!stats) return;
@@ -123,106 +237,86 @@ export default function AutopilotConsole() {
     ) {
       return;
     }
-    await fetch("/api/autopilot/settings", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ kill_switch: next }),
-    });
-    refresh();
-  }
-
-  async function decide(leadId: string, action: "approve" | "reject") {
-    setBusyId(leadId);
-    try {
-      await fetch("/api/autopilot/queue", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          lead_id: leadId,
-          action,
-          message: drafts[leadId],
-        }),
-      });
-      await refresh();
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  async function approveDemo(buildId: string) {
-    setBusyId(buildId);
-    try {
-      await fetch("/api/autopilot/builds", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ build_id: buildId, action: "approve" }),
-      });
-      await refresh();
-    } finally {
-      setBusyId(null);
-    }
+    await patch("/api/autopilot/settings", { kill_switch: next }, "kill");
   }
 
   async function clearAlerts() {
     await fetch("/api/autopilot/alerts", { method: "PATCH" });
+    setShowAlerts(false);
     refresh();
   }
 
-  const demosToApprove = builds.filter((b) => b.status === "deployed");
+  function openDrawer(lead: AutopilotLead, tab?: "chat") {
+    setDrawerFocus(tab);
+    setOpenLead(lead);
+  }
+
+  // ----- render -----------------------------------------------
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {error && (
-        <p className="font-mono text-xs text-danger" role="alert">
+        <p className="font-ui text-xs text-danger" role="alert">
           {error}
         </p>
       )}
 
-      {/* ---- Barra stato: contatore outreach + warm-up + kill switch ---- */}
-      <GlassCard className="flex flex-wrap items-center gap-x-8 gap-y-3 p-4">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-widest text-text2">
-            Outreach oggi
-          </p>
-          <p className="font-display text-2xl font-bold text-text">
-            {stats ? `${stats.today.new_contacts} / ${stats.daily_cap}` : "—"}
-            <span className="ml-2 font-mono text-xs font-normal text-text2">
-              nuovi contatti
-            </span>
-          </p>
-        </div>
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-widest text-text2">
-            Messaggi inviati
-          </p>
-          <p className="font-display text-2xl font-bold text-text">
-            {stats ? stats.today.messages_sent : "—"}
-          </p>
-        </div>
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-widest text-text2">
-            Fase
-          </p>
-          <p
-            className={cn(
-              "font-mono text-sm",
-              stats?.warmup_active ? "text-ochre" : "text-success",
-            )}
-          >
-            {stats?.warmup_active ? "WARM-UP (review manuale)" : "REGIME (auto)"}
-          </p>
-        </div>
-        <div className="ml-auto flex items-center gap-3">
-          {alerts.length > 0 && (
+      {/* topbar compatta: toggle vista + contatori + alert + kill switch */}
+      <GlassCard className="flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-2.5">
+        <div className="flex overflow-hidden rounded-sm border border-border">
+          {(
+            [
+              { id: "list", label: "Lista", icon: List },
+              { id: "kanban", label: "Kanban", icon: Columns3 },
+            ] as const
+          ).map(({ id, label, icon: Icon }) => (
             <button
+              key={id}
               type="button"
-              onClick={clearAlerts}
-              className="flex items-center gap-1 font-mono text-xs text-ochre hover:text-text"
-              title="Segna notifiche come lette"
+              onClick={() => setView(id)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 font-ui text-[11px] uppercase tracking-[0.1em] transition-colors",
+                view === id
+                  ? "bg-text text-surface"
+                  : "text-text2 hover:text-text",
+              )}
             >
-              <Bell className="h-4 w-4" /> {alerts.length}
+              <Icon className="h-3.5 w-3.5" /> {label}
             </button>
+          ))}
+        </div>
+
+        <p className="font-ui text-xs text-text2">
+          Outreach oggi{" "}
+          <b className="text-sm text-text">
+            {stats ? `${stats.today.new_contacts}/${stats.daily_cap}` : "—"}
+          </b>
+        </p>
+        <p className="hidden font-ui text-xs text-text2 sm:block">
+          Inviati <b className="text-sm text-text">{stats?.today.messages_sent ?? "—"}</b>
+        </p>
+        <p
+          className={cn(
+            "font-ui text-[11px] uppercase tracking-[0.1em]",
+            stats?.warmup_active ? "text-ochre" : "text-success",
           )}
+        >
+          {stats?.warmup_active ? "Warm-up" : "Regime"}
+        </p>
+
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowAlerts((s) => !s)}
+            className={cn(
+              "relative flex items-center gap-1 rounded-sm border border-border px-2 py-1.5 font-ui text-xs",
+              alerts.length > 0 ? "text-ochre" : "text-text2",
+            )}
+            aria-label="Notifiche"
+          >
+            <Bell className="h-3.5 w-3.5" />
+            {alerts.length > 0 && alerts.length}
+          </button>
           <NeonButton
             size="sm"
             variant={stats?.kill_switch ? "green" : "magenta"}
@@ -231,7 +325,7 @@ export default function AutopilotConsole() {
           >
             {stats?.kill_switch ? (
               <>
-                <Play className="h-3.5 w-3.5" /> Riattiva pipeline
+                <Play className="h-3.5 w-3.5" /> Riattiva
               </>
             ) : (
               <>
@@ -243,197 +337,141 @@ export default function AutopilotConsole() {
       </GlassCard>
 
       {stats?.kill_switch && (
-        <p className="flex items-center gap-2 font-mono text-xs text-danger">
+        <p className="flex items-center gap-2 font-ui text-xs text-danger">
           <AlertTriangle className="h-4 w-4" />
           KILL SWITCH ATTIVO: nessun invio, bot fermo su tutte le chat.
         </p>
       )}
 
-      {/* ---- Notifiche non lette ---- */}
-      {alerts.length > 0 && (
+      {showAlerts && (
         <GlassCard className="p-4" glow="amber">
-          <h2 className="mb-2 font-mono text-[11px] uppercase tracking-widest text-ochre">
-            Notifiche
-          </h2>
-          <ul className="space-y-1">
-            {alerts.slice(0, 8).map((a) => (
-              <li key={a.id} className="font-ui text-sm text-text">
-                <span
-                  className={cn(
-                    "mr-2 font-mono text-[10px] uppercase",
-                    a.type === "escalation" || a.type === "anomaly"
-                      ? "text-danger"
-                      : "text-accent",
-                  )}
-                >
-                  {a.type}
-                </span>
-                {a.message}
-              </li>
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="font-ui text-[10px] uppercase tracking-[0.18em] text-ochre">
+              Notifiche non lette
+            </h2>
+            {alerts.length > 0 && (
+              <button
+                type="button"
+                onClick={clearAlerts}
+                className="font-ui text-xs text-accent hover:underline"
+              >
+                Segna lette
+              </button>
+            )}
+          </div>
+          {alerts.length === 0 ? (
+            <p className="font-ui text-xs text-text2">Tutto letto.</p>
+          ) : (
+            <ul className="space-y-1">
+              {alerts.slice(0, 10).map((a) => (
+                <li key={a.id} className="font-ui text-sm text-text">
+                  <span
+                    className={cn(
+                      "mr-2 font-ui text-[10px] uppercase",
+                      a.type === "escalation" || a.type === "anomaly"
+                        ? "text-danger"
+                        : "text-accent",
+                    )}
+                  >
+                    {a.type}
+                  </span>
+                  {a.message}
+                </li>
+              ))}
+            </ul>
+          )}
+        </GlassCard>
+      )}
+
+      {/* filtri a chip */}
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="w-16 font-ui text-[10px] uppercase tracking-[0.18em] text-text2">
+            Stato
+          </span>
+          {STATUS_FILTERS.map((f) => (
+            <Chip
+              key={f.id}
+              label={f.label}
+              count={counts[f.id]}
+              active={statusFilter === f.id}
+              warn={f.id === "escalation" && counts.escalation > 0}
+              onClick={() => setStatusFilter(f.id)}
+            />
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="w-16 font-ui text-[10px] uppercase tracking-[0.18em] text-text2">
+            Tier
+          </span>
+          {["T1", "T2", "T3"].map((t) => (
+            <Chip
+              key={t}
+              label={t}
+              active={tierFilter === t}
+              onClick={() => setTierFilter((cur) => (cur === t ? null : t))}
+            />
+          ))}
+          {categories.length > 0 && (
+            <>
+              <span className="ml-3 w-auto font-ui text-[10px] uppercase tracking-[0.18em] text-text2">
+                Categoria
+              </span>
+              {categories.map((c) => (
+                <Chip
+                  key={c}
+                  label={c}
+                  active={categoryFilter === c}
+                  onClick={() =>
+                    setCategoryFilter((cur) => (cur === c ? null : c))
+                  }
+                />
+              ))}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* lista / kanban */}
+      {view === "kanban" ? (
+        <AutopilotKanban leads={visible} onOpen={openDrawer} />
+      ) : visible.length === 0 ? (
+        <GlassCard className="px-6 py-10 text-center">
+          <p className="font-ui text-sm text-text2">
+            {EMPTY_STATES[statusFilter]}
+          </p>
+        </GlassCard>
+      ) : (
+        <GlassCard className="overflow-hidden">
+          <ul>
+            {visible.map((l) => (
+              <AutopilotLeadRow
+                key={l.lead_id}
+                lead={l}
+                build={latestBuild(l, builds)}
+                busy={busyId === l.lead_id}
+                onOpen={openDrawer}
+                onApprove={(id) => approve(id)}
+                onReject={reject}
+                onArchive={archive}
+                onApproveDemo={approveDemo}
+              />
             ))}
           </ul>
         </GlassCard>
       )}
 
-      {/* ---- Coda messaggi da approvare ---- */}
-      <section>
-        <h2 className="mb-3 font-mono text-[11px] uppercase tracking-widest text-accent">
-          Coda da approvare ({queue.length})
-        </h2>
-        {queue.length === 0 ? (
-          <p className="font-ui text-sm text-text2">
-            Nessun messaggio in attesa di review.
-          </p>
-        ) : (
-          <div className="grid gap-4 lg:grid-cols-2">
-            {queue.map((l) => (
-              <GlassCard key={l.lead_id} className="p-4" glow="cyan">
-                <div className="mb-2 flex items-center gap-2">
-                  <span
-                    className={cn(
-                      "rounded-sm border px-1.5 py-0.5 font-mono text-[10px]",
-                      TIER_BADGE[l.tier] ?? TIER_BADGE.T3,
-                    )}
-                  >
-                    {l.tier}
-                  </span>
-                  <span className="font-display text-sm font-bold text-text">
-                    {l.company}
-                  </span>
-                  <span className="font-mono text-xs text-text2">
-                    {l.city} · {l.rating.toFixed(1)}★ ({l.reviews})
-                  </span>
-                </div>
-                {l.brief && (
-                  <p className="mb-2 whitespace-pre-line font-ui text-xs text-text2">
-                    {l.brief}
-                  </p>
-                )}
-                <textarea
-                  className="mb-3 w-full rounded-sm border border-border bg-bg p-2 font-ui text-sm text-text focus:border-accent focus:outline-none"
-                  rows={4}
-                  value={drafts[l.lead_id] ?? l.wa_first_message}
-                  onChange={(e) =>
-                    setDrafts((d) => ({ ...d, [l.lead_id]: e.target.value }))
-                  }
-                />
-                <div className="flex gap-2">
-                  <NeonButton
-                    size="sm"
-                    variant="green"
-                    disabled={busyId === l.lead_id}
-                    onClick={() => decide(l.lead_id, "approve")}
-                  >
-                    <CheckCircle2 className="h-3.5 w-3.5" /> Approva
-                  </NeonButton>
-                  <NeonButton
-                    size="sm"
-                    variant="magenta"
-                    disabled={busyId === l.lead_id}
-                    onClick={() => decide(l.lead_id, "reject")}
-                  >
-                    <XCircle className="h-3.5 w-3.5" /> Scarta
-                  </NeonButton>
-                </div>
-              </GlassCard>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* ---- Demo da approvare ---- */}
-      {demosToApprove.length > 0 && (
-        <section>
-          <h2 className="mb-3 font-mono text-[11px] uppercase tracking-widest text-success">
-            Demo pronte — approvazione prima dell&apos;invio (
-            {demosToApprove.length})
-          </h2>
-          <div className="grid gap-3 md:grid-cols-2">
-            {demosToApprove.map((b) => {
-              const lead = leads.find((l) => l.lead_id === b.lead_id);
-              return (
-                <GlassCard key={b.id} className="flex items-center gap-3 p-4">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-display text-sm font-bold text-text">
-                      {lead?.company ?? b.lead_id}
-                    </p>
-                    <p className="font-mono text-xs text-text2">
-                      template: {b.template || "—"}
-                    </p>
-                    {b.preview_url && (
-                      <a
-                        href={b.preview_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 font-mono text-xs text-accent hover:underline"
-                      >
-                        {b.preview_url} <ExternalLink className="h-3 w-3" />
-                      </a>
-                    )}
-                  </div>
-                  <NeonButton
-                    size="sm"
-                    variant="green"
-                    disabled={busyId === b.id}
-                    onClick={() => approveDemo(b.id)}
-                  >
-                    Approva e invia
-                  </NeonButton>
-                </GlassCard>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
-      {/* ---- Pipeline view ---- */}
-      <section>
-        <h2 className="mb-3 font-mono text-[11px] uppercase tracking-widest text-text2">
-          Pipeline
-        </h2>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-          {STAGE_ORDER.map((stage) => {
-            const items = byStage.get(stage) ?? [];
-            return (
-              <GlassCard key={stage} className="flex flex-col p-3">
-                <div
-                  className={cn(
-                    "mb-2 flex items-center justify-between border-b pb-2",
-                    STAGE_ACCENT[stage],
-                  )}
-                >
-                  <span className="font-mono text-[10px] uppercase tracking-widest">
-                    {STAGE_LABELS[stage]}
-                  </span>
-                  <span className="font-display text-sm font-bold">
-                    {stats?.by_stage[stage] ?? items.length}
-                  </span>
-                </div>
-                <ul className="space-y-2">
-                  {items.slice(0, 8).map((l) => (
-                    <li key={l.lead_id} className="font-ui text-xs">
-                      <span className="block truncate font-medium text-text">
-                        {l.company}
-                      </span>
-                      <span className="font-mono text-[10px] text-text2">
-                        {l.tier} · {l.city}
-                        {stage === "escalation" && l.escalation_reason
-                          ? ` · ${l.escalation_reason}`
-                          : ""}
-                      </span>
-                    </li>
-                  ))}
-                  {items.length > 8 && (
-                    <li className="font-mono text-[10px] text-text2">
-                      +{items.length - 8} altri
-                    </li>
-                  )}
-                </ul>
-              </GlassCard>
-            );
-          })}
-        </div>
-      </section>
+      <AutopilotLeadDrawer
+        lead={openLead}
+        build={openLead ? latestBuild(openLead, builds) : null}
+        focus={drawerFocus}
+        busy={busyId === openLead?.lead_id}
+        onClose={() => setOpenLead(null)}
+        onApprove={approve}
+        onReject={reject}
+        onArchive={archive}
+        onApproveDemo={approveDemo}
+      />
     </div>
   );
 }
