@@ -10,6 +10,7 @@ import {
   TIER_BADGE,
   isPendingApproval,
   lastAction,
+  stageLabel,
 } from "./format";
 
 export interface RowActions {
@@ -96,7 +97,7 @@ export default function AutopilotLeadRow({
               "mr-1.5 inline-block h-2 w-2 rounded-full align-middle sm:hidden",
               STAGE_CHIP[lead.stage],
             )}
-            aria-label={STAGE_LABELS[lead.stage]}
+            aria-label={stageLabel(lead)}
           />
           {lead.company}
           <span className="ml-1.5 font-normal text-text2">· {lead.category}</span>
@@ -153,7 +154,7 @@ export default function AutopilotLeadRow({
           STAGE_CHIP[lead.stage],
         )}
       >
-        {STAGE_LABELS[lead.stage]}
+        {stageLabel(lead)}
       </span>
     </li>
   );

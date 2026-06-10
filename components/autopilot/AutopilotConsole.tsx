@@ -27,6 +27,7 @@ import AutopilotLeadRow from "./AutopilotLeadRow";
 import {
   actionPriority,
   isPendingApproval,
+  isQueuedForSend,
   latestBuild,
   queuedSendLabels,
   sortByAction,
@@ -46,6 +47,7 @@ type StatusFilter =
   | "tutti"
   | "escalation"
   | "da_approvare"
+  | "in_coda"
   | "demo"
   | "contattati"
   | "nuovi"
@@ -56,6 +58,7 @@ const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
   { id: "tutti", label: "Tutti" },
   { id: "escalation", label: "Escalation" },
   { id: "da_approvare", label: "Da approvare" },
+  { id: "in_coda", label: "In coda invio" },
   { id: "demo", label: "Demo" },
   { id: "contattati", label: "Contattati" },
   { id: "nuovi", label: "Nuovi" },
@@ -67,12 +70,16 @@ const EMPTY_STATES: Record<StatusFilter, string> = {
   tutti: "Nessun lead in pipeline. Lo scout gira ogni mattina alle 6.",
   escalation: "Nessuna escalation aperta.",
   da_approvare: "Nessun lead da approvare oggi — la coda è pulita.",
+  in_coda: "Nessun messaggio approvato in attesa di invio.",
   demo: "Nessuna demo in corso.",
   contattati: "Nessun lead contattato in attesa.",
   nuovi: "Nessun lead nuovo: lo study li ha già processati tutti.",
   archiviati: "Archivio vuoto.",
 };
 
+// REGOLA: ogni lead DEVE matchare almeno un filtro oltre a "tutti"
+// (nessuno stato può essere invisibile). "in_coda" copre il buco
+// studiato+approved che prima non aveva una casa.
 function matchesStatus(lead: AutopilotLead, f: StatusFilter): boolean {
   switch (f) {
     case "azione":
@@ -83,6 +90,8 @@ function matchesStatus(lead: AutopilotLead, f: StatusFilter): boolean {
       return lead.stage === "escalation";
     case "da_approvare":
       return isPendingApproval(lead);
+    case "in_coda":
+      return isQueuedForSend(lead);
     case "demo":
       return lead.stage === "demo_richiesta";
     case "contattati":

@@ -23,9 +23,9 @@ import type {
 } from "@/types/autopilot";
 import {
   STAGE_CHIP,
-  STAGE_LABELS,
   TIER_BADGE,
   isPendingApproval,
+  stageLabel,
   timeAgo,
 } from "./format";
 
@@ -195,7 +195,7 @@ export default function AutopilotLeadDrawer({
                     STAGE_CHIP[lead.stage],
                   )}
                 >
-                  {STAGE_LABELS[lead.stage]}
+                  {stageLabel(lead)}
                 </span>
                 {lead.phone && (
                   <a

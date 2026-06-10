@@ -75,6 +75,17 @@ function inSendWindowRome(now = new Date()): boolean {
   return (hour >= 9 && hour < 13) || (hour >= 16 && hour < 20);
 }
 
+/** Label di stadio veritiera per la singola riga: lo stage "studiato"
+ *  copre due stati diversi (da approvare vs approvato in coda invio)
+ *  e il chip deve distinguerli — un approved etichettato "da
+ *  approvare" è di fatto invisibile all'occhio. */
+export function stageLabel(lead: AutopilotLead): string {
+  if (lead.stage === "studiato" && lead.approval_status !== "pending") {
+    return "in coda invio";
+  }
+  return STAGE_LABELS[lead.stage];
+}
+
 /** Approvato (manuale o auto) in attesa che il worker lo invii. */
 export function isQueuedForSend(lead: AutopilotLead): boolean {
   return (
