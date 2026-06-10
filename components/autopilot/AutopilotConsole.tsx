@@ -24,7 +24,13 @@ import type {
 import AutopilotKanban from "./AutopilotKanban";
 import AutopilotLeadDrawer from "./AutopilotLeadDrawer";
 import AutopilotLeadRow from "./AutopilotLeadRow";
-import { actionPriority, isPendingApproval, latestBuild, sortByAction } from "./format";
+import {
+  actionPriority,
+  isPendingApproval,
+  latestBuild,
+  queuedSendLabels,
+  sortByAction,
+} from "./format";
 
 // ============================================================
 // AUTOPILOT console — lista compatta (default) con ordinamento
@@ -182,6 +188,13 @@ export default function AutopilotConsole() {
   const categories = useMemo(
     () => Array.from(new Set(leads.map((l) => l.category))).sort(),
     [leads],
+  );
+
+  // ETA invio per i lead approvati in attesa (solo UI, ricalcolata a
+  // ogni refresh/poll 30s).
+  const queuedLabels = useMemo(
+    () => queuedSendLabels(leads, stats?.kill_switch ?? false),
+    [leads, stats?.kill_switch],
   );
 
   const counts = useMemo(() => {
@@ -532,7 +545,7 @@ export default function AutopilotConsole() {
 
       {/* lista / kanban */}
       {view === "kanban" ? (
-        <AutopilotKanban leads={visible} onOpen={openDrawer} />
+        <AutopilotKanban leads={visible} queuedLabels={queuedLabels} onOpen={openDrawer} />
       ) : visible.length === 0 ? (
         <GlassCard className="px-6 py-10 text-center">
           <p className="font-ui text-sm text-text2">
@@ -546,6 +559,7 @@ export default function AutopilotConsole() {
               <AutopilotLeadRow
                 key={l.lead_id}
                 lead={l}
+                queuedLabel={queuedLabels.get(l.lead_id) ?? null}
                 build={latestBuild(l, builds)}
                 busy={busyId === l.lead_id}
                 onOpen={openDrawer}

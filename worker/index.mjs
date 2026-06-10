@@ -181,6 +181,36 @@ async function sendToLead(lead, body, { aiGenerated = false, newContact = false 
     );
     return false;
   }
+
+  // Risolvi il destinatario via WhatsApp (LID-aware): post-migrazione
+  // LID l'id "<numero>@c.us" da solo può fallire ("No LID for user").
+  // Numero non registrato su WA -> archivio, niente retry infiniti in
+  // testa alla coda né kill switch per colpa di un numero morto.
+  let recipientId = chatId;
+  try {
+    const numberId = await client.getNumberId(chatId.replace("@c.us", ""));
+    if (numberId?._serialized) {
+      recipientId = numberId._serialized;
+    } else {
+      // Skip-list per review: alert in dashboard, NON conta come
+      // fallimento di invio (il circuit breaker resta a zero).
+      await updatePipeline(String(lead.lead_id), {
+        stage: "archiviato",
+        archived_reason: "numero non raggiungibile su WhatsApp",
+      });
+      await addAlert(
+        "skipped_number",
+        `numero non raggiungibile su WhatsApp: ${lead.company} (${lead.phone})`,
+        String(lead.lead_id),
+      );
+      console.log("[worker] SKIP numero non su WhatsApp, archiviato:", lead.company, lead.phone);
+      return false;
+    }
+  } catch (err) {
+    // Risoluzione fallita per cause transitorie: si tenta col classico.
+    console.error("[worker] getNumberId fallito:", lead.company, err.message);
+  }
+
   const msgId = await logWaMessage({
     leadId: String(lead.lead_id),
     direction: "out",
@@ -188,7 +218,7 @@ async function sendToLead(lead, body, { aiGenerated = false, newContact = false 
     aiGenerated,
   });
   try {
-    const sent = await client.sendMessage(chatId, body);
+    const sent = await client.sendMessage(recipientId, body);
     await setWaMessageStatus(msgId, "sent", sent.id?._serialized ?? "");
     await bumpCounters({ newContact, sent: true });
     consecutiveFailures = 0;
@@ -230,6 +260,8 @@ const AUTOREPLY_PATTERNS = [
   /siamo (chiusi|momentaneamente chiusi|attualmente chiusi)/i,
   /fuori orario/i,
   /al momento non (siamo disponibili|possiamo rispondere)/i,
+  /benvenut[oaie]\s+(a|al|alla|allo|da|in|nel|presso)\b/i,
+  /siamo lieti di accoglier/i,
 ];
 
 function isAutoReply(text) {

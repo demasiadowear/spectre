@@ -8,12 +8,14 @@ import { STAGE_CHIP, STAGE_LABELS, TIER_BADGE, lastAction } from "./format";
 
 interface Props {
   leads: AutopilotLead[];
+  /** ETA invio per i lead approvati in coda (da queuedSendLabels). */
+  queuedLabels?: Map<string, string>;
   onOpen: (lead: AutopilotLead) => void;
 }
 
 // Vista alternativa a colonne (toggle dalla topbar). Le card
 // restano minime: il dettaglio è sempre nel drawer.
-export default function AutopilotKanban({ leads, onOpen }: Props) {
+export default function AutopilotKanban({ leads, queuedLabels, onOpen }: Props) {
   const byStage = new Map<AutopilotStage, AutopilotLead[]>(
     AUTOPILOT_STAGES.map((s) => [s, []]),
   );
@@ -53,7 +55,7 @@ export default function AutopilotKanban({ leads, onOpen }: Props) {
                       <b className={cn("mr-1", TIER_BADGE[l.tier]?.split(" ")[1])}>
                         {l.tier}
                       </b>
-                      {lastAction(l, null)}
+                      {lastAction(l, null, queuedLabels?.get(l.lead_id) ?? null)}
                     </span>
                   </button>
                 </li>

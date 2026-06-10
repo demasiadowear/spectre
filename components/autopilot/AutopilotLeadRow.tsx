@@ -24,6 +24,8 @@ interface Props extends RowActions {
   lead: AutopilotLead;
   build: AutopilotBuild | null;
   busy: boolean;
+  /** ETA invio per i lead approvati in coda (da queuedSendLabels). */
+  queuedLabel?: string | null;
 }
 
 // ============================================================
@@ -70,6 +72,7 @@ export default function AutopilotLeadRow({
   lead,
   build,
   busy,
+  queuedLabel,
   onOpen,
   onApprove,
   onReject,
@@ -99,7 +102,7 @@ export default function AutopilotLeadRow({
           <span className="ml-1.5 font-normal text-text2">· {lead.category}</span>
         </p>
         <p className="truncate font-ui text-xs text-text2">
-          {lastAction(lead, build)}
+          {lastAction(lead, build, queuedLabel)}
         </p>
       </div>
 

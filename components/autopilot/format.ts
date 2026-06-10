@@ -56,6 +56,67 @@ export function isPendingApproval(lead: AutopilotLead): boolean {
   return lead.stage === "studiato" && lead.approval_status === "pending";
 }
 
+// ----- Stima invio (SOLO UI: i delay reali sono del worker) ---
+
+/** Replica di inSendWindow del worker: lun-ven, 9-13 / 16-20 Rome. */
+function inSendWindowRome(now = new Date()): boolean {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("it-IT", {
+      timeZone: "Europe/Rome",
+      hour: "numeric",
+      weekday: "short",
+      hour12: false,
+    })
+      .formatToParts(now)
+      .map((p) => [p.type, p.value]),
+  );
+  if (parts.weekday === "sab" || parts.weekday === "dom") return false;
+  const hour = Number(parts.hour);
+  return (hour >= 9 && hour < 13) || (hour >= 16 && hour < 20);
+}
+
+/** Approvato (manuale o auto) in attesa che il worker lo invii. */
+export function isQueuedForSend(lead: AutopilotLead): boolean {
+  return (
+    lead.stage === "studiato" &&
+    (lead.approval_status === "approved" || lead.approval_status === "auto") &&
+    lead.wa_first_message !== ""
+  );
+}
+
+/**
+ * Label "in coda" con ETA per ogni lead approvato, nello stesso ordine
+ * del worker (tier ASC, approved_at ASC). Stima: ~2,5 min a invio
+ * (delay random 60-240s), solo dentro le finestre. Il cap giornaliero
+ * può allungarla: per questo è un "~".
+ */
+export function queuedSendLabels(
+  leads: AutopilotLead[],
+  killSwitch: boolean,
+): Map<string, string> {
+  const queue = leads.filter(isQueuedForSend).sort((a, b) => {
+    if (a.tier !== b.tier) return a.tier < b.tier ? -1 : 1;
+    return (
+      (parseDbDate(a.approved_at)?.getTime() ?? 0) -
+      (parseDbDate(b.approved_at)?.getTime() ?? 0)
+    );
+  });
+  const inWindow = inSendWindowRome();
+  return new Map(
+    queue.map((l, i) => {
+      let label: string;
+      if (killSwitch) {
+        label = "in coda · invio fermo (kill switch attivo)";
+      } else if (!inWindow) {
+        label = "in coda · invio alla prossima finestra (lun-ven 9-13 / 16-20)";
+      } else {
+        label = `in coda · invio previsto entro ~${Math.max(3, Math.ceil((i + 1) * 2.5))} min`;
+      }
+      return [l.lead_id, label];
+    }),
+  );
+}
+
 /** Build più recente del lead (deployed in testa: è quella azionabile). */
 export function latestBuild(
   lead: AutopilotLead,
@@ -88,10 +149,12 @@ export function sortByAction(leads: AutopilotLead[]): AutopilotLead[] {
   });
 }
 
-/** Riga 2 del lead: ultima azione + quanto tempo fa. */
+/** Riga 2 del lead: ultima azione + quanto tempo fa. `queuedLabel`
+ *  (da queuedSendLabels) sostituisce il generico "in coda di invio". */
 export function lastAction(
   lead: AutopilotLead,
   build: AutopilotBuild | null,
+  queuedLabel?: string | null,
 ): string {
   switch (lead.stage) {
     case "escalation":
@@ -107,7 +170,7 @@ export function lastAction(
     case "studiato":
       return lead.approval_status === "pending"
         ? `messaggio da approvare · studiato ${timeAgo(lead.updated_at)}`
-        : `in coda di invio · approvato ${timeAgo(lead.approved_at ?? lead.updated_at)}`;
+        : `${queuedLabel ?? "in coda di invio"} · approvato ${timeAgo(lead.approved_at ?? lead.updated_at)}`;
     case "contattato":
       if (lead.followup2_at)
         return `follow-up 2 inviato · ${timeAgo(lead.followup2_at)}`;
