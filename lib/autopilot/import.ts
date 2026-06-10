@@ -44,6 +44,10 @@ export async function eligibleVisorLeads(): Promise<Lead[]> {
   const seen = new Set<string>(); // dedup interno (stesso telefono su 2 lead)
   return leads.filter((l) => {
     if (l.status !== "todo") return false;
+    // Callback pianificato = gestione manuale in corso anche se lo
+    // status è rimasto "todo" (caso Giosuè): l'autopilot non deve
+    // toccare trattative seguite a mano.
+    if (l.meta.callback) return false;
     // Solo mobili: i fissi non sono su WhatsApp, inutile importarli
     // (restano in Visor per il canale telefonico).
     if (!isMobilePhone(l.phone)) return false;
