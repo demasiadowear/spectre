@@ -37,6 +37,13 @@ export function randomDelayMs() {
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/** Saluto coerente con l'ORA DI INVIO (Europe/Rome): il testo dei
+ *  messaggi viene generato ore prima, il saluto si decide qui. */
+export function greetingNow(date = new Date()) {
+  const { hour } = romeParts(date);
+  return hour < 14 ? "Buongiorno!" : "Buon pomeriggio!";
+}
+
 /** Giorni interi trascorsi da un timestamp ISO/SQLite. */
 export function daysSince(iso) {
   if (!iso) return 0;

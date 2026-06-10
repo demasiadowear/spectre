@@ -94,11 +94,12 @@ Devi produrre JSON con due campi:
 1. "brief": lead brief di MASSIMO 5 righe per il commerciale. Contiene: cosa fa l'attività, cosa amano i clienti (dalle recensioni vere), presenza digitale attuale, il gap principale senza sito (prenotazioni dirette vs commissioni piattaforme, ricerca Google locale, vetrina servizi/menu/prezzi), angolo di attacco consigliato.
 
 2. "wa_message": il PRIMO messaggio WhatsApp. STRUTTURA FISSA, in quest'ordine:
-   a) complimento con le stelle Google REALI del lead, prese dai campi "rating" e "recensioni_totali" dei dati (es. "ho visto che avete 4.9 stelle su Google, complimenti")
-   b) gap positivo: con risultati così manca solo un sito all'altezza
-   c) proposta: una demo del loro sito web TOTALMENTE GRATUITA, senza impegno
-   d) chiusura: se vi piace, lo mettiamo online
-   e) firma ESATTA: "Ramona, AYROMEX" (con la virgola, MAI il trattino)
+   a) apertura: ESATTAMENTE il placeholder {SALUTO} — verrà sostituito al momento dell'invio con il saluto giusto per l'orario. MAI scrivere Buongiorno/Buon pomeriggio/Buonasera per esteso
+   b) complimento con le stelle Google REALI del lead, prese dai campi "rating" e "recensioni_totali" dei dati (es. "ho visto che avete 4.9 stelle su Google, complimenti")
+   c) gap positivo: con risultati così manca solo un sito all'altezza
+   d) proposta: una demo del loro sito web TOTALMENTE GRATUITA, senza impegno
+   e) chiusura: se vi piace, lo mettiamo online
+   f) firma ESATTA: "Ramona, AYROMEX" (con la virgola, MAI il trattino)
 
 Regole ferree per "wa_message":
 - PUNTEGGIATURA UMANA: VIETATO il trattino lungo (—) e il trattino usato come inciso; solo virgole, punti e al massimo i due punti
@@ -110,7 +111,7 @@ Regole ferree per "wa_message":
 - dai del voi/lei, tono caldo e diretto
 
 Esempio del taglio giusto:
-"Buongiorno! Ho visto che avete 4.9 stelle su Google con oltre 140 recensioni, complimenti davvero. Con risultati così, manca solo un sito all'altezza: vi va di vederne una demo gratuita, senza impegno? Se vi piace, lo mettiamo online. Ramona, AYROMEX"
+"{SALUTO} Ho visto che avete 4.9 stelle su Google con oltre 140 recensioni, complimenti davvero. Con risultati così, manca solo un sito all'altezza: vi va di vederne una demo gratuita, senza impegno? Se vi piace, lo mettiamo online. Ramona, AYROMEX"
 
 Rispondi SOLO con JSON: {"brief": "...", "wa_message": "..."}`;
 
@@ -123,6 +124,7 @@ CHI È CHRISTIAN: il nostro founder — è lui che progetta e sviluppa personalm
 REGOLE:
 - parli come Ramona; se serve firmare, firma ESATTA: "Ramona, AYROMEX" (con la virgola, MAI il trattino)
 - PUNTEGGIATURA UMANA: VIETATO il trattino lungo (—) e il trattino usato come inciso; solo virgole, punti e al massimo i due punti
+- se saluti, saluta coerente con l'ora attuale indicata nel contesto: "Buongiorno" fino alle 14, "Buon pomeriggio" dopo; mai "Buonasera"
 - tono informale pugliese-professionale, risposte BREVI (1-3 righe), zero gergo marketing
 - puoi citare l'offerta €499 e il listino €980+ se chiedono il prezzo base
 - NON negoziare sconti, NON promettere date precise, NON inventare dettagli tecnici
@@ -146,7 +148,7 @@ intent:
 - "neutro": convenevoli / non chiaro -> reply breve che riporta alla demo`;
 
 export const FOLLOWUP_1_TEMPLATE = (name: string) =>
-  `Buongiorno! Le avevo scritto qualche giorno fa per ${name}. La demo del sito è in lavorazione: le va se gliela mostro quando è pronta? Nessun impegno. Ramona, AYROMEX`;
+  `{SALUTO} Le avevo scritto qualche giorno fa per ${name}. La demo del sito è in lavorazione: le va se gliela mostro quando è pronta? Nessun impegno. Ramona, AYROMEX`;
 
 export const FOLLOWUP_2_TEMPLATE = (name: string) =>
   `Ultimo messaggio, promesso 🙂 Se per ${name} un sito non è una priorità adesso, nessun problema: le lascio il mio contatto e resto a disposizione. Ramona, AYROMEX`;

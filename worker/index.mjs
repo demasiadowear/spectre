@@ -51,6 +51,7 @@ import {
   FOLLOWUP_1_DAYS,
   FOLLOWUP_2_DAYS,
   daysSince,
+  greetingNow,
   inSendWindow,
   randomDelayMs,
   sleep,
@@ -160,8 +161,21 @@ async function notifyPuccio(text) {
   }
 }
 
+/** Saluto risolto AL MOMENTO dell'invio: sostituisce il placeholder
+ *  {SALUTO} dei messaggi generati da Study; retrocompatibilità per i
+ *  messaggi già in coda che aprono con un saluto statico. */
+function applyGreeting(body) {
+  const greeting = greetingNow();
+  if (body.includes("{SALUTO}")) return body.replaceAll("{SALUTO}", greeting);
+  return body.replace(
+    /^\s*(buongiorno|buon pomeriggio|buonasera)[!,.]?\s*/i,
+    `${greeting} `,
+  );
+}
+
 /** Invio tracciato: log su wa_messages, contatori, anomaly detection. */
 async function sendToLead(lead, body, { aiGenerated = false, newContact = false } = {}) {
+  body = applyGreeting(body);
   const chatId = chatIdFor(lead.phone);
   if (!chatId) {
     await updatePipeline(String(lead.lead_id), {
@@ -349,9 +363,17 @@ async function handleInbound(msg, knownLead = null) {
     .map((m) => `${m.direction === "out" ? "TU" : "CLIENTE"}: ${m.body}`)
     .join("\n");
 
+  // Ora corrente nel prompt: le risposte sono generate live e il
+  // saluto (se serve) deve essere coerente con l'orario.
+  const nowRome = new Date().toLocaleString("it-IT", {
+    timeZone: "Europe/Rome",
+    weekday: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
   const decision = await geminiJSON(
     CONVERSATION_SYSTEM_PROMPT,
-    `Attività: ${lead.company} (${lead.category}, ${lead.city})\n\nCHAT FINORA:\n${transcript}\n\nRispondi all'ultimo messaggio del cliente.`,
+    `Attività: ${lead.company} (${lead.category}, ${lead.city})\nOra attuale (Europe/Rome): ${nowRome}\n\nCHAT FINORA:\n${transcript}\n\nRispondi all'ultimo messaggio del cliente.`,
   );
 
   // Senza decisione affidabile non si improvvisa: passa a Puccio.

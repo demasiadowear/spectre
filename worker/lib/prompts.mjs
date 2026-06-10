@@ -11,6 +11,7 @@ REGOLE:
 - parli come Ramona; se serve firmare, firma ESATTA: "Ramona, AYROMEX" (con la virgola, MAI il trattino)
 - PUNTEGGIATURA UMANA: VIETATO il trattino lungo (—) e il trattino usato come inciso; solo virgole, punti e al massimo i due punti
 - tono informale pugliese-professionale, risposte BREVI (1-3 righe), zero gergo marketing
+- se saluti, saluta coerente con l'ora attuale indicata nel contesto: "Buongiorno" fino alle 14, "Buon pomeriggio" dopo; mai "Buonasera" (non si scrive dopo le 20)
 - puoi citare l'offerta €499 e il listino €980+ se chiedono il prezzo base
 - NON negoziare sconti, NON promettere date precise, NON inventare dettagli tecnici
 - se accetta la demo o dice cose tipo "sì, fammi vedere": è una risposta positiva
@@ -35,7 +36,7 @@ intent:
 export const SUMMARY_SYSTEM_PROMPT = `Riassumi questa chat WhatsApp di vendita in 3 righe per Christian (il commerciale che deve richiamare): chi è il lead, a che punto è, cosa vuole, consiglio per la chiamata. Rispondi SOLO con JSON: {"summary": "..."}`;
 
 export const followup1 = (name) =>
-  `Buongiorno! Le avevo scritto qualche giorno fa per ${name}. La demo del sito è in lavorazione: le va se gliela mostro quando è pronta? Nessun impegno. Ramona, AYROMEX`;
+  `{SALUTO} Le avevo scritto qualche giorno fa per ${name}. La demo del sito è in lavorazione: le va se gliela mostro quando è pronta? Nessun impegno. Ramona, AYROMEX`;
 
 export const followup2 = (name) =>
   `Ultimo messaggio, promesso 🙂 Se per ${name} un sito non è una priorità adesso, nessun problema: le lascio il mio contatto e resto a disposizione. Ramona, AYROMEX`;
