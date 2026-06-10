@@ -44,3 +44,10 @@ next-env.d.ts
 # generated artifacts
 dev-server.log
 leads-*.csv
+
+# autopilot worker (sessione WA, build demo, deps locali)
+worker/node_modules/
+worker/.wwebjs_auth/
+worker/.wwebjs_cache/
+worker/.builds/
+worker/.env

@@ -12,6 +12,7 @@ import {
   Map as MapIcon,
   TrendingUp,
   Crosshair,
+  Bot,
   LogOut,
   type LucideIcon,
 } from "lucide-react";
@@ -32,6 +33,7 @@ const NAV: NavItem[] = [
   { href: "/oracle", label: "Oracle", icon: Gauge },
   { href: "/territorio", label: "Territorio", icon: MapIcon },
   { href: "/forecast", label: "Forecast", icon: TrendingUp },
+  { href: "/autopilot", label: "Autopilot", icon: Bot },
 ];
 
 interface SidebarProps {
