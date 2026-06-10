@@ -43,6 +43,7 @@ next-env.d.ts
 
 # generated artifacts
 dev-server.log
+dev-regen.log
 leads-*.csv
 
 # autopilot worker (sessione WA, build demo, deps locali)
