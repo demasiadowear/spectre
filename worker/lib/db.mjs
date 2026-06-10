@@ -211,6 +211,21 @@ export async function hasHumanInbound(leadId) {
   return res.rows.length > 0;
 }
 
+/** LOCK PER-CHAT: true se esiste già un messaggio in uscita (non
+ *  fallito) per questo lead negli ultimi `minutes` minuti. Controllo
+ *  su DB, quindi vale anche tra processi/restart: è la rete di
+ *  sicurezza hard contro doppi invii, qualunque sia la causa. */
+export async function outboundWithinMinutes(leadId, minutes) {
+  const res = await db.execute({
+    sql: `SELECT 1 FROM wa_messages
+          WHERE lead_id = ? AND direction = 'out' AND status != 'failed'
+            AND created_at >= datetime('now', ?)
+          LIMIT 1`,
+    args: [leadId, `-${Math.max(1, Math.round(minutes))} minutes`],
+  });
+  return res.rows.length > 0;
+}
+
 /** Dedup inbound: true se un messaggio con questo wa_id è già loggato
  *  (message + message_create + sync possono ripresentarlo). */
 export async function waMessageExists(waId) {

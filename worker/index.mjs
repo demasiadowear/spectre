@@ -31,6 +31,7 @@ import {
   getTodayCounters,
   hasHumanInbound,
   logWaMessage,
+  outboundWithinMinutes,
   pipelineByStage,
   pipelineLead,
   readyForOutreach,
@@ -69,6 +70,58 @@ const { Client, LocalAuth } = pkg;
 
 const PUCCIO = (process.env.PUCCIO_WA_NUMBER ?? "").replace(/\D/g, "");
 const SESSION_DIR = process.env.WA_SESSION_DIR ?? "./.wwebjs_auth";
+
+/** LOCK PER-CHAT: mai più di 1 messaggio in uscita per chat in questa
+ *  finestra, QUALUNQUE sia il chiamante (outreach, follow-up, bot,
+ *  demo). Rete di sicurezza contro doppi eventi/processi/bug. */
+const PER_CHAT_GAP_MIN = 30;
+
+// ----- Single instance lock ----------------------------------
+// Un solo worker per sessione: un secondo processo sugli stessi
+// eventi = messaggi doppi ai lead. Lockfile con PID, controllo
+// liveness all'avvio (lock orfani da crash vengono rimossi).
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+
+const LOCK_FILE = "./.worker.lock";
+
+function pidAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+(function acquireLock() {
+  if (existsSync(LOCK_FILE)) {
+    const pid = Number(readFileSync(LOCK_FILE, "utf8").trim());
+    if (pid && pid !== process.pid && pidAlive(pid)) {
+      console.error(
+        `[worker] ABORT: un altro worker è già attivo (PID ${pid}). ` +
+          `Se è un errore, chiudi quel processo o elimina ${LOCK_FILE}.`,
+      );
+      process.exit(1);
+    }
+    console.log("[worker] lockfile orfano rimosso (processo morto).");
+  }
+  writeFileSync(LOCK_FILE, String(process.pid));
+})();
+
+function releaseLock() {
+  try {
+    unlinkSync(LOCK_FILE);
+  } catch {
+    /* già rimosso */
+  }
+}
+process.on("exit", releaseLock);
+for (const sig of ["SIGINT", "SIGTERM"]) {
+  process.on(sig, () => {
+    releaseLock();
+    process.exit(0);
+  });
+}
 
 let consecutiveFailures = 0;
 let waReady = false;
@@ -115,6 +168,17 @@ async function sendToLead(lead, body, { aiGenerated = false, newContact = false 
       stage: "archiviato",
       archived_reason: "telefono mancante/non valido",
     });
+    return false;
+  }
+  // LOCK PER-CHAT (hard, su DB quindi cross-processo): se è uscito
+  // qualcosa verso questo lead negli ultimi PER_CHAT_GAP_MIN minuti,
+  // NON si invia. Nessuna eccezione: follow-up e demo ritentano al
+  // tick successivo, il bot risponderà al prossimo messaggio.
+  if (await outboundWithinMinutes(String(lead.lead_id), PER_CHAT_GAP_MIN)) {
+    console.log(
+      `[worker] LOCK per-chat: invio bloccato (<${PER_CHAT_GAP_MIN}min dall'ultimo out):`,
+      lead.company,
+    );
     return false;
   }
   const msgId = await logWaMessage({

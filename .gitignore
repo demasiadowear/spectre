@@ -56,3 +56,4 @@ worker/qr.png
 worker/worker-run.log
 
 ayrobackup-leads-*.json
+worker/.worker.lock
