@@ -1,0 +1,4 @@
+# Il worker WA gira in locale, non su Vercel: esclude anche la sessione
+# Chromium (.wwebjs_auth) che a worker attivo ha file lockati (EBUSY).
+worker
+dev-regen.log
