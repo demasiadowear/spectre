@@ -17,6 +17,7 @@
 import "dotenv/config";
 import pkg from "whatsapp-web.js";
 import qrcode from "qrcode-terminal";
+import QRCode from "qrcode";
 import {
   addAlert,
   alertExists,
@@ -340,11 +341,23 @@ async function tick() {
 client.on("qr", (qr) => {
   console.log("[worker] scansiona il QR col numero WA Business AYROMEX:");
   qrcode.generate(qr, { small: true });
+  // Anche come PNG (worker/qr.png): alcuni terminali non rendono il QR
+  // ASCII. Sovrascritto a ogni rigenerazione, eliminato a sessione pronta.
+  QRCode.toFile("qr.png", qr, { width: 480, margin: 2 })
+    .then(() => console.log("[worker] QR salvato anche in worker/qr.png"))
+    .catch((err) => console.error("[worker] PNG QR fallito:", err.message));
 });
 
-client.on("ready", () => {
+client.on("ready", async () => {
   waReady = true;
   console.log("[worker] WhatsApp pronto. Loop outreach attivo.");
+  // QR consumato: via il PNG, non serve più (e non deve restare in giro).
+  try {
+    const { unlink } = await import("node:fs/promises");
+    await unlink("qr.png");
+  } catch {
+    /* già assente */
+  }
 });
 
 client.on("disconnected", async (reason) => {

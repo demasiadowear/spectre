@@ -52,5 +52,7 @@ worker/.wwebjs_auth/
 worker/.wwebjs_cache/
 worker/.builds/
 worker/.env
+worker/qr.png
+worker/worker-run.log
 
 ayrobackup-leads-*.json
