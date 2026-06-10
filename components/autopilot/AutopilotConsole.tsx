@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   Bell,
+  BookOpen,
   Columns3,
   Download,
   List,
@@ -241,6 +242,37 @@ export default function AutopilotConsole() {
     await patch("/api/autopilot/settings", { kill_switch: next }, "kill");
   }
 
+  /** Run di Study on-demand: stessa logica del cron (lotto da 10),
+   *  dietro auth sessione. La UI disabilita il pulsante a run in corso. */
+  async function studyNow() {
+    setBusyId("study");
+    try {
+      const res = await fetch("/api/autopilot/study", { method: "POST" });
+      const j = (await res.json()) as ApiResponse<{
+        studied: number;
+        incomplete: number;
+        failed: number;
+      }>;
+      if (!j.success) {
+        window.alert(`Errore study: ${j.error ?? "sconosciuto"}`);
+        return;
+      }
+      const d = j.data;
+      if (d && d.studied + d.incomplete + d.failed === 0) {
+        window.alert("Nessun lead nuovo da studiare.");
+      } else if (d && (d.failed > 0 || d.incomplete > 0)) {
+        window.alert(
+          `Study: ${d.studied} ok, ${d.incomplete} da completare, ${d.failed} falliti (ritenta o aspetta il cron).`,
+        );
+      }
+      await refresh();
+    } catch {
+      window.alert("Errore di rete durante lo study.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   /** Import manuale dei lead Visor mai contattati: prima il conteggio
    *  eleggibili, poi conferma e import in batch (stage "nuovo"). */
   async function importVisorLeads() {
@@ -347,6 +379,19 @@ export default function AutopilotConsole() {
         </p>
 
         <div className="ml-auto flex items-center gap-2">
+          <button
+            type="button"
+            disabled={busyId === "study"}
+            onClick={studyNow}
+            className="flex items-center gap-1.5 rounded-sm border border-border px-2.5 py-1.5 font-ui text-xs text-text2 transition-colors hover:text-text disabled:opacity-40"
+          >
+            <BookOpen
+              className={cn("h-3.5 w-3.5", busyId === "study" && "animate-pulse")}
+            />
+            <span className="hidden sm:inline">
+              {busyId === "study" ? "Studiando…" : "Studia ora"}
+            </span>
+          </button>
           <button
             type="button"
             disabled={busyId === "import"}

@@ -15,6 +15,18 @@ export async function GET(req: Request) {
       { status: 401 },
     );
   }
+  return runAndRespond();
+}
+
+/** Run on-demand dal pulsante "Studia ora" della dashboard. Nessun
+ *  check cron qui: le richieste browser arrivano solo con sessione
+ *  JWT valida (il middleware bypassa il login soltanto per i cron
+ *  col Bearer CRON_SECRET). */
+export async function POST() {
+  return runAndRespond();
+}
+
+async function runAndRespond() {
   try {
     const result = await runStudy();
     console.log("[autopilot/study]", JSON.stringify(result));
