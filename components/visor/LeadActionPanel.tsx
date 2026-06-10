@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Check,
@@ -24,7 +25,6 @@ import {
   googleSearchUrl,
   igUrl,
   isMobilePhone,
-  leadPricing,
   mapsUrl,
   nextBestAction,
   telUrl,
@@ -35,7 +35,6 @@ import type { ApiResponse, Lead, LeadMeta, LeadStatus } from "@/types";
 
 interface LeadActionPanelProps {
   lead: Lead | null;
-  closedCount: number;
   onClose: () => void;
   onUpdate: (lead: Lead) => void;
 }
@@ -72,18 +71,19 @@ const CHANNELS = ["call", "whatsapp", "email", "meeting"] as const;
 
 export default function LeadActionPanel({
   lead,
-  closedCount,
   onClose,
   onUpdate,
 }: LeadActionPanelProps) {
   const [busy, setBusy] = useState(false);
   const [notes, setNotes] = useState("");
+  const [price, setPrice] = useState("");
   const [copied, setCopied] = useState<number | null>(null);
   const [lastChannel, setLastChannel] = useState<string | null>(null);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setNotes(lead?.notes ?? "");
+    setPrice(lead && lead.value > 0 ? String(lead.value) : "");
   }, [lead]);
 
   // Load the most recent interaction to show the channel tag.
@@ -105,10 +105,22 @@ export default function LeadActionPanel({
     };
   }, [lead]);
 
+  // Lock background scroll while the drawer is open + bring it into view
+  // (it's portaled to body, so it's always viewport-fixed regardless of
+  // how far down the list the selected lead was).
+  useEffect(() => {
+    if (!lead) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.scrollTo({ top: 0 });
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [lead]);
+
   if (!lead) return null;
 
   const mobile = isMobilePhone(lead.phone);
-  const pricing = leadPricing(lead, closedCount);
   const action = nextBestAction(lead);
   const a = activityType(lead);
   const sm = LEAD_STATUS[lead.status];
@@ -116,7 +128,7 @@ export default function LeadActionPanel({
   const messages = [
     { step: 1, label: "Step 1 · Primo contatto", text: generateStep1(lead) },
     { step: 2, label: "Step 2 · Conferma preview", text: generateStep2(lead) },
-    { step: 3, label: "Step 3 · Consegna + prezzo", text: generateStep3(lead, pricing) },
+    { step: 3, label: "Step 3 · Consegna + prezzo", text: generateStep3(lead) },
   ];
   const primaryStep =
     lead.status === "replied"
@@ -178,8 +190,8 @@ export default function LeadActionPanel({
   function markClosed() {
     if (!lead) return;
     const input = window.prompt(
-      `Chiusura "${lead.name}"\nTier ${pricing.tier} · prezzo suggerito €${pricing.prezzo}\n\nPrezzo finale concordato (€):`,
-      String(pricing.prezzo),
+      `Chiusura "${lead.name}"\n\nPrezzo finale concordato (€):`,
+      lead.value > 0 ? String(lead.value) : "",
     );
     if (input === null) return;
     const price = parseFloat(input.replace(/[^\d.]/g, ""));
@@ -253,7 +265,7 @@ export default function LeadActionPanel({
   const ig = igUrl(lead);
   const fb = fbUrl(lead);
 
-  return (
+  return createPortal(
     <AnimatePresence>
       <motion.div
         key="backdrop"
@@ -289,7 +301,7 @@ export default function LeadActionPanel({
                 </span>
               )}
               <span className="rounded-sm border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.15em] text-accent">
-                {pricing.tier} · {formatCurrency(pricing.prezzo)}
+                {lead.value > 0 ? formatCurrency(lead.value) : "Prezzo da definire"}
               </span>
             </div>
             <h2 className="mt-2 font-display text-base font-bold leading-tight text-spectre-text">
@@ -442,7 +454,106 @@ export default function LeadActionPanel({
             )}
           </div>
 
-          {/* Message blocks */}
+          {/* Prezzo proposto (manuale — nessun suggerimento automatico) */}
+          <div className="mt-4">
+            <label className="mb-1 block font-mono text-[10px] uppercase tracking-[0.2em] text-spectre-muted">
+              Prezzo proposto (€)
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="number"
+                inputMode="numeric"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                placeholder="es. 900"
+                className="w-full rounded-sm border border-border bg-surface px-3 py-2 font-mono text-sm text-spectre-text placeholder:text-spectre-muted/40 focus:border-spectre-cyan/50 focus:outline-none"
+              />
+              {Math.max(0, Math.round(Number(price) || 0)) !== lead.value && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    patch({ value: Math.max(0, Math.round(Number(price) || 0)) })
+                  }
+                  className="shrink-0 rounded-sm border border-spectre-cyan/40 px-3 font-mono text-[11px] text-spectre-cyan disabled:opacity-50"
+                >
+                  Salva
+                </button>
+              )}
+            </div>
+            <p className="mt-1 font-mono text-[10px] text-spectre-muted/60">
+              Lo metti tu. Finisce nel messaggio Step 3 e nella chiusura.
+            </p>
+          </div>
+
+          {/* Notes */}
+          <div className="mt-4">
+            <label className="mb-1 block font-mono text-[10px] uppercase tracking-[0.2em] text-spectre-muted">
+              Note
+            </label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+              placeholder="Es: ha già Instagram attivo, chiamare dopo le 15…"
+              className="w-full resize-y rounded-sm border border-border bg-surface px-3 py-2 font-mono text-[12px] text-spectre-text placeholder:text-spectre-muted/40 focus:border-spectre-cyan/50 focus:outline-none"
+            />
+            {notes.trim() !== (lead.notes ?? "").trim() && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => patch({ notes: notes.trim() })}
+                className="mt-1.5 inline-flex min-h-[34px] items-center rounded-sm border border-spectre-cyan/40 px-3 font-mono text-[11px] text-spectre-cyan disabled:opacity-50"
+              >
+                Salva nota
+              </button>
+            )}
+          </div>
+
+          {/* Cambia stato — sotto le note, con Scarta (niente scroll a fondo pagina) */}
+          <div className="mt-4 border-t border-border pt-3">
+            <p className="mb-2 font-mono text-[9px] uppercase tracking-[0.2em] text-spectre-muted">
+              Cambia stato
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {STATUS_FLOW[lead.status].map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => advance(s)}
+                  className={cn(
+                    "inline-flex min-h-[34px] items-center rounded-sm border px-2.5 font-mono text-[10px] uppercase tracking-[0.1em] disabled:opacity-50",
+                    LEAD_STATUS[s].badge,
+                  )}
+                >
+                  {LEAD_STATUS[s].label}
+                </button>
+              ))}
+              {lead.status !== "closed" && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={markClosed}
+                  className="inline-flex min-h-[34px] items-center rounded-sm border border-spectre-green/40 bg-spectre-green/10 px-2.5 font-mono text-[10px] uppercase tracking-[0.1em] text-spectre-green disabled:opacity-50"
+                >
+                  € Chiuso
+                </button>
+              )}
+              {lead.status !== "lost" && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={markLost}
+                  className="inline-flex min-h-[34px] items-center rounded-sm border border-spectre-magenta/50 bg-spectre-magenta/10 px-2.5 font-mono text-[10px] uppercase tracking-[0.1em] text-spectre-magenta disabled:opacity-50"
+                >
+                  ✕ Scarta
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Message blocks (testi lunghi, in fondo) */}
           <div className="mt-4 flex flex-col gap-2">
             {messages.map((m) => {
               const primary = m.step === primaryStep;
@@ -491,76 +602,10 @@ export default function LeadActionPanel({
               );
             })}
           </div>
-
-          {/* Notes */}
-          <div className="mt-4">
-            <label className="mb-1 block font-mono text-[10px] uppercase tracking-[0.2em] text-spectre-muted">
-              Note
-            </label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={2}
-              placeholder="Es: ha già Instagram attivo, chiamare dopo le 15…"
-              className="w-full resize-y rounded-sm border border-border bg-surface px-3 py-2 font-mono text-[12px] text-spectre-text placeholder:text-spectre-muted/40 focus:border-spectre-cyan/50 focus:outline-none"
-            />
-            {notes.trim() !== (lead.notes ?? "").trim() && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => patch({ notes: notes.trim() })}
-                className="mt-1.5 inline-flex min-h-[34px] items-center rounded-sm border border-spectre-cyan/40 px-3 font-mono text-[11px] text-spectre-cyan disabled:opacity-50"
-              >
-                Salva nota
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Status footer (always reachable, no drag needed) */}
-        <div className="border-t border-border p-3">
-          <p className="mb-2 font-mono text-[9px] uppercase tracking-[0.2em] text-spectre-muted">
-            Cambia stato
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {STATUS_FLOW[lead.status].map((s) => (
-              <button
-                key={s}
-                type="button"
-                disabled={busy}
-                onClick={() => advance(s)}
-                className={cn(
-                  "inline-flex min-h-[34px] items-center rounded-sm border px-2.5 font-mono text-[10px] uppercase tracking-[0.1em] disabled:opacity-50",
-                  LEAD_STATUS[s].badge,
-                )}
-              >
-                {LEAD_STATUS[s].label}
-              </button>
-            ))}
-            {lead.status !== "closed" && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={markClosed}
-                className="inline-flex min-h-[34px] items-center rounded-sm border border-spectre-green/40 bg-spectre-green/10 px-2.5 font-mono text-[10px] uppercase tracking-[0.1em] text-spectre-green disabled:opacity-50"
-              >
-                € Chiuso
-              </button>
-            )}
-            {lead.status !== "lost" && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={markLost}
-                className="inline-flex min-h-[34px] items-center rounded-sm border border-zinc-500/40 bg-zinc-500/10 px-2.5 font-mono text-[10px] uppercase tracking-[0.1em] text-zinc-400 disabled:opacity-50"
-              >
-                ✕ Lost
-              </button>
-            )}
-          </div>
         </div>
       </motion.aside>
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }
 

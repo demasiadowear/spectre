@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { searchGooglePlaces } from "@/lib/hunter/google-places";
 import { MOCK_HUNTER_LEADS } from "@/lib/hunter/mock-leads";
 import { scoreLead } from "@/lib/hunter/scorer";
+import { getLeads } from "@/lib/data";
+import { normalizePhone } from "@/lib/pitch";
 import type { ApiResponse } from "@/types";
 import type {
   HunterParams,
@@ -72,10 +74,24 @@ export async function POST(req: Request) {
     source = "mock";
   }
 
+  // Exclude businesses already discarded (status "lost") so they never
+  // resurface in future hunts — match by normalized phone or by name.
+  const saved = await getLeads();
+  const lostPhones = new Set<string>();
+  const lostNames = new Set<string>();
+  for (const l of saved) {
+    if (l.status !== "lost") continue;
+    if (l.phone) lostPhones.add(normalizePhone(l.phone));
+    lostNames.add(l.name.toLowerCase().trim());
+  }
+
   const filtered = raw.filter((l) => {
     if (l.rating < minRating) return false;
     if (EXCLUDE.some((re) => re.test(l.name))) return false;
     if (onlyNoWebsite && l.has_website) return false;
+    const phoneKey = l.phone ? normalizePhone(l.phone) : "";
+    if (phoneKey && lostPhones.has(phoneKey)) return false;
+    if (lostNames.has(l.name.toLowerCase().trim())) return false;
     return true;
   });
 

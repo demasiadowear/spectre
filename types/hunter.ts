@@ -23,8 +23,6 @@ export interface RawLead {
 export interface ScoredLead extends RawLead {
   hunter_score: number;
   priority: HunterPriority;
-  estimated_value: number;
-  estimated_days_to_close: number;
 }
 
 export interface HunterParams {

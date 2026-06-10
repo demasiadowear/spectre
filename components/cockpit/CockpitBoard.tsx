@@ -42,25 +42,46 @@ export default function CockpitBoard({ initialLeads }: CockpitBoardProps) {
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
   const [selected, setSelected] = useState<Lead | null>(null);
 
-  const closedCount = useMemo(
-    () => leads.filter((l) => l.status === "closed").length,
-    [leads],
+  const [segment, setSegment] = useState<"all" | "ristoranti" | "beauty">("all");
+
+  const segmentLeads = useMemo(
+    () =>
+      segment === "all"
+        ? leads
+        : leads.filter((l) => (l.meta.segmento ?? "ristoranti") === segment),
+    [leads, segment],
   );
 
   const grouped = useMemo(() => {
     const map: Record<Bucket, Lead[]> = {
       urgent: [], respond: [], close: [], prepare: [], contact: [], waiting: [],
     };
-    for (const l of leads) {
+    for (const l of segmentLeads) {
       const b = bucketOf(l);
       if (b) map[b].push(l);
     }
     // Inside each bucket: longest-waiting first.
     for (const b of ORDER) map[b].sort((a, c) => waitingHours(c) - waitingHours(a));
     return map;
-  }, [leads]);
+  }, [segmentLeads]);
 
-  const openLeads = leads.filter((l) => l.status !== "closed" && l.status !== "lost");
+  const segOptions: { key: "all" | "ristoranti" | "beauty"; label: string; count: number }[] = [
+    { key: "all", label: "Tutti", count: leads.length },
+    {
+      key: "ristoranti",
+      label: "🍝 Ristoranti",
+      count: leads.filter((l) => (l.meta.segmento ?? "ristoranti") === "ristoranti").length,
+    },
+    {
+      key: "beauty",
+      label: "💅 Beauty",
+      count: leads.filter((l) => l.meta.segmento === "beauty").length,
+    },
+  ];
+
+  const openLeads = segmentLeads.filter(
+    (l) => l.status !== "closed" && l.status !== "lost",
+  );
   const openValue = openLeads.reduce((s, l) => s + l.value, 0);
   const todoToday = grouped.urgent.length + grouped.respond.length + grouped.close.length;
 
@@ -71,6 +92,30 @@ export default function CockpitBoard({ initialLeads }: CockpitBoardProps) {
 
   return (
     <>
+      {/* Segmento */}
+      <div className="mb-3 flex items-center gap-2">
+        <span className="hidden text-[10px] uppercase tracking-[0.2em] text-text2 sm:inline">
+          Segmento
+        </span>
+        <div className="flex overflow-hidden rounded-sm border border-border">
+          {segOptions.map((o) => (
+            <button
+              key={o.key}
+              type="button"
+              onClick={() => setSegment(o.key)}
+              className={cn(
+                "px-3 py-1.5 text-[11px] uppercase tracking-[0.1em] transition-colors",
+                segment === o.key
+                  ? "bg-accent text-onaccent"
+                  : "text-text2 hover:text-text",
+              )}
+            >
+              {o.label} · {o.count}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Summary */}
       <div className="grid grid-cols-3 gap-2">
         <div className="rounded-sm border border-spectre-magenta/40 bg-spectre-magenta/5 p-3">
@@ -141,7 +186,6 @@ export default function CockpitBoard({ initialLeads }: CockpitBoardProps) {
       {selected && (
         <LeadActionPanel
           lead={selected}
-          closedCount={closedCount}
           onClose={() => setSelected(null)}
           onUpdate={applyUpdate}
         />

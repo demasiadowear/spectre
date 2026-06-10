@@ -27,6 +27,16 @@ export interface LeadMeta {
   ig?: string;
   fb?: string;
   maps_url?: string;
+  /** Business segment for filtering: "ristoranti" | "beauty" | … */
+  segmento?: string;
+  /** Web template + URL (beauty leads imported from the pitch-tracker). */
+  web_template?: string;
+  template_url?: string;
+  tier?: string;
+  listino?: number;
+  prezzo?: number;
+  zone?: string;
+  callback?: string;
   /** Geo coordinates for the territory map (from Places or geocoding). */
   lat?: number;
   lng?: number;

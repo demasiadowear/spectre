@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
+  Ban,
   Check,
   FileText,
   Globe,
@@ -15,7 +16,6 @@ import NeonButton from "@/components/ui/spectre/NeonButton";
 import LoadingGrid from "@/components/ui/spectre/LoadingGrid";
 import TypingText from "@/components/ui/spectre/TypingText";
 import { SPECTRE } from "@/lib/constants";
-import { formatCurrency } from "@/lib/utils";
 import type { HuntResult, HunterPriority, ScoredLead } from "@/types/hunter";
 
 interface HunterResultsProps {
@@ -28,6 +28,9 @@ interface HunterResultsProps {
   importedIds: Set<string>;
   onGenerateScript: (lead: ScoredLead) => void;
   onImport: (lead: ScoredLead) => void;
+  onDiscard: (lead: ScoredLead) => void;
+  onImportAll: () => void;
+  importingAll: boolean;
 }
 
 const PAGE = 8;
@@ -54,6 +57,9 @@ export default function HunterResults({
   importedIds,
   onGenerateScript,
   onImport,
+  onDiscard,
+  onImportAll,
+  importingAll,
 }: HunterResultsProps) {
   const [visible, setVisible] = useState(PAGE);
 
@@ -103,18 +109,37 @@ export default function HunterResults({
     );
   }
 
+  const remaining = leads.filter((l) => !importedIds.has(l.id)).length;
+
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between px-1">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1">
         <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-spectre-muted">
           {leads.length} target ·{" "}
           <span className="text-spectre-cyan">ordinati per score</span>
         </span>
-        {source && (
-          <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-spectre-muted/60">
-            fonte: {source === "google-places" ? "google maps" : "demo"}
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          <NeonButton
+            variant="green"
+            size="sm"
+            filled
+            disabled={importingAll || remaining === 0}
+            onClick={onImportAll}
+            title="Importa tutti i risultati in Visor (crea il segmento)"
+          >
+            {importingAll ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
+            ) : (
+              <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
+            )}
+            Importa tutti{remaining > 0 ? ` (${remaining})` : ""}
+          </NeonButton>
+          {source && (
+            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-spectre-muted/60">
+              {source === "google-places" ? "google maps" : "demo"}
+            </span>
+          )}
+        </div>
       </div>
 
       {leads.slice(0, visible).map((lead) => {
@@ -181,9 +206,6 @@ export default function HunterResults({
                 >
                   {lead.priority}
                 </span>
-                <span className="text-center font-mono text-[11px] text-spectre-text">
-                  {formatCurrency(lead.estimated_value)}
-                </span>
               </div>
             </div>
 
@@ -212,6 +234,15 @@ export default function HunterResults({
                   <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
                 )}
                 {imported ? "In Visor" : "Visor"}
+              </NeonButton>
+              <NeonButton
+                variant="magenta"
+                size="sm"
+                onClick={() => onDiscard(lead)}
+                title="Non interessato — non riapparirà nelle ricerche"
+              >
+                <Ban className="h-3.5 w-3.5" strokeWidth={1.5} />
+                Scarta
               </NeonButton>
             </div>
           </GlassCard>

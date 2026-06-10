@@ -25,11 +25,6 @@ export default function TerritoryMap({ initialLeads }: TerritoryMapProps) {
     [initialLeads],
   );
 
-  const closedCount = useMemo(
-    () => leads.filter((l) => l.status === "closed").length,
-    [leads],
-  );
-
   useEffect(() => {
     let map: import("leaflet").Map | null = null;
     let cancelled = false;
@@ -99,7 +94,6 @@ export default function TerritoryMap({ initialLeads }: TerritoryMapProps) {
       {selected && (
         <LeadActionPanel
           lead={selected}
-          closedCount={closedCount}
           onClose={() => setSelected(null)}
           onUpdate={applyUpdate}
         />
