@@ -265,17 +265,18 @@ export default function AutopilotConsole() {
         studied: number;
         incomplete: number;
         failed: number;
+        archived: number;
       }>;
       if (!j.success) {
         window.alert(`Errore study: ${j.error ?? "sconosciuto"}`);
         return;
       }
       const d = j.data;
-      if (d && d.studied + d.incomplete + d.failed === 0) {
+      if (d && d.studied + d.incomplete + d.failed + (d.archived ?? 0) === 0) {
         window.alert("Nessun lead nuovo da studiare.");
-      } else if (d && (d.failed > 0 || d.incomplete > 0)) {
+      } else if (d && (d.failed > 0 || d.incomplete > 0 || (d.archived ?? 0) > 0)) {
         window.alert(
-          `Study: ${d.studied} ok, ${d.incomplete} da completare, ${d.failed} falliti (ritenta o aspetta il cron).`,
+          `Study: ${d.studied} ok, ${d.archived ?? 0} archiviati (fisso), ${d.incomplete} da completare, ${d.failed} falliti (ritenta o aspetta il cron).`,
         );
       }
       await refresh();

@@ -1,5 +1,6 @@
 import { getLeadById, updateLead } from "@/lib/data";
 import { geminiJSON } from "@/lib/gemini";
+import { isMobilePhone } from "@/lib/pitch";
 import { searchGooglePlaces } from "@/lib/hunter/google-places";
 import { isTursoConnected, turso } from "@/lib/turso";
 import type {
@@ -9,6 +10,7 @@ import type {
 } from "@/types/autopilot";
 import { STUDY_SYSTEM_PROMPT } from "./constants";
 import {
+  addAlert,
   getPipelineLead,
   getSettings,
   isWarmupActive,
@@ -119,9 +121,26 @@ async function resolvePlace(
   };
 }
 
-export type StudyOutcome = "studied" | "incomplete" | "failed";
+export type StudyOutcome = "studied" | "incomplete" | "failed" | "archived";
 
 export async function studyLead(lead: AutopilotLead): Promise<StudyOutcome> {
+  // ----- Pre-check telefono: solo mobili in coda -------------------
+  // I fissi (080, 06, 02, …) non sono su WhatsApp: archivio subito,
+  // PRIMA di spendere Places/Gemini (stessa logica del fix LID nel
+  // worker, ma anticipata qui). Alert skipped_number per la review.
+  if (!isMobilePhone(lead.phone)) {
+    await updatePipeline(lead.lead_id, {
+      stage: "archiviato",
+      archived_reason: "numero fisso: non raggiungibile su WhatsApp",
+    });
+    await addAlert(
+      "skipped_number",
+      `numero fisso, non raggiungibile su WA: ${lead.company} (${lead.phone || "mancante"})`,
+      lead.lead_id,
+    );
+    return "archived";
+  }
+
   // ----- Dati Places mancanti (import da Visor): risolvi prima ------
   if (!lead.place_id || lead.rating <= 0) {
     const found = await resolvePlace(lead);
@@ -220,6 +239,8 @@ export interface StudyResult {
   studied: number;
   incomplete: number;
   failed: number;
+  /** Archiviati dal pre-check telefono (fissi: niente WhatsApp). */
+  archived: number;
 }
 
 /** Studia fino a `limit` lead in stato "nuovo" (T1 prima), saltando
@@ -237,7 +258,7 @@ export async function runStudy(limit = 10): Promise<StudyResult> {
     args: [limit],
   });
 
-  const result: StudyResult = { studied: 0, incomplete: 0, failed: 0 };
+  const result: StudyResult = { studied: 0, incomplete: 0, failed: 0, archived: 0 };
   for (const row of res.rows) {
     const lead = await getPipelineLead(String(row.lead_id));
     if (!lead) continue;

@@ -1,5 +1,5 @@
 import { getLeads } from "@/lib/data";
-import { cityOf } from "@/lib/pitch";
+import { cityOf, isMobilePhone } from "@/lib/pitch";
 import { isTursoConnected, turso } from "@/lib/turso";
 import type { Lead } from "@/types";
 import { scoreTier } from "./constants";
@@ -44,6 +44,9 @@ export async function eligibleVisorLeads(): Promise<Lead[]> {
   const seen = new Set<string>(); // dedup interno (stesso telefono su 2 lead)
   return leads.filter((l) => {
     if (l.status !== "todo") return false;
+    // Solo mobili: i fissi non sono su WhatsApp, inutile importarli
+    // (restano in Visor per il canale telefonico).
+    if (!isMobilePhone(l.phone)) return false;
     const phone = normalizePhone(l.phone);
     if (!phone) return false;
     if (ids.has(l.id) || phones.has(phone) || seen.has(phone)) return false;
