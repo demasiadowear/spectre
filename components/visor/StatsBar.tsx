@@ -1,6 +1,5 @@
 "use client";
 
-import { slotsRemaining, currentTier } from "@/lib/pitch";
 import { formatCurrency } from "@/lib/utils";
 import type { Lead } from "@/types";
 
@@ -11,12 +10,14 @@ interface StatsBarProps {
 /** First-come pricing + cash dashboard, mobile-first (2 cols → 4 cols). */
 export default function StatsBar({ leads }: StatsBarProps) {
   const closed = leads.filter((l) => l.status === "closed");
+  const lost = leads.filter((l) => l.status === "lost").length;
   const cash = closed.reduce((s, l) => s + (l.meta.closed_price ?? l.value), 0);
-  const slots = slotsRemaining(closed.length);
-  const tier = currentTier(closed.length);
-  const openValue = leads
-    .filter((l) => l.status !== "closed" && l.status !== "lost")
-    .reduce((s, l) => s + l.value, 0);
+  const openLeads = leads.filter(
+    (l) => l.status !== "closed" && l.status !== "lost",
+  );
+  const openValue = openLeads.reduce((s, l) => s + l.value, 0);
+  const worked = closed.length + lost;
+  const closeRate = worked > 0 ? Math.round((closed.length / worked) * 100) : 0;
 
   const cards = [
     {
@@ -26,24 +27,21 @@ export default function StatsBar({ leads }: StatsBarProps) {
       highlight: true,
     },
     {
-      label: `Tier ${tier === "FULL" ? "—" : tier} attuale`,
-      value: tier === "FULL" ? "Listino" : `−${tier === "T1" ? 30 : tier === "T2" ? 20 : 10}%`,
-      extra:
-        tier === "FULL"
-          ? "slot esauriti"
-          : `${tier === "T1" ? slots.T1 : tier === "T2" ? slots.T2 : slots.T3} slot rimasti`,
+      label: "Tasso chiusura",
+      value: `${closeRate}%`,
+      extra: `${closed.length} vinti · ${lost} persi`,
       highlight: false,
     },
     {
       label: "Pipeline aperta",
       value: formatCurrency(openValue),
-      extra: `${leads.filter((l) => l.status !== "closed" && l.status !== "lost").length} lead`,
+      extra: `${openLeads.length} lead`,
       highlight: false,
     },
     {
       label: "Totale lead",
       value: String(leads.length),
-      extra: `${leads.filter((l) => l.status === "lost").length} persi`,
+      extra: `${lost} persi`,
       highlight: false,
     },
   ];

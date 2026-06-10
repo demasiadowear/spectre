@@ -62,7 +62,8 @@ export function fbUrl(lead: Lead): string | null {
 }
 
 export function googleSearchUrl(lead: Lead): string {
-  const q = `${lead.name} ${cityOf(lead)} instagram whatsapp`;
+  const city = cityOf(lead);
+  const q = city === "zona" ? lead.name : `${lead.name} ${city}`;
   return `https://www.google.com/search?q=${encodeURIComponent(q)}`;
 }
 
@@ -99,44 +100,9 @@ export function cityOf(lead: Lead): string {
   return "zona";
 }
 
-// ---------- Tier pricing (first-come AYROSUMMER) ----------
-
-export interface Pricing {
-  listino: number;
-  prezzo: number;
-  tier: "T1" | "T2" | "T3" | "FULL";
-  sconto: number;
-}
-
-const TIER_DISCOUNT = { T1: 30, T2: 20, T3: 10 } as const;
-
-/** Current tier from how many deals are already closed (10 slots each). */
-export function currentTier(closedCount: number): Pricing["tier"] {
-  if (closedCount < 10) return "T1";
-  if (closedCount < 20) return "T2";
-  if (closedCount < 30) return "T3";
-  return "FULL";
-}
-
-export function slotsRemaining(closedCount: number) {
-  return {
-    T1: Math.max(0, 10 - closedCount),
-    T2: Math.max(0, Math.min(10, 20 - closedCount)),
-    T3: Math.max(0, Math.min(10, 30 - closedCount)),
-    closed: closedCount,
-  };
-}
-
-export function leadPricing(lead: Lead, closedCount: number): Pricing {
-  const listino = lead.value > 0 ? lead.value : 1200;
-  const tier = currentTier(closedCount);
-  if (tier === "FULL") return { listino, prezzo: listino, tier, sconto: 0 };
-  const sconto = TIER_DISCOUNT[tier];
-  const prezzo = Math.round(listino * (1 - sconto / 100));
-  return { listino, prezzo, tier, sconto };
-}
-
 // ---------- Message generation ----------
+// No auto-pricing, tiers or promos: the price shown is the one the operator
+// sets manually on the lead (lead.value). If unset, the price line is omitted.
 
 function compliment(lead: Lead): string {
   const rating = lead.meta.rating ?? 0;
@@ -164,25 +130,22 @@ La preparo usando solo materiale già pubblico del vostro ${a.sing}: foto, recen
 Vi scrivo appena è pronta (entro 24-48h). Se vi piace ne parliamo, se no amici come prima. Zero impegno.`;
 }
 
-export function generateStep3(lead: Lead, pricing: Pricing): string {
+export function generateStep3(lead: Lead): string {
   if (lead.meta.custom_step3) return lead.meta.custom_step3;
   const previewUrl =
     lead.meta.preview_url || `https://${slugify(lead.name)}-ayromex.vercel.app`;
-  const promo =
-    pricing.tier === "FULL"
-      ? `Prezzo €${pricing.listino.toLocaleString("it-IT")} tutto incluso.`
-      : `Prezzo in Promo AYROSUMMER26: da €${pricing.listino.toLocaleString(
-          "it-IT",
-        )} a €${pricing.prezzo.toLocaleString("it-IT")} (-${pricing.sconto}%).`;
+  // Price = whatever the operator set on the lead. Nothing auto-suggested.
+  const priceLine =
+    lead.value > 0
+      ? `\nPrezzo: €${lead.value.toLocaleString("it-IT")}, tutto incluso — dominio, hosting, setup e SEO.\n`
+      : "";
   return `Ciao, pronta:
 ${previewUrl}
 
 L'ho pensata per trasformare meglio chi vi cerca su Google in contatti WhatsApp e prenotazioni — non solo "per fare bello".
 
 Se vi piace lo stile, la versione completa va online in 2 giorni con dominio + hosting + setup + SEO incluso. Possiamo fare piccole modifiche (foto o testi) se serve.
-
-${promo}
-
+${priceLine}
 Cosa ne pensate del risultato?`;
 }
 

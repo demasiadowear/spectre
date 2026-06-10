@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Download, LayoutGrid, List, Phone, Plus, Search } from "lucide-react";
+import { Ban, Download, LayoutGrid, List, Phone, Plus, Search } from "lucide-react";
 import { useHudStore } from "@/lib/store";
 import { useVoiceStore } from "@/lib/voice/store";
 import {
@@ -12,7 +12,7 @@ import {
   statusIsFill,
 } from "@/lib/constants";
 import { cn, formatCurrency } from "@/lib/utils";
-import { isMobilePhone, isStale, nextBestAction } from "@/lib/pitch";
+import { isMobilePhone, isStale, nextBestAction, telUrl } from "@/lib/pitch";
 import GlassCard from "@/components/ui/spectre/GlassCard";
 import NeonButton from "@/components/ui/spectre/NeonButton";
 import HeatmapList from "./HeatmapList";
@@ -28,6 +28,26 @@ interface VisorBoardProps {
 
 type FilterKey = LeadStatus | "all" | "wa" | "fisso";
 
+// Display labels for known segments; unknown ones (auto-created from a hunt)
+// fall back to a capitalised version of their slug.
+const SEG_LABELS: Record<string, string> = {
+  ristoranti: "🍝 Ristoranti",
+  beauty: "💅 Beauty",
+  parrucchiere: "✂️ Parrucchieri",
+  barbiere: "💈 Barbieri",
+  estetista: "💅 Estetiste",
+  "tattoo studio": "🖋️ Tattoo",
+  palestra: "🏋️ Palestre",
+  pizzeria: "🍕 Pizzerie",
+  bar: "☕ Bar",
+  dentista: "🦷 Dentisti",
+  avvocato: "⚖️ Avvocati",
+  commercialista: "📊 Commercialisti",
+};
+function segLabel(s: string): string {
+  return SEG_LABELS[s] ?? s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 export default function VisorBoard({ initialLeads }: VisorBoardProps) {
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
   const [selected, setSelected] = useState<Lead | null>(null);
@@ -36,7 +56,7 @@ export default function VisorBoard({ initialLeads }: VisorBoardProps) {
   const [view, setView] = useState<"list" | "kanban">("list");
   const [filter, setFilter] = useState<FilterKey>("all");
   const [query, setQuery] = useState("");
-  const [segment, setSegment] = useState<"all" | "ristoranti" | "beauty">("all");
+  const [segment, setSegment] = useState<string>("all");
   const setHudStats = useHudStore((s) => s.setHudStats);
 
   const pendingAction = useVoiceStore((s) => s.pendingAction);
@@ -97,11 +117,6 @@ export default function VisorBoard({ initialLeads }: VisorBoardProps) {
       /* ignore */
     }
   }
-
-  const closedCount = useMemo(
-    () => leads.filter((l) => l.status === "closed").length,
-    [leads],
-  );
 
   function applyUpdate(updated: Lead) {
     setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
@@ -183,6 +198,33 @@ export default function VisorBoard({ initialLeads }: VisorBoardProps) {
     }
   }
 
+  // One-click "non interessato" → lost (so Hunter skips it in future searches).
+  async function discardLead(id: string) {
+    const current = leads.find((l) => l.id === id);
+    if (!current || current.status === "lost") return;
+    const prevStatus = current.status;
+    setLeads((prev) =>
+      prev.map((l) => (l.id === id ? { ...l, status: "lost" } : l)),
+    );
+    try {
+      const res = await fetch(`/api/leads/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "lost",
+          meta: { ...current.meta, lost_reason: "Non interessato" },
+        }),
+      });
+      const json: ApiResponse<Lead> = await res.json();
+      if (!json.success || !json.data) throw new Error();
+      applyUpdate(json.data);
+    } catch {
+      setLeads((prev) =>
+        prev.map((l) => (l.id === id ? { ...l, status: prevStatus } : l)),
+      );
+    }
+  }
+
   function findByPhone() {
     const input = window.prompt("Incolla il numero WhatsApp del lead:");
     if (!input) return;
@@ -247,19 +289,22 @@ export default function VisorBoard({ initialLeads }: VisorBoardProps) {
     { key: "fisso", label: "☎ Fisso", count: segmentLeads.filter((l) => !isMobilePhone(l.phone)).length },
   ];
 
-  const segOptions: { key: "all" | "ristoranti" | "beauty"; label: string; count: number }[] = [
-    { key: "all", label: "Tutti", count: leads.length },
-    {
-      key: "ristoranti",
-      label: "🍝 Ristoranti",
-      count: leads.filter((l) => (l.meta.segmento ?? "ristoranti") === "ristoranti").length,
-    },
-    {
-      key: "beauty",
-      label: "💅 Beauty",
-      count: leads.filter((l) => l.meta.segmento === "beauty").length,
-    },
-  ];
+  // Segments are dynamic: derived from the distinct meta.segmento on the
+  // leads, so importing a new category from the Hunter auto-creates its chip.
+  const segOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const l of leads) {
+      const s = l.meta.segmento ?? "ristoranti";
+      counts.set(s, (counts.get(s) ?? 0) + 1);
+    }
+    const dynamic = Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([key, count]) => ({ key, label: segLabel(key), count }));
+    return [
+      { key: "all", label: "Tutti", count: leads.length },
+      ...dynamic,
+    ];
+  }, [leads]);
 
   return (
     <>
@@ -375,7 +420,12 @@ export default function VisorBoard({ initialLeads }: VisorBoardProps) {
               </p>
             ) : (
               listSorted.map((lead) => (
-                <LeadRow key={lead.id} lead={lead} onClick={() => setSelected(lead)} />
+                <LeadRow
+                  key={lead.id}
+                  lead={lead}
+                  onClick={() => setSelected(lead)}
+                  onDiscard={() => discardLead(lead.id)}
+                />
               ))
             )}
           </div>
@@ -386,7 +436,7 @@ export default function VisorBoard({ initialLeads }: VisorBoardProps) {
       ) : (
         <div className="mt-4 overflow-x-auto pb-3">
           <div className="flex gap-3" style={{ minWidth: "max-content" }}>
-            {PIPELINE_ORDER.map((status) => (
+            {[...PIPELINE_ORDER, "lost" as LeadStatus].map((status) => (
               <PipelineColumn
                 key={status}
                 status={status}
@@ -417,7 +467,6 @@ export default function VisorBoard({ initialLeads }: VisorBoardProps) {
       {selected && (
         <LeadActionPanel
           lead={selected}
-          closedCount={closedCount}
           onClose={() => setSelected(null)}
           onUpdate={applyUpdate}
         />
@@ -426,18 +475,36 @@ export default function VisorBoard({ initialLeads }: VisorBoardProps) {
   );
 }
 
-/** Compact, fully tappable lead row for the mobile-first list view. */
-function LeadRow({ lead, onClick }: { lead: Lead; onClick: () => void }) {
+/** Compact, fully tappable lead row for the mobile-first list view.
+ *  A div (not a button) so it can hold the click-to-call link + discard
+ *  action; tapping the body opens the panel, the actions stopPropagation. */
+function LeadRow({
+  lead,
+  onClick,
+  onDiscard,
+}: {
+  lead: Lead;
+  onClick: () => void;
+  onDiscard: () => void;
+}) {
   const meta = LEAD_STATUS[lead.status];
   const action = nextBestAction(lead);
   const mobile = isMobilePhone(lead.phone);
   const fill = statusIsFill(lead.status);
+  const stop = (e: { stopPropagation: () => void }) => e.stopPropagation();
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
       className={cn(
-        "w-full rounded-sm p-3 text-left transition-colors",
+        "w-full cursor-pointer rounded-sm p-3 text-left transition-colors",
         statusCardClass(lead.status),
         !fill && "hover:border-accent/40",
       )}
@@ -462,26 +529,65 @@ function LeadRow({ lead, onClick }: { lead: Lead; onClick: () => void }) {
             {action.title}
           </p>
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
-          {fill ? (
-            <span className="rounded-sm border border-white/40 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.1em] text-white">
-              {meta.label}
-            </span>
-          ) : (
-            <span
+
+        {/* Quick actions — call (native dialer) + discard. */}
+        <div className="flex shrink-0 items-center gap-1.5" onClick={stop}>
+          {lead.phone && (
+            <a
+              href={telUrl(lead.phone)}
+              onClick={stop}
+              aria-label={`Chiama ${lead.name}`}
               className={cn(
-                "rounded-sm border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.1em]",
-                meta.badge,
+                "flex h-9 w-9 items-center justify-center rounded-sm border",
+                fill
+                  ? "border-white/40 text-white"
+                  : "border-spectre-green/40 bg-spectre-green/10 text-spectre-green",
               )}
             >
-              {meta.label}
-            </span>
+              <Phone className="h-4 w-4" />
+            </a>
           )}
-          <span className={cn("text-[11px]", fill ? "text-white" : "text-accent")}>
-            {formatCurrency(lead.value)}
-          </span>
+          {lead.status !== "lost" && (
+            <button
+              type="button"
+              aria-label="Non interessato"
+              title="Non interessato"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDiscard();
+              }}
+              className={cn(
+                "flex h-9 w-9 items-center justify-center rounded-sm border",
+                fill
+                  ? "border-white/40 text-white"
+                  : "border-border text-spectre-muted hover:border-spectre-magenta/40 hover:text-spectre-magenta",
+              )}
+            >
+              <Ban className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </div>
-    </button>
+
+      <div className="mt-2 flex items-center justify-between">
+        {fill ? (
+          <span className="rounded-sm border border-white/40 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.1em] text-white">
+            {meta.label}
+          </span>
+        ) : (
+          <span
+            className={cn(
+              "rounded-sm border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.1em]",
+              meta.badge,
+            )}
+          >
+            {meta.label}
+          </span>
+        )}
+        <span className={cn("text-[11px]", fill ? "text-white" : "text-accent")}>
+          {formatCurrency(lead.value)}
+        </span>
+      </div>
+    </div>
   );
 }

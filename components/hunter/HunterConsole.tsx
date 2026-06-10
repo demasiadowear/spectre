@@ -40,8 +40,9 @@ function toImportPayload(lead: ScoredLead, category: string) {
     phone: lead.phone,
     source: "maps" as const,
     status: "todo" as const,
-    value: lead.estimated_value,
-    probability: Math.max(5, Math.min(95, lead.hunter_score)),
+    // No auto price: the operator sets it later in the lead panel.
+    value: 0,
+    probability: 20,
     next_action: "Cold call — script Hunter pronto",
     notes: `${lead.address} · ${lead.rating.toFixed(1)}★ (${lead.reviews}) · ${
       lead.has_website ? "ha sito" : "NO SITO"
@@ -53,6 +54,8 @@ function toImportPayload(lead: ScoredLead, category: string) {
       reviews: lead.reviews,
       address: lead.address,
       category,
+      // Auto-create a Visor segment from the hunted category.
+      segmento: category === "ristorante" ? "ristoranti" : category,
       lat: lead.lat,
       lng: lead.lng,
     },
@@ -72,6 +75,8 @@ export default function HunterConsole() {
 
   const [importingId, setImportingId] = useState<string | null>(null);
   const [importedIds, setImportedIds] = useState<Set<string>>(new Set());
+  const [discardedIds, setDiscardedIds] = useState<Set<string>>(new Set());
+  const [importingAll, setImportingAll] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   const pendingAction = useVoiceStore((s) => s.pendingAction);
@@ -148,6 +153,74 @@ export default function HunterConsole() {
     [category, importedIds, importingId],
   );
 
+  // "Scarta" — hide now, persist as "lost" so future hunts skip it.
+  const handleDiscard = useCallback(
+    async (lead: ScoredLead) => {
+      setDiscardedIds((prev) => {
+        const next = new Set(prev);
+        next.add(lead.id);
+        return next;
+      });
+      setToast(`${lead.name} segnato come non interessato`);
+      const base = toImportPayload(lead, category);
+      try {
+        await fetch("/api/leads/import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            leads: [
+              {
+                ...base,
+                status: "lost",
+                probability: 0,
+                next_action: "Non interessato",
+                meta: { ...base.meta, lost_reason: "Non interessato (Hunter)" },
+              },
+            ],
+          }),
+        });
+      } catch {
+        /* keep it hidden locally even if the save failed */
+      }
+    },
+    [category],
+  );
+
+  // "Importa tutti in Visor" — bulk import of every visible (non-discarded,
+  // not-yet-imported) result; each carries the hunted category as segment.
+  const handleImportAll = useCallback(async () => {
+    const toImport = leads.filter(
+      (l) => !discardedIds.has(l.id) && !importedIds.has(l.id),
+    );
+    if (toImport.length === 0 || importingAll) return;
+    setImportingAll(true);
+    try {
+      const res = await fetch("/api/leads/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          leads: toImport.map((l) => toImportPayload(l, category)),
+        }),
+      });
+      const json = (await res.json()) as ApiResponse<{ imported: number }>;
+      if (json.success) {
+        setImportedIds((prev) => {
+          const next = new Set(prev);
+          toImport.forEach((l) => next.add(l.id));
+          return next;
+        });
+        const n = json.data?.imported ?? toImport.length;
+        setToast(`${n} lead importati in Visor · segmento "${category}"`);
+      } else {
+        setToast(json.error || "Import multiplo fallito.");
+      }
+    } catch {
+      setToast("Errore di rete durante l'import.");
+    } finally {
+      setImportingAll(false);
+    }
+  }, [leads, discardedIds, importedIds, importingAll, category]);
+
   // Voice command bus: "Hunter cerca [categoria] a [città]".
   useEffect(() => {
     if (
@@ -184,7 +257,7 @@ export default function HunterConsole() {
       />
 
       <HunterResults
-        leads={leads}
+        leads={leads.filter((l) => !discardedIds.has(l.id))}
         source={source}
         loading={loading}
         error={error}
@@ -193,6 +266,9 @@ export default function HunterConsole() {
         importedIds={importedIds}
         onGenerateScript={handleGenerateScript}
         onImport={handleImport}
+        onDiscard={handleDiscard}
+        onImportAll={handleImportAll}
+        importingAll={importingAll}
       />
 
       <ScriptModal

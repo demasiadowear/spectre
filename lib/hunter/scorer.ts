@@ -81,8 +81,5 @@ export function scoreLead(lead: RawLead): ScoredLead {
     ...lead,
     hunter_score: score,
     priority,
-    estimated_value:
-      score >= 85 ? 1500 : score >= 70 ? 1200 : score >= 50 ? 1000 : 750,
-    estimated_days_to_close: score >= 80 ? 2 : score >= 60 ? 3 : 5,
   };
 }

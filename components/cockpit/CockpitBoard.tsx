@@ -52,11 +52,6 @@ export default function CockpitBoard({ initialLeads }: CockpitBoardProps) {
     [leads, segment],
   );
 
-  const closedCount = useMemo(
-    () => leads.filter((l) => l.status === "closed").length,
-    [leads],
-  );
-
   const grouped = useMemo(() => {
     const map: Record<Bucket, Lead[]> = {
       urgent: [], respond: [], close: [], prepare: [], contact: [], waiting: [],
@@ -191,7 +186,6 @@ export default function CockpitBoard({ initialLeads }: CockpitBoardProps) {
       {selected && (
         <LeadActionPanel
           lead={selected}
-          closedCount={closedCount}
           onClose={() => setSelected(null)}
           onUpdate={applyUpdate}
         />
