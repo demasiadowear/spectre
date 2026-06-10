@@ -1,4 +1,6 @@
+import { getLeadById, updateLead } from "@/lib/data";
 import { geminiJSON } from "@/lib/gemini";
+import { searchGooglePlaces } from "@/lib/hunter/google-places";
 import { isTursoConnected, turso } from "@/lib/turso";
 import type {
   AutopilotLead,
@@ -10,6 +12,8 @@ import {
   getPipelineLead,
   getSettings,
   isWarmupActive,
+  normalizePhone,
+  placeIdInPipeline,
   updatePipeline,
 } from "./db";
 
@@ -23,6 +27,11 @@ import {
 
 const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_PLACES_API_KEY;
 const DETAILS_URL = "https://places.googleapis.com/v1/places";
+
+/** Prefisso del brief che marca un lead "da completare": dati Google
+ *  non trovati, niente messaggio generato (mai dati inventati).
+ *  runStudy lo esclude dalla selezione per non riprocessarlo in loop. */
+export const INCOMPLETE_BRIEF_PREFIX = "DA COMPLETARE";
 
 interface PlaceReview {
   rating?: number;
@@ -83,7 +92,73 @@ function gapsFor(category: string): string[] {
   return base;
 }
 
-export async function studyLead(lead: AutopilotLead): Promise<boolean> {
+/** Lead importati da Visor: senza place_id (o senza rating) risolve
+ *  l'attività su Places Text Search. Match SOLO per telefono o nome
+ *  esatto: meglio nessun dato che il dato di un'altra attività. */
+async function resolvePlace(
+  lead: AutopilotLead,
+): Promise<{ place_id: string; rating: number; reviews: number; address: string } | null> {
+  const location = lead.city && lead.city !== "zona" ? lead.city : "Puglia";
+  const results = await searchGooglePlaces({
+    category: lead.company,
+    location,
+  });
+  const phone = normalizePhone(lead.phone);
+  const wanted = lead.company.toLowerCase().trim();
+  const match = results.find(
+    (r) =>
+      (phone && r.phone && normalizePhone(r.phone) === phone) ||
+      r.name.toLowerCase().trim() === wanted,
+  );
+  if (!match || !match.id || match.rating <= 0) return null;
+  return {
+    place_id: match.id,
+    rating: match.rating,
+    reviews: match.reviews,
+    address: match.address,
+  };
+}
+
+export type StudyOutcome = "studied" | "incomplete" | "failed";
+
+export async function studyLead(lead: AutopilotLead): Promise<StudyOutcome> {
+  // ----- Dati Places mancanti (import da Visor): risolvi prima ------
+  if (!lead.place_id || lead.rating <= 0) {
+    const found = await resolvePlace(lead);
+    if (!found) {
+      await updatePipeline(lead.lead_id, {
+        brief: `${INCOMPLETE_BRIEF_PREFIX}: attività non trovata su Google Places (rating/recensioni non verificabili). Completa i dati a mano o archivia.`,
+      });
+      return "incomplete";
+    }
+    if (found.place_id !== lead.place_id && (await placeIdInPipeline(found.place_id))) {
+      await updatePipeline(lead.lead_id, {
+        stage: "archiviato",
+        archived_reason: "duplicato: stessa attività già in pipeline (place_id)",
+      });
+      return "incomplete";
+    }
+    await updatePipeline(lead.lead_id, { place_id: found.place_id });
+    const visorLead = await getLeadById(lead.lead_id);
+    if (visorLead) {
+      await updateLead(lead.lead_id, {
+        meta: {
+          ...visorLead.meta,
+          rating: found.rating,
+          reviews: found.reviews,
+          address: visorLead.meta.address || found.address,
+        },
+      });
+    }
+    lead = {
+      ...lead,
+      place_id: found.place_id,
+      rating: found.rating,
+      reviews: found.reviews,
+      address: lead.address || found.address,
+    };
+  }
+
   const details = await fetchPlaceDetails(lead.place_id);
 
   const recent = (details?.reviews ?? [])
@@ -119,7 +194,7 @@ export async function studyLead(lead: AutopilotLead): Promise<boolean> {
   );
   if (!generated?.brief || !generated?.wa_message) {
     console.error("[autopilot/study] Gemini vuoto per", lead.lead_id);
-    return false;
+    return "failed";
   }
 
   // Highlights ricavabili a costo zero: le frasi chiave del brief le ha
@@ -138,15 +213,17 @@ export async function studyLead(lead: AutopilotLead): Promise<boolean> {
     study_json: JSON.stringify(study),
     approval_status: isWarmupActive(settings) ? "pending" : "auto",
   });
-  return true;
+  return "studied";
 }
 
 export interface StudyResult {
   studied: number;
+  incomplete: number;
   failed: number;
 }
 
-/** Studia fino a `limit` lead in stato "nuovo" (T1 prima). */
+/** Studia fino a `limit` lead in stato "nuovo" (T1 prima), saltando
+ *  quelli già marcati "da completare". */
 export async function runStudy(limit = 10): Promise<StudyResult> {
   if (!isTursoConnected() || !turso) {
     throw new Error("Turso non configurato: lo study richiede il DB.");
@@ -154,20 +231,21 @@ export async function runStudy(limit = 10): Promise<StudyResult> {
   const res = await turso.execute({
     sql: `SELECT p.*, l.name, l.company, l.phone, l.meta
           FROM autopilot_pipeline p JOIN leads l ON l.id = p.lead_id
-          WHERE p.stage = 'nuovo' ORDER BY p.tier ASC, p.created_at ASC LIMIT ?`,
+          WHERE p.stage = 'nuovo'
+            AND (p.brief IS NULL OR p.brief NOT LIKE '${INCOMPLETE_BRIEF_PREFIX}%')
+          ORDER BY p.tier ASC, p.created_at ASC LIMIT ?`,
     args: [limit],
   });
 
-  const result: StudyResult = { studied: 0, failed: 0 };
+  const result: StudyResult = { studied: 0, incomplete: 0, failed: 0 };
   for (const row of res.rows) {
     const lead = await getPipelineLead(String(row.lead_id));
     if (!lead) continue;
-    const ok = await studyLead(lead).catch((err) => {
+    const outcome = await studyLead(lead).catch((err): StudyOutcome => {
       console.error("[autopilot/study]", lead.lead_id, (err as Error).message);
-      return false;
+      return "failed";
     });
-    if (ok) result.studied++;
-    else result.failed++;
+    result[outcome]++;
   }
   return result;
 }

@@ -61,10 +61,15 @@ export function fbUrl(lead: Lead): string | null {
   return lead.meta.fb ? `https://facebook.com/${lead.meta.fb}` : null;
 }
 
-export function googleSearchUrl(lead: Lead): string {
-  const city = cityOf(lead);
-  const q = city === "zona" ? lead.name : `${lead.name} ${city}`;
+/** Core del "Cerca": ricerca Google nome + città. Riusato da Visor
+ *  (via googleSearchUrl) e dalla dashboard Autopilot. */
+export function googleSearchHref(name: string, city?: string): string {
+  const q = !city || city === "zona" ? name : `${name} ${city}`;
   return `https://www.google.com/search?q=${encodeURIComponent(q)}`;
+}
+
+export function googleSearchUrl(lead: Lead): string {
+  return googleSearchHref(lead.name, cityOf(lead));
 }
 
 // ---------- Activity type (category-aware copy) ----------

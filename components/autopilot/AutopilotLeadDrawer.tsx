@@ -7,10 +7,12 @@ import {
   Check,
   ExternalLink,
   Phone,
+  Search,
   Star,
   X,
 } from "lucide-react";
 import NeonButton from "@/components/ui/spectre/NeonButton";
+import { googleSearchHref } from "@/lib/pitch";
 import { cn } from "@/lib/utils";
 import type { ApiResponse } from "@/types";
 import type {
@@ -189,6 +191,14 @@ export default function AutopilotLeadDrawer({
                     <Phone className="h-3 w-3" /> {lead.phone}
                   </a>
                 )}
+                <a
+                  href={googleSearchHref(lead.company, lead.city)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 font-ui text-xs text-accent hover:underline"
+                >
+                  <Search className="h-3 w-3" /> Cerca
+                </a>
               </div>
               {lead.address && (
                 <p className="mt-1 font-ui text-xs text-text2">{lead.address}</p>

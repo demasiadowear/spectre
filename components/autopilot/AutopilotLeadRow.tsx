@@ -1,6 +1,7 @@
 "use client";
 
-import { Archive, Check, MessageSquare, X } from "lucide-react";
+import { Archive, Check, MessageSquare, Search, X } from "lucide-react";
+import { googleSearchHref } from "@/lib/pitch";
 import { cn } from "@/lib/utils";
 import type { AutopilotBuild, AutopilotLead } from "@/types/autopilot";
 import {
@@ -116,6 +117,17 @@ export default function AutopilotLeadRow({
         {lead.stage === "escalation" && (
           <QuickAction label="Apri chat" icon={MessageSquare} onClick={() => onOpen(lead, "chat")} />
         )}
+        <QuickAction
+          label="Cerca"
+          icon={Search}
+          onClick={() =>
+            window.open(
+              googleSearchHref(lead.company, lead.city),
+              "_blank",
+              "noopener,noreferrer",
+            )
+          }
+        />
         {lead.stage !== "archiviato" && !pending && (
           <QuickAction label="Archivia" icon={Archive} tone="no" disabled={busy} onClick={() => onArchive(lead.lead_id)} />
         )}

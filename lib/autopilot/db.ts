@@ -158,12 +158,24 @@ export interface NewPipelineRow {
 
 export async function insertPipelineRow(row: NewPipelineRow): Promise<void> {
   if (!turso) return;
+  // place_id vuoto (import da Visor) -> NULL: la colonna è UNIQUE e in
+  // SQLite due '' collidono, due NULL no.
   await turso.execute({
     sql: `INSERT OR IGNORE INTO autopilot_pipeline
             (lead_id, stage, tier, place_id, category, city)
           VALUES (?, 'nuovo', ?, ?, ?, ?)`,
-    args: [row.lead_id, row.tier, row.place_id, row.category, row.city],
+    args: [row.lead_id, row.tier, row.place_id || null, row.category, row.city],
   });
+}
+
+/** True se un place_id è già presente in pipeline (dedup post-risoluzione). */
+export async function placeIdInPipeline(placeId: string): Promise<boolean> {
+  if (!turso || !placeId) return false;
+  const res = await turso.execute({
+    sql: "SELECT 1 FROM autopilot_pipeline WHERE place_id = ? LIMIT 1",
+    args: [placeId],
+  });
+  return res.rows.length > 0;
 }
 
 export async function knownPlaceIds(): Promise<Set<string>> {
@@ -195,6 +207,7 @@ export async function updatePipeline(
   leadId: string,
   fields: Partial<{
     stage: AutopilotStage;
+    place_id: string;
     brief: string;
     study_json: string;
     wa_first_message: string;

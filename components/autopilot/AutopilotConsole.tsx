@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   Bell,
   Columns3,
+  Download,
   List,
   Pause,
   Play,
@@ -240,6 +241,47 @@ export default function AutopilotConsole() {
     await patch("/api/autopilot/settings", { kill_switch: next }, "kill");
   }
 
+  /** Import manuale dei lead Visor mai contattati: prima il conteggio
+   *  eleggibili, poi conferma e import in batch (stage "nuovo"). */
+  async function importVisorLeads() {
+    setBusyId("import");
+    try {
+      const res = await fetch("/api/autopilot/import", { cache: "no-store" });
+      const j = (await res.json()) as ApiResponse<{
+        eligible: number;
+        sample: string[];
+      }>;
+      if (!j.success || !j.data) {
+        window.alert(`Errore conteggio: ${j.error ?? "risposta non valida"}`);
+        return;
+      }
+      if (j.data.eligible === 0) {
+        window.alert("Nessun lead Visor eleggibile (mai contattati, con telefono, non già in pipeline).");
+        return;
+      }
+      const sample = j.data.sample.join(", ");
+      if (
+        !window.confirm(
+          `${j.data.eligible} lead Visor eleggibili (es. ${sample}).\n\nImportarli in Autopilot? Lo study li processerà a lotti nei prossimi giorni, entro i cap giornalieri.`,
+        )
+      ) {
+        return;
+      }
+      const post = await fetch("/api/autopilot/import", { method: "POST" });
+      const pj = (await post.json()) as ApiResponse<{ imported: number }>;
+      window.alert(
+        pj.success
+          ? `Importati ${pj.data?.imported ?? 0} lead in pipeline (stato "nuovo").`
+          : `Errore import: ${pj.error ?? "sconosciuto"}`,
+      );
+      await refresh();
+    } catch {
+      window.alert("Errore di rete durante l'import.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function clearAlerts() {
     await fetch("/api/autopilot/alerts", { method: "PATCH" });
     setShowAlerts(false);
@@ -305,6 +347,17 @@ export default function AutopilotConsole() {
         </p>
 
         <div className="ml-auto flex items-center gap-2">
+          <button
+            type="button"
+            disabled={busyId === "import"}
+            onClick={importVisorLeads}
+            className="flex items-center gap-1.5 rounded-sm border border-border px-2.5 py-1.5 font-ui text-xs text-text2 transition-colors hover:text-text disabled:opacity-40"
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">
+              {busyId === "import" ? "Importo…" : "Importa da Visor"}
+            </span>
+          </button>
           <button
             type="button"
             onClick={() => setShowAlerts((s) => !s)}
