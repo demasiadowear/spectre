@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Archive,
@@ -111,12 +112,27 @@ export default function AutopilotLeadDrawer({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  // Scroll lock sul body a drawer aperto (è portaled su body: senza
+  // lock la pagina sotto scrolla e il pannello sembra "tagliato").
+  useEffect(() => {
+    if (!lead) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [lead]);
+
   const pending = lead ? isPendingApproval(lead) : false;
   const waLink = lead?.phone
     ? `https://wa.me/${lead.phone.replace(/\D/g, "")}`
     : null;
 
-  return (
+  // Portal su document.body: dentro il layout HUD un antenato con
+  // transform rompe position:fixed e il drawer esce tagliato.
+  if (!lead) return null;
+
+  return createPortal(
     <AnimatePresence>
       {lead && (
         <>
@@ -340,7 +356,9 @@ export default function AutopilotLeadDrawer({
                         <p className="mt-0.5 text-right text-[10px] text-text2">
                           {m.direction === "out"
                             ? `${m.ai_generated ? "bot" : "tu"} · ${m.status}`
-                            : "cliente"}{" "}
+                            : m.ai_generated
+                              ? "cliente · auto-reply"
+                              : "cliente"}{" "}
                           · {timeAgo(m.created_at)}
                         </p>
                       </li>
@@ -365,6 +383,7 @@ export default function AutopilotLeadDrawer({
           </motion.aside>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }

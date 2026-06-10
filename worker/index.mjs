@@ -29,7 +29,7 @@ import {
   findLeadByPhone,
   getSettings,
   getTodayCounters,
-  hasInbound,
+  hasHumanInbound,
   logWaMessage,
   pipelineByStage,
   pipelineLead,
@@ -39,6 +39,7 @@ import {
   setWaMessageStatus,
   setWaMessageStatusByWaId,
   undeliveredTodayCount,
+  waMessageExists,
   updateBuild,
   updateLeadStatus,
   updatePipeline,
@@ -148,21 +149,104 @@ async function sendToLead(lead, body, { aiGenerated = false, newContact = false 
 
 // ----- Bot conversazione (inbound) ---------------------------
 
-async function handleInbound(msg) {
-  if (msg.fromMe || !msg.from?.endsWith("@c.us")) return;
-  const digits = msg.from.replace("@c.us", "");
-  if (digits === PUCCIO) return;
+// Risponditori automatici dei business (away message Meta, ecc.):
+// si salvano in chat ma NON sono risposte umane. Niente bot, stato
+// invariato, follow-up regolari. Nel dubbio si tratta come umano.
+const AUTOREPLY_PATTERNS = [
+  /grazie per aver(ci|la|e)? contattat/i,
+  /grazie per (il (tuo|suo)|aver(ci)? (inviato|scritto))\s*(un\s*)?messaggio/i,
+  /(facci|fateci|ci faccia) sapere come possiamo aiutar/i,
+  /come possiamo aiutart/i,
+  /(ti|le|vi) risponderem(o|à)/i,
+  /risponderemo (al più presto|il prima possibile|appena possibile|presto)/i,
+  /messaggio (automatico|generato automaticamente)/i,
+  /risposta automatica/i,
+  /risponditore automatico/i,
+  /orari (di |d['’])?apertura/i,
+  /siamo (chiusi|momentaneamente chiusi|attualmente chiusi)/i,
+  /fuori orario/i,
+  /al momento non (siamo disponibili|possiamo rispondere)/i,
+];
 
-  const lead = await findLeadByPhone(digits);
-  if (!lead) return; // numero non in pipeline: ignora
+function isAutoReply(text) {
+  return AUTOREPLY_PATTERNS.some((re) => re.test(text));
+}
+
+/** Numero (solo cifre) del mittente. Le chat WhatsApp nuove usano il
+ *  LID (`...@lid`) al posto del numero: lì il telefono va risolto via
+ *  contatto, l'id LID non è derivato dal numero. */
+async function phoneDigitsFor(msg) {
+  const from = msg.from ?? "";
+  if (from.endsWith("@c.us")) return from.replace("@c.us", "");
+  if (from.endsWith("@lid")) {
+    try {
+      const contact = await msg.getContact();
+      const num = contact?.number ?? "";
+      if (num) return num.replace(/\D/g, "");
+    } catch (err) {
+      console.error("[worker] risoluzione contatto LID fallita:", err.message);
+    }
+  }
+  return null; // gruppi/broadcast/ignoto: ignora
+}
+
+/** @returns true se il messaggio è stato loggato (per il sync). */
+async function handleInbound(msg, knownLead = null) {
+  if (msg.fromMe) return false;
+  const from = msg.from ?? "";
+  if (!from.endsWith("@c.us") && !from.endsWith("@lid")) return false;
+
+  let lead = knownLead;
+  if (!lead) {
+    const digits = await phoneDigitsFor(msg);
+    if (!digits || digits === PUCCIO) return false;
+    lead = await findLeadByPhone(digits);
+  }
+  if (!lead) return false; // numero non in pipeline: ignora
 
   const leadId = String(lead.lead_id);
   const body = (msg.body ?? "").trim();
-  await logWaMessage({ leadId, direction: "in", body, status: "delivered" });
+  const waId = msg.id?._serialized ?? "";
+  // Dedup: message + message_create + syncMissedInbound possono
+  // ripresentare lo stesso messaggio (anche tra restart).
+  if (waId && (await waMessageExists(waId))) return false;
+
+  // Messaggi senza testo (media, vcard, card di benvenuto Business):
+  // in chat col placeholder, NESSUNA risposta del bot (Gemini non deve
+  // conversare col nulla). Flag ai_generated cosicché i follow-up
+  // continuino come da piano.
+  if (!body) {
+    await logWaMessage({
+      leadId,
+      direction: "in",
+      body: "[contenuto non testuale]",
+      status: "delivered",
+      waId,
+      aiGenerated: true,
+    });
+    console.log("[worker] inbound non testuale, nessuna risposta:", lead.company);
+    return true;
+  }
+
+  // Auto-reply: in chat con flag ai_generated (= messaggio macchina),
+  // niente bot, stato invariato — resta "in attesa di risposta umana".
+  const autoReply = isAutoReply(body);
+  await logWaMessage({
+    leadId,
+    direction: "in",
+    body,
+    status: "delivered",
+    waId,
+    aiGenerated: autoReply,
+  });
+  if (autoReply) {
+    console.log("[worker] auto-reply rilevato, nessuna risposta:", lead.company);
+    return true;
+  }
 
   const settings = await getSettings();
-  if (settings.kill_switch || Number(lead.bot_paused) === 1) return;
-  if (lead.stage === "archiviato" || lead.stage === "escalation") return;
+  if (settings.kill_switch || Number(lead.bot_paused) === 1) return true;
+  if (lead.stage === "archiviato" || lead.stage === "escalation") return true;
 
   const history = await chatHistory(leadId);
   const transcript = history
@@ -192,7 +276,7 @@ async function handleInbound(msg) {
     await notifyPuccio(
       `🔥 ESCALATION — ${lead.company} (${lead.phone})\nMotivo: ${reason}\n\n${summary?.summary ?? transcript.slice(-500)}`,
     );
-    return; // il bot si ferma su questa chat
+    return true; // il bot si ferma su questa chat
   }
 
   if (intent === "rifiuto") {
@@ -204,7 +288,7 @@ async function handleInbound(msg) {
       archived_reason: "non_interessato",
     });
     await updateLeadStatus(leadId, "lost");
-    return;
+    return true;
   }
 
   // Risposta del bot (positivo / domanda / neutro).
@@ -226,6 +310,7 @@ async function handleInbound(msg) {
   } else {
     await updateLeadStatus(leadId, "replied");
   }
+  return true;
 }
 
 // ----- Tick outreach -----------------------------------------
@@ -274,7 +359,7 @@ async function sendApprovedDemos() {
 async function processFollowups() {
   for (const lead of await pipelineByStage("contattato")) {
     const leadId = String(lead.lead_id);
-    if (await hasInbound(leadId)) continue;
+    if (await hasHumanInbound(leadId)) continue;
     const days = daysSince(String(lead.contacted_at ?? ""));
 
     if (days >= ARCHIVE_AFTER_DAYS) {
@@ -336,6 +421,44 @@ async function tick() {
   return true;
 }
 
+// ----- Sync messaggi persi -----------------------------------
+
+/** Recupera dalla cronologia WhatsApp gli inbound arrivati mentre il
+ *  worker era giù o durante una riconnessione (eventi persi). Scorre
+ *  le chat dei lead contattati e ripassa a handleInbound i messaggi
+ *  non ancora in wa_messages (dedup su wa_id: idempotente). */
+async function syncMissedInbound() {
+  const stages = ["contattato", "demo_richiesta", "escalation"];
+  let recovered = 0;
+  for (const stage of stages) {
+    for (const lead of await pipelineByStage(stage)) {
+      const chatId = chatIdFor(lead.phone);
+      if (!chatId) continue;
+      try {
+        const chat = await client.getChatById(chatId);
+        const msgs = await chat.fetchMessages({ limit: 20 });
+        for (const m of msgs) {
+          if (m.fromMe) continue;
+          const waId = m.id?._serialized ?? "";
+          if (!waId || (await waMessageExists(waId))) continue;
+          // Lead noto dalla chat: niente matching dal from (che nelle
+          // chat LID non contiene il numero).
+          if (await handleInbound(m, lead)) recovered++;
+        }
+      } catch (err) {
+        console.error(
+          "[worker] sync chat fallito:",
+          lead.company,
+          err.message,
+        );
+      }
+    }
+  }
+  if (recovered > 0) {
+    console.log(`[worker] sync: recuperati ${recovered} messaggi in entrata persi`);
+  }
+}
+
 // ----- Eventi client -----------------------------------------
 
 client.on("qr", (qr) => {
@@ -358,6 +481,11 @@ client.on("ready", async () => {
   } catch {
     /* già assente */
   }
+  // Ripesca gli inbound persi mentre eravamo giù/riconnessi ("ready"
+  // può scattare più volte: il sync è idempotente, dedup su wa_id).
+  syncMissedInbound().catch((err) =>
+    console.error("[worker] syncMissedInbound:", err.message),
+  );
 });
 
 client.on("disconnected", async (reason) => {
@@ -365,10 +493,17 @@ client.on("disconnected", async (reason) => {
   await triggerKillSwitch(`sessione WhatsApp disconnessa (${reason})`);
 });
 
-client.on("message", (msg) => {
+// Doppia sottoscrizione: dopo una riconnessione whatsapp-web.js a
+// volte non emette più "message" — message_create copre il buco
+// (fromMe filtrato in handleInbound, dedup su wa_id nel DB).
+const onInbound = (msg) => {
   handleInbound(msg).catch((err) =>
     console.error("[worker] handleInbound:", err.message),
   );
+};
+client.on("message", onInbound);
+client.on("message_create", (msg) => {
+  if (!msg.fromMe) onInbound(msg);
 });
 
 // ack: 1 = server (sent), 2 = device (delivered), 3 = read.

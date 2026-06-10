@@ -198,6 +198,30 @@ export async function hasInbound(leadId) {
   return res.rows.length > 0;
 }
 
+/** Risposta UMANA in entrata: gli auto-reply dei business vengono
+ *  loggati con ai_generated = 1 e non contano (i follow-up devono
+ *  continuare come se il lead non avesse mai risposto). */
+export async function hasHumanInbound(leadId) {
+  const res = await db.execute({
+    sql: `SELECT 1 FROM wa_messages
+          WHERE lead_id = ? AND direction = 'in' AND ai_generated = 0
+          LIMIT 1`,
+    args: [leadId],
+  });
+  return res.rows.length > 0;
+}
+
+/** Dedup inbound: true se un messaggio con questo wa_id è già loggato
+ *  (message + message_create + sync possono ripresentarlo). */
+export async function waMessageExists(waId) {
+  if (!waId) return false;
+  const res = await db.execute({
+    sql: "SELECT 1 FROM wa_messages WHERE wa_id = ? LIMIT 1",
+    args: [waId],
+  });
+  return res.rows.length > 0;
+}
+
 /** Messaggi di oggi usciti ma mai consegnati (pattern anomalo Meta). */
 export async function undeliveredTodayCount() {
   const res = await db.execute({
