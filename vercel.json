@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/autopilot/scout",
+      "schedule": "0 6 * * 1-5"
+    },
+    {
+      "path": "/api/autopilot/study",
+      "schedule": "30 6 * * 1-5"
+    }
+  ]
+}

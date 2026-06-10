@@ -15,6 +15,19 @@ const AUTH_SECRET =
 export async function middleware(req: NextRequest) {
   if (AUTH_DISABLED) return NextResponse.next();
 
+  // I cron Vercel (scout/study Autopilot) si autenticano con il bearer
+  // CRON_SECRET, non con la sessione. Bypass limitato ai SOLI due
+  // endpoint cron: tutte le altre API autopilot restano dietro il JWT.
+  const cronSecret = process.env.CRON_SECRET;
+  const CRON_PATHS = ["/api/autopilot/scout", "/api/autopilot/study"];
+  if (
+    cronSecret &&
+    CRON_PATHS.includes(req.nextUrl.pathname) &&
+    req.headers.get("authorization") === `Bearer ${cronSecret}`
+  ) {
+    return NextResponse.next();
+  }
+
   const token = await getToken({ req, secret: AUTH_SECRET });
   if (token) return NextResponse.next();
 
