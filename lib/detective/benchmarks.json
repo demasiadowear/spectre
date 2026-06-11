@@ -1,0 +1,41 @@
+{
+  "_comment": "Benchmark v0 — da raffinare col pilota. Tutti i valori sono RANGE: le stime nel dossier devono sempre dichiararsi tali.",
+  "scontrino_medio": {
+    "salone": { "min": 25, "max": 45 },
+    "estetica": { "min": 40, "max": 80 }
+  },
+  "no_show_senza_reminder_pct": { "min": 10, "max": 20 },
+  "lead_persi_senza_risposta_1h_pct": { "min": 35, "max": 50 },
+  "dormienti_recuperabili_pct": { "min": 8, "max": 15 },
+  "impatto_recensioni_senza_risposta_conversione_pct": { "min": -15, "max": -5 },
+  "appuntamenti_mese_tipo": {
+    "salone": { "min": 150, "max": 400 },
+    "estetica": { "min": 80, "max": 250 }
+  },
+  "automation_catalog": [
+    {
+      "name": "Prenotazione online 24/7",
+      "benefit": "il cliente prenota da solo anche a salone chiuso, senza telefonate perse"
+    },
+    {
+      "name": "Risposta WhatsApp istantanea",
+      "benefit": "ogni richiesta riceve risposta in secondi, anche fuori orario"
+    },
+    {
+      "name": "Reminder appuntamenti anti no-show",
+      "benefit": "promemoria automatico che riduce le poltrone vuote"
+    },
+    {
+      "name": "Recupero clienti dormienti",
+      "benefit": "richiamo automatico di chi non torna da mesi"
+    },
+    {
+      "name": "Gestione recensioni",
+      "benefit": "risposta curata a ogni recensione e invito a recensire dopo la visita"
+    },
+    {
+      "name": "Follow-up nuovi contatti",
+      "benefit": "nessuna richiesta di preventivo o info resta senza seguito"
+    }
+  ]
+}
