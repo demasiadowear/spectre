@@ -37,9 +37,11 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Protect everything except the login page, the auth API, Next
-  // internals and static assets.
+  // Protect everything except the login page, the auth API, the public
+  // Detective reports — SOLO /detective/<slug> ("detective/" col trailing
+  // slash: la dashboard /detective e le API /api/detective/* restano
+  // dietro il JWT) — Next internals and static assets.
   matcher: [
-    "/((?!login|api/auth|_next/static|_next/image|favicon.ico|fonts).*)",
+    "/((?!login|api/auth|detective/|_next/static|_next/image|favicon.ico|fonts).*)",
   ],
 };
