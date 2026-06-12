@@ -10,10 +10,12 @@ export type AutopilotStage =
   | "studiato"
   | "contattato"
   | "risposto_manuale" // risposta umana: bot muto, chat in mano a Puccio
-  // --- stati trattativa (SOLO manuali, li imposta Puccio dal drawer) ---
+  // --- stati trattativa: assegnati dal triage Gemini alla risposta
+  //     umana (solo catalogazione interna) o a mano dal drawer ---
   | "da_chiamare" // appuntamento telefonico (next_action_at = quando)
   | "demo_richiesta" // "demo da fare": il lead ha detto sì, va preparata
   | "demo_inviata" // demo mandata, in attesa di risposta
+  | "richiesta_prezzo" // ha chiesto quanto costa
   | "in_trattativa"
   | "tiepido" // ricontattare il next_action_at
   | "vinto"
@@ -21,12 +23,15 @@ export type AutopilotStage =
   | "escalation"
   | "archiviato";
 
-/** Stati gestiti a mano da Puccio dal drawer (bot sempre muto). */
+/** Stati trattativa selezionabili dal drawer (bot sempre muto).
+ *  Il triage automatico può assegnare: risposto_manuale (da
+ *  rispondere), da_chiamare, demo_richiesta, richiesta_prezzo, perso. */
 export const DEAL_STAGES: AutopilotStage[] = [
   "risposto_manuale",
   "da_chiamare",
   "demo_richiesta",
   "demo_inviata",
+  "richiesta_prezzo",
   "in_trattativa",
   "tiepido",
   "vinto",

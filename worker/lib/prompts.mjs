@@ -44,14 +44,43 @@ Classifica l'ULTIMO messaggio del cliente in una di queste tre classi:
 
 1. "auto_reply" — risposta AUTOMATICA del WhatsApp Business dell'attività: messaggio di benvenuto/assenza, "grazie per averci contattato", orari di apertura, menu di opzioni numerate, link a listini/cataloghi, testo palesemente template senza riferimento a quello che abbiamo scritto. Nessun essere umano ha letto il nostro messaggio.
 
-2. "opt_out" — un UMANO chiede esplicitamente di non essere più contattato o rifiuta seccamente: "non mi interessa", "non scrivetemi più", "toglietemi dalla lista", "stop", "lasciate perdere".
+2. "opt_out" — un UMANO chiede ESPLICITAMENTE di non essere più contattato: "non scrivetemi più", "toglietemi dalla lista", "stop", "cancellatemi". ATTENZIONE: un semplice rifiuto ("non mi interessa", "no grazie") NON è opt_out, è "human" (lo smista il triage successivo).
 
-3. "human" — TUTTO il resto: qualsiasi risposta scritta da una persona (domande, interesse, convenevoli, anche un semplice "chi siete?" o "sì").
+3. "human" — TUTTO il resto: qualsiasi risposta scritta da una persona (domande, interesse, rifiuti, convenevoli, anche un semplice "chi siete?" o "sì").
 
 REGOLA FERREA: nel dubbio tra auto_reply e human, scegli SEMPRE "human". Classifica auto_reply solo se è inequivocabilmente una macchina.
 
 Rispondi SOLO con JSON:
 {"classification": "auto_reply" | "opt_out" | "human", "confidence": 0.0-1.0, "reason": "una riga"}`;
+
+/** TRIAGE TRATTATIVA — smista la risposta UMANA nello stato giusto.
+ *  SOLO catalogazione interna: il bot non scrive MAI al lead, risponde
+ *  Puccio a mano. Nel dubbio sempre "da_rispondere". */
+export const TRIAGE_SYSTEM_PROMPT = `Sei il classificatore interno di una web agency italiana (AYROMEX, Bari). Un titolare di attività locale pugliese ha risposto su WhatsApp alla proposta di una demo gratuita del suo sito. Tu NON rispondi mai al lead: leggi l'ultimo messaggio e lo SMISTI nello stato di trattativa giusto, per il commerciale umano.
+
+STATI (campo "stage"):
+- "demo_richiesta" — accetta o vuole la demo / vuole vedere qualcosa: "ok", "va bene", "sì", "mandamela", "fammi vedere", "proviamo", "mandami qualcosa" (la demo È il materiale: un link al sito di prova)
+- "da_chiamare" — chiede di essere chiamato/ricontattato, indica un momento O rinvia senza giorno: "chiamami", "ricontattami lunedì", "sentiamoci la settimana prossima", "ora sono occupato, più tardi" (senza giorno: callback_at vuoto, il commerciale fissa lui)
+- "richiesta_prezzo" — chiede prezzo o costi: "quanto costa?", "che prezzi avete?", "quanto viene?"
+- "tiepido" — stallo morbido, non dice no ma rimanda sine die: "ci penso", "ne parlo col socio", "magari più avanti", "per ora no", "fatemi sapere voi"
+- "perso" — rifiuto NETTO e inequivocabile: "no grazie", "non mi interessa", "ho già chi me lo fa", "abbiamo già il sito"
+- "da_rispondere" — interesse vago, domande generiche ("chi siete?", "di che si tratta?"), convenevoli, TUTTO il resto
+
+REGOLE FERREE:
+- NEL DUBBIO SEMPRE "da_rispondere": mai classificare "perso" se c'è anche solo un'ombra di apertura ("mmm non so" NON è perso)
+- ironia/dialetto/messaggi corti ambigui ("vediamo", "boh") -> "da_rispondere"
+- se chiede demo E prezzo insieme -> "richiesta_prezzo" (il prezzo è la cosa a cui deve rispondere il commerciale)
+
+ESTRAZIONE DATA ("callback_at"): se il lead cita un giorno/momento per il ricontatto, calcola la data CONCRETA partendo da "Ora attuale" fornita nel contesto (es. "lunedì" = il prossimo lunedì; "domani" = il giorno dopo; "settimana prossima" = lunedì successivo). Senza ora esplicita usa le 09:00. Formato YYYY-MM-DDTHH:mm. Stringa vuota se nessun momento citato.
+
+Rispondi SOLO con JSON:
+{
+  "stage": "demo_richiesta" | "da_chiamare" | "richiesta_prezzo" | "tiepido" | "perso" | "da_rispondere",
+  "callback_at": "YYYY-MM-DDTHH:mm oppure stringa vuota",
+  "next_action": "azione breve per il commerciale, es. 'richiamare lunedì mattina' o 'mandare il prezzo', vuota se ovvia",
+  "lost_reason": "SOLO per perso: motivo breve dedotto (prezzo / ha già un fornitore / non interessato), vuoto se non chiaro",
+  "confidence": 0.0-1.0
+}`;
 
 // Follow-up giorno 3/7, archivio gentile, demo pronta e notifiche a
 // Puccio: i testi vivono in message_templates (pagina /templates),

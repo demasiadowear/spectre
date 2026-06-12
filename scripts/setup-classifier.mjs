@@ -51,9 +51,9 @@ const TEMPLATES = [
   {
     key: "human_reply_notify",
     label: "Notifica Puccio · risposta umana (bot muto, chat manuale)",
-    variables: ["{NOME_ATTIVITA}", "{TELEFONO}", "{MESSAGGIO}", "{LINK_CHAT}"],
+    variables: ["{NOME_ATTIVITA}", "{TELEFONO}", "{MESSAGGIO}", "{STATO}", "{LINK_CHAT}"],
     content:
-      "💬 RISPOSTA UMANA — {NOME_ATTIVITA} ({TELEFONO})\n«{MESSAGGIO}»\n\nIl bot è muto su questa chat: rispondi tu.\nChat: {LINK_CHAT}",
+      "💬 RISPOSTA UMANA — {NOME_ATTIVITA} ({TELEFONO})\n«{MESSAGGIO}»\n\nSmistato in: {STATO}\nIl bot è muto su questa chat: rispondi tu.\nChat: {LINK_CHAT}",
   },
 ];
 

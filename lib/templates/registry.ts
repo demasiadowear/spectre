@@ -54,6 +54,7 @@ export const PLACEHOLDER_DOCS: Record<string, string> = {
   "{MESSAGGIO}": "testo del messaggio ricevuto dal lead",
   "{LINK_CHAT}": "link wa.me alla chat del lead",
   "{LISTA}": "elenco azioni del giorno (digest agenda), una per riga",
+  "{STATO}": "stato trattativa assegnato dal triage (es. demo da fare)",
 };
 
 export interface TemplateVars {
@@ -71,6 +72,7 @@ export interface TemplateVars {
   MESSAGGIO?: string;
   LINK_CHAT?: string;
   LISTA?: string;
+  STATO?: string;
   /** Solo per anteprime/UI: il worker lo risolve all'invio. */
   SALUTO?: string;
 }
@@ -124,4 +126,5 @@ export const PREVIEW_VARS: Required<Omit<TemplateVars, "SALUTO">> & { SALUTO: st
   MESSAGGIO: "Sì mi interessa, quanto costa?",
   LINK_CHAT: "https://wa.me/393331234567",
   LISTA: "• Salone Marisa (09:00) — chiamare per appuntamento\n• ⚠ ARRETRATO +1g · Bar Centrale — mandare demo",
+  STATO: "demo da fare",
 };

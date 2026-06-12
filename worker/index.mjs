@@ -60,6 +60,7 @@ import {
   CLASSIFY_INBOUND_PROMPT,
   CONVERSATION_SYSTEM_PROMPT,
   SUMMARY_SYSTEM_PROMPT,
+  TRIAGE_SYSTEM_PROMPT,
 } from "./lib/prompts.mjs";
 import { tpl } from "./lib/templates.mjs";
 
@@ -289,17 +290,16 @@ function isAutoReply(text) {
   return AUTOREPLY_PATTERNS.some((re) => re.test(text));
 }
 
-// Opt-out esplicito: archivio gentile senza scomodare Gemini.
+// Opt-out esplicito = SOLO "smettete di contattarmi" (archivio gentile).
+// Il rifiuto semplice ("non mi interessa") NON è opt-out: passa al
+// triage che lo smista in "perso" con motivo.
 const OPTOUT_PATTERNS = [
-  /non\s+(sono|siamo)\s+interessat/i,
-  /non\s+(mi|ci)\s+interessa/i,
   /non\s+scrive(temi|rmi|teci)\s*(più)?/i,
   /non\s+contattate(mi|ci)/i,
   /smettete\s+di\s+scrivere/i,
   /cancell(a|ate)(mi|ci)/i,
   /toglie(temi|teci)|rimuove(temi|teci)/i,
   /^\s*stop\s*$/i,
-  /lasciate\s+perdere/i,
 ];
 
 function isOptOut(text) {
@@ -357,10 +357,109 @@ const NEGOTIATION_STAGES = new Set([
   "da_chiamare",
   "demo_richiesta",
   "demo_inviata",
+  "richiesta_prezzo",
   "in_trattativa",
   "tiepido",
   "vinto",
 ]);
+
+// ----- Triage trattativa (Gemini cataloga, MAI risponde) -------
+
+/** Etichette leggibili per la notifica WA a Puccio. */
+const TRIAGE_LABELS = {
+  risposto_manuale: "da rispondere",
+  da_chiamare: "da chiamare",
+  demo_richiesta: "demo da fare",
+  richiesta_prezzo: "richiesta prezzo",
+  tiepido: "tiepido",
+  perso: "perso",
+};
+
+/** Soglie di confidenza: perso solo se nettissimo (mai archiviare a
+ *  caso), gli altri stati con soglia media, sotto -> da rispondere. */
+const TRIAGE_MIN_CONF = 0.6;
+const TRIAGE_LOST_MIN_CONF = 0.75;
+
+/**
+ * Smista la risposta umana nello stato trattativa. SOLO catalogazione:
+ * nessun messaggio parte verso il lead. Qualunque dubbio o errore ->
+ * "risposto_manuale" (da rispondere).
+ */
+async function triageHumanReply(lead, body) {
+  const fallback = {
+    stage: "risposto_manuale",
+    callback_at: "",
+    next_action: "",
+    lost_reason: "",
+  };
+  try {
+    const history = await chatHistory(String(lead.lead_id), 10);
+    const transcript = history
+      .map((m) => `${m.direction === "out" ? "NOI" : "CLIENTE"}: ${m.body}`)
+      .join("\n");
+    // Data completa con giorno della settimana: serve a risolvere
+    // "lunedì" / "domani" in una data concreta.
+    const nowRome = new Date().toLocaleString("it-IT", {
+      timeZone: "Europe/Rome",
+      weekday: "long",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    const verdict = await geminiJSON(
+      TRIAGE_SYSTEM_PROMPT,
+      `Attività: ${lead.company} (${lead.category}, ${lead.city})\n` +
+        `Ora attuale (Europe/Rome): ${nowRome}\n\nCHAT FINORA:\n${transcript}\n\n` +
+        `ULTIMO MESSAGGIO DEL CLIENTE:\n${body}`,
+      0.2,
+    );
+    if (!verdict) return fallback;
+
+    const MAP = {
+      demo_richiesta: "demo_richiesta",
+      da_chiamare: "da_chiamare",
+      richiesta_prezzo: "richiesta_prezzo",
+      tiepido: "tiepido",
+      perso: "perso",
+      da_rispondere: "risposto_manuale",
+    };
+    let stage = MAP[verdict.stage] ?? "risposto_manuale";
+    const conf = Number(verdict.confidence) || 0;
+    if (stage === "perso" && conf < TRIAGE_LOST_MIN_CONF) stage = "risposto_manuale";
+    else if (stage !== "risposto_manuale" && conf < TRIAGE_MIN_CONF) {
+      stage = "risposto_manuale";
+    }
+    const callback =
+      typeof verdict.callback_at === "string" &&
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(verdict.callback_at)
+        ? verdict.callback_at
+        : "";
+    return {
+      stage,
+      callback_at: callback,
+      next_action:
+        typeof verdict.next_action === "string"
+          ? verdict.next_action.slice(0, 120)
+          : "",
+      lost_reason:
+        stage === "perso" && typeof verdict.lost_reason === "string"
+          ? verdict.lost_reason.slice(0, 120)
+          : "",
+    };
+  } catch (err) {
+    console.error("[worker] triage fallito:", err.message);
+    return fallback;
+  }
+}
+
+/** Status CRM storico coerente con lo stage assegnato dal triage. */
+function leadStatusForTriage(stage) {
+  if (stage === "perso") return "lost";
+  if (stage === "da_chiamare" || stage === "richiesta_prezzo") return "negotiating";
+  return "replied";
+}
 
 /** Lead di test e2e (meta.test = true): il numero di Puccio può fare
  *  da lead solo se esiste questa riga, altrimenti resta ignorato. */
@@ -524,18 +623,42 @@ async function handleInbound(msg, knownLead = null) {
       return true;
     }
     if (
-      lead.stage === "risposto_manuale" ||
       lead.stage === "escalation" ||
       lead.stage === "archiviato" ||
       lead.stage === "perso"
     ) {
-      return true; // già in mani umane / chiuso: solo log, zero rumore
+      return true; // chiuso / già in mani umane: solo log, zero rumore
     }
-    await updatePipeline(leadId, { stage: "risposto_manuale", bot_paused: 1 });
-    await updateLeadStatus(leadId, "replied");
+
+    // TRIAGE: Gemini legge e smista lo stato trattativa (demo da fare,
+    // da chiamare con data, richiesta prezzo, tiepido, perso, oppure
+    // da rispondere nel dubbio). SOLO catalogazione: il bot non scrive
+    // mai al lead. Un lead già "da rispondere" viene ri-smistato se il
+    // nuovo messaggio chiarisce l'intento.
+    const wasUnclassified = lead.stage === "risposto_manuale";
+    const t = await triageHumanReply(lead, body);
+
+    if (wasUnclassified && t.stage === "risposto_manuale") {
+      return true; // resta da rispondere: Puccio è già stato avvisato
+    }
+
+    const fields = { stage: t.stage, bot_paused: 1 };
+    if (t.callback_at) fields.next_action_at = t.callback_at;
+    if (t.next_action) fields.next_action = t.next_action;
+    if (t.lost_reason) fields.lost_reason = t.lost_reason;
+    await updatePipeline(leadId, fields);
+    await updateLeadStatus(leadId, leadStatusForTriage(t.stage));
+
+    const label = TRIAGE_LABELS[t.stage] ?? t.stage;
+    const extra = [
+      t.callback_at ? `quando: ${t.callback_at.replace("T", " ")}` : "",
+      t.lost_reason ? `motivo: ${t.lost_reason}` : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
     await addAlert(
       "human_reply",
-      `${lead.company} ha risposto: "${body.slice(0, 160)}"`,
+      `${lead.company} → ${label}${extra ? ` (${extra})` : ""}: "${body.slice(0, 140)}"`,
       leadId,
     );
     const digits = chatIdFor(lead.phone)?.replace("@c.us", "") ?? "";
@@ -543,9 +666,10 @@ async function handleInbound(msg, knownLead = null) {
       NOME_ATTIVITA: lead.company,
       TELEFONO: lead.phone,
       MESSAGGIO: body.slice(0, 300),
+      STATO: `${label}${extra ? ` (${extra})` : ""}`,
       LINK_CHAT: digits ? `https://wa.me/${digits}` : "",
     });
-    console.log("[worker] risposta umana, passo a manuale:", lead.company);
+    console.log(`[worker] risposta umana smistata in "${label}":`, lead.company);
     return true;
   }
 

@@ -55,11 +55,12 @@ type StatusFilter =
   | "nuovi"
   | "archiviati";
 
-/** Stati di trattativa gestiti a mano (post risposta umana). */
+/** Stati di trattativa (smistati dal triage o impostati a mano). */
 const DEAL_FILTER_STAGES = [
   "da_chiamare",
   "demo_richiesta",
   "demo_inviata",
+  "richiesta_prezzo",
   "in_trattativa",
   "tiepido",
 ] as const;
@@ -69,7 +70,7 @@ const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
   { id: "agenda", label: "Agenda" },
   { id: "tutti", label: "Tutti" },
   { id: "escalation", label: "Escalation" },
-  { id: "risposti", label: "Risposto — manuale" },
+  { id: "risposti", label: "Da rispondere" },
   { id: "trattative", label: "Trattative" },
   { id: "chiusi", label: "Vinti / Persi" },
   { id: "da_approvare", label: "Da approvare" },
@@ -85,7 +86,7 @@ const EMPTY_STATES: Record<StatusFilter, string> = {
   agenda: "Nessuna azione pianificata: fissa data e prossima azione dal dettaglio lead.",
   tutti: "Nessun lead in pipeline. Lo scout gira ogni mattina alle 6.",
   escalation: "Nessuna escalation aperta.",
-  risposti: "Nessuna chat in gestione manuale.",
+  risposti: "Nessuna risposta in attesa: il triage ha smistato tutto.",
   trattative: "Nessuna trattativa aperta.",
   chiusi: "Ancora nessun vinto o perso.",
   da_approvare: "Nessun lead da approvare oggi — la coda è pulita.",
@@ -441,6 +442,7 @@ export default function AutopilotConsole() {
               ? (stats.by_stage.da_chiamare ?? 0) +
                 (stats.by_stage.demo_richiesta ?? 0) +
                 (stats.by_stage.demo_inviata ?? 0) +
+                (stats.by_stage.richiesta_prezzo ?? 0) +
                 (stats.by_stage.in_trattativa ?? 0) +
                 (stats.by_stage.tiepido ?? 0)
               : "—"}

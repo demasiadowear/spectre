@@ -267,6 +267,7 @@ export const DEAL_STAGE_TO_LEAD_STATUS: Partial<Record<AutopilotStage, string>> 
   da_chiamare: "negotiating",
   demo_richiesta: "replied",
   demo_inviata: "preview_sent",
+  richiesta_prezzo: "negotiating",
   in_trattativa: "negotiating",
   tiepido: "replied",
   vinto: "closed",

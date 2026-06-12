@@ -10,10 +10,11 @@ export const STAGE_LABELS: Record<AutopilotStage, string> = {
   nuovo: "nuovo",
   studiato: "da approvare",
   contattato: "contattato",
-  risposto_manuale: "risposto — manuale",
+  risposto_manuale: "da rispondere",
   da_chiamare: "da chiamare",
   demo_richiesta: "demo da fare",
   demo_inviata: "demo inviata",
+  richiesta_prezzo: "richiesta prezzo",
   in_trattativa: "in trattativa",
   tiepido: "tiepido",
   vinto: "vinto",
@@ -31,6 +32,7 @@ export const STAGE_CHIP: Record<AutopilotStage, string> = {
   da_chiamare: "bg-fn-step1 text-onaccent",
   demo_richiesta: "bg-fn-step2 text-onaccent",
   demo_inviata: "bg-fn-preview text-onaccent",
+  richiesta_prezzo: "bg-success text-onaccent",
   in_trattativa: "bg-fn-negotiating text-onaccent",
   tiepido: "bg-ochre text-onaccent",
   vinto: "bg-fn-closed text-onaccent",
@@ -185,6 +187,7 @@ export function actionPriority(lead: AutopilotLead): number {
   if (nextActionDue(lead)) return 0; // appuntamento di oggi / scaduto: prima di tutto
   if (lead.stage === "escalation") return 0;
   if (lead.stage === "risposto_manuale") return 1; // c'è un umano in attesa
+  if (lead.stage === "richiesta_prezzo") return 1; // vuole il prezzo: rispondi
   if (lead.stage === "demo_richiesta") return 1; // demo da fare
   if (isPendingApproval(lead)) return 2;
   return 3;
@@ -226,6 +229,8 @@ export function lastAction(
       return `demo da fare: preparala e incolla il link nel dettaglio · ${timeAgo(lead.updated_at)}`;
     case "demo_inviata":
       return `demo inviata, in attesa di risposta · ${timeAgo(lead.demo_sent_at ?? lead.updated_at)}`;
+    case "richiesta_prezzo":
+      return `ha chiesto il prezzo: rispondi tu · ${timeAgo(lead.updated_at)}`;
     case "in_trattativa":
       return `in trattativa · ${timeAgo(lead.updated_at)}`;
     case "tiepido":
