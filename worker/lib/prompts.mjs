@@ -35,17 +35,9 @@ intent:
 
 export const SUMMARY_SYSTEM_PROMPT = `Riassumi questa chat WhatsApp di vendita in 3 righe per Christian (il commerciale che deve richiamare): chi è il lead, a che punto è, cosa vuole, consiglio per la chiamata. Rispondi SOLO con JSON: {"summary": "..."}`;
 
-export const followup1 = (name) =>
-  `{SALUTO} Le avevo scritto qualche giorno fa per ${name}. La demo del sito è in lavorazione: le va se gliela mostro quando è pronta? Nessun impegno. Ramona, AYROMEX`;
-
-export const followup2 = (name) =>
-  `Ultimo messaggio, promesso 🙂 Se per ${name} un sito non è una priorità adesso, nessun problema: le lascio il mio contatto e resto a disposizione. Ramona, AYROMEX`;
-
-export const archiveReject = () =>
-  `Capito, nessun problema e grazie per la risposta! Se in futuro dovesse servirle una vetrina online, sa dove trovarmi. In bocca al lupo! Ramona, AYROMEX`;
-
-export const demoReady = (name, url) =>
-  `Eccoci! Come promesso, la demo del sito di ${name} è pronta: ${url}\nLa guardi con calma. Se le piace la mettiamo online con l'offerta di giugno. Ramona, AYROMEX`;
+// Follow-up giorno 3/7, archivio gentile, demo pronta e notifiche a
+// Puccio: i testi vivono in message_templates (pagina /templates),
+// letti live da ./templates.mjs a ogni invio. Zero copie qui.
 
 /** Scelta template demo per categoria (ayromex-templates-gallery). */
 export const TEMPLATE_BY_CATEGORY = {

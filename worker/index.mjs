@@ -61,11 +61,8 @@ import {
   DEFAULT_TEMPLATE,
   SUMMARY_SYSTEM_PROMPT,
   TEMPLATE_BY_CATEGORY,
-  archiveReject,
-  demoReady,
-  followup1,
-  followup2,
 } from "./lib/prompts.mjs";
+import { tpl } from "./lib/templates.mjs";
 
 const { Client, LocalAuth } = pkg;
 
@@ -148,13 +145,17 @@ function chatIdFor(phone) {
 async function triggerKillSwitch(reason) {
   await setSetting("kill_switch", "1");
   await addAlert("anomaly", `KILL SWITCH AUTOMATICO: ${reason}`);
-  await notifyPuccio(`⚠️ AUTOPILOT FERMATO automaticamente: ${reason}`);
+  await notifyPuccio("kill_switch_notify", { MOTIVO: reason });
   console.error("[worker] kill switch automatico:", reason);
 }
 
-async function notifyPuccio(text) {
+/** Notifica WA a Puccio dal template indicato. Il testo vive in
+ *  message_templates; un template rotto NON deve mai bloccare il
+ *  flusso chiamante (es. il kill switch resta attivo comunque). */
+async function notifyPuccio(templateKey, vars = {}) {
   if (!PUCCIO || !waReady) return;
   try {
+    const text = await tpl(templateKey, vars);
     await client.sendMessage(`${PUCCIO}@c.us`, text);
   } catch (err) {
     console.error("[worker] notifica a Puccio fallita:", err.message);
@@ -391,14 +392,17 @@ async function handleInbound(msg, knownLead = null) {
     await updateLeadStatus(leadId, "negotiating");
     const summary = await geminiJSON(SUMMARY_SYSTEM_PROMPT, transcript);
     await addAlert("escalation", `${lead.company}: ${reason}`, leadId);
-    await notifyPuccio(
-      `🔥 ESCALATION — ${lead.company} (${lead.phone})\nMotivo: ${reason}\n\n${summary?.summary ?? transcript.slice(-500)}`,
-    );
+    await notifyPuccio("escalation_notify", {
+      NOME_ATTIVITA: lead.company,
+      TELEFONO: lead.phone,
+      MOTIVO: reason,
+      RIASSUNTO: summary?.summary ?? transcript.slice(-500),
+    });
     return true; // il bot si ferma su questa chat
   }
 
   if (intent === "rifiuto") {
-    await sendToLead(lead, decision?.reply || archiveReject(), {
+    await sendToLead(lead, decision?.reply || (await tpl("archive_reject")), {
       aiGenerated: true,
     });
     await updatePipeline(leadId, {
@@ -422,9 +426,10 @@ async function handleInbound(msg, knownLead = null) {
       : "maps";
     await createBuildTask(leadId, template, source);
     await addAlert("info", `${lead.company} ha chiesto la demo: build in coda.`, leadId);
-    await notifyPuccio(
-      `✅ DEMO RICHIESTA — ${lead.company} (${lead.city}). Build automatica in coda.`,
-    );
+    await notifyPuccio("demo_request_notify", {
+      NOME_ATTIVITA: lead.company,
+      CITTA: lead.city,
+    });
   } else {
     await updateLeadStatus(leadId, "replied");
   }
@@ -453,9 +458,7 @@ async function notifyDeployedDemos() {
     const key = `demo pronta ${b.id}`;
     if (await alertExists(key)) continue;
     await addAlert("demo_ready", `demo pronta ${b.id}: ${b.preview_url}`, b.lead_id);
-    await notifyPuccio(
-      `🖥️ Demo pronta: ${b.preview_url}\nApprova dalla dashboard SPECTRE per inviarla al cliente.`,
-    );
+    await notifyPuccio("demo_ready_notify", { URL_DEMO: b.preview_url });
   }
 }
 
@@ -464,7 +467,11 @@ async function sendApprovedDemos() {
   for (const b of await buildsByStatus("approved", 3)) {
     const row = await pipelineLead(String(b.lead_id));
     if (!row || !b.preview_url) continue;
-    const ok = await sendToLead(row, demoReady(String(row.company), String(b.preview_url)));
+    const body = await tpl("demo_ready", {
+      NOME_ATTIVITA: String(row.company),
+      URL_DEMO: String(b.preview_url),
+    });
+    const ok = await sendToLead(row, body);
     if (ok) {
       await updateBuild(String(b.id), { status: "sent" });
       await updateLeadStatus(String(b.lead_id), "preview_sent");
@@ -489,13 +496,15 @@ async function processFollowups() {
       continue;
     }
     if (days >= FOLLOWUP_2_DAYS && !lead.followup2_at) {
-      if (await sendToLead(lead, followup2(String(lead.company)))) {
+      const body = await tpl("followup_day7", { NOME_ATTIVITA: String(lead.company) });
+      if (await sendToLead(lead, body)) {
         await updatePipeline(leadId, { followup2_at: new Date().toISOString() });
       }
       return true; // un solo invio per tick
     }
     if (days >= FOLLOWUP_1_DAYS && !lead.followup1_at) {
-      if (await sendToLead(lead, followup1(String(lead.company)))) {
+      const body = await tpl("followup_day3", { NOME_ATTIVITA: String(lead.company) });
+      if (await sendToLead(lead, body)) {
         await updatePipeline(leadId, { followup1_at: new Date().toISOString() });
       }
       return true;

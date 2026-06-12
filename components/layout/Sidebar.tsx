@@ -14,6 +14,7 @@ import {
   Crosshair,
   Bot,
   Fingerprint,
+  MessageSquareText,
   LogOut,
   type LucideIcon,
 } from "lucide-react";
@@ -36,6 +37,7 @@ const NAV: NavItem[] = [
   { href: "/forecast", label: "Forecast", icon: TrendingUp },
   { href: "/autopilot", label: "Autopilot", icon: Bot },
   { href: "/detective", label: "Detective", icon: Fingerprint },
+  { href: "/templates", label: "Templates", icon: MessageSquareText },
 ];
 
 interface SidebarProps {

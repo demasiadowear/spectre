@@ -86,34 +86,22 @@ export const ARCHIVE_AFTER_DAYS = 10;
 
 // ----- Prompt Gemini -----------------------------------------
 
-export const STUDY_SYSTEM_PROMPT = `Sei l'analista commerciale di AYROMEX, web agency di Bari che vende siti vetrina a PMI locali pugliesi.
+/** Prompt Study. Le istruzioni del primo messaggio WA (variante A:
+ *  stelle+demo) NON vivono qui: arrivano dal template manager
+ *  (message_templates, key "study_wa_instructions") e si modificano
+ *  da /templates senza deploy. */
+export function buildStudyPrompt(waInstructions: string): string {
+  return `Sei l'analista commerciale di AYROMEX, web agency di Bari che vende siti vetrina a PMI locali pugliesi.
 Ricevi i dati di un'attività locale SENZA sito web (recensioni Google recenti, presenza digitale, categoria, zona).
 
 Devi produrre JSON con due campi:
 
 1. "brief": lead brief di MASSIMO 5 righe per il commerciale. Contiene: cosa fa l'attività, cosa amano i clienti (dalle recensioni vere), presenza digitale attuale, il gap principale senza sito (prenotazioni dirette vs commissioni piattaforme, ricerca Google locale, vetrina servizi/menu/prezzi), angolo di attacco consigliato.
 
-2. "wa_message": il PRIMO messaggio WhatsApp. STRUTTURA FISSA, in quest'ordine:
-   a) apertura: ESATTAMENTE il placeholder {SALUTO} — verrà sostituito al momento dell'invio con il saluto giusto per l'orario. MAI scrivere Buongiorno/Buon pomeriggio/Buonasera per esteso
-   b) complimento con le stelle Google REALI del lead, prese dai campi "rating" e "recensioni_totali" dei dati (es. "ho visto che avete 4.9 stelle su Google, complimenti")
-   c) gap positivo: con risultati così manca solo un sito all'altezza
-   d) proposta: una demo del loro sito web TOTALMENTE GRATUITA, senza impegno
-   e) chiusura: se vi piace, lo mettiamo online
-   f) firma ESATTA: "Ramona, AYROMEX" (con la virgola, MAI il trattino)
-
-Regole ferree per "wa_message":
-- PUNTEGGIATURA UMANA: VIETATO il trattino lungo (—) e il trattino usato come inciso; solo virgole, punti e al massimo i due punti
-- MASSIMO 3 frasi brevi, sotto i 250 caratteri totali (firma esclusa)
-- rating e numero recensioni SOLO dai dati forniti, MAI inventati; se il numero recensioni è basso o mancante, cita solo le stelle; scrivi "oltre" solo se arrotondi il numero per difetto, mai col numero esatto
-- NIENTE prezzo, niente link, niente preamboli, zero gergo marketing
-- al massimo UNA emoji, e solo se naturale
-- MAI la parola "Puccio"
-- dai del voi/lei, tono caldo e diretto
-
-Esempio del taglio giusto:
-"{SALUTO} Ho visto che avete 4.9 stelle su Google con oltre 140 recensioni, complimenti davvero. Con risultati così, manca solo un sito all'altezza: vi va di vederne una demo gratuita, senza impegno? Se vi piace, lo mettiamo online. Ramona, AYROMEX"
+2. "wa_message": il PRIMO messaggio WhatsApp. ${waInstructions}
 
 Rispondi SOLO con JSON: {"brief": "...", "wa_message": "..."}`;
+}
 
 export const CONVERSATION_SYSTEM_PROMPT = `Sei Ramona di AYROMEX (web agency di Bari), collaboratrice e amministratrice che gestisce i contatti del team. Stai chattando su WhatsApp con il titolare di un'attività locale pugliese a cui AYROMEX ha proposto un sito vetrina.
 
@@ -147,14 +135,9 @@ intent:
 - "escalation": il lead ha indicato l'orario preferito per la chiamata, oppure rifiuta di darlo, oppure insiste a chiedere se sei un bot -> reply VUOTA e escalation_reason con motivo + orario preferito (se indicato)
 - "neutro": convenevoli / non chiaro -> reply breve che riporta alla demo`;
 
-export const FOLLOWUP_1_TEMPLATE = (name: string) =>
-  `{SALUTO} Le avevo scritto qualche giorno fa per ${name}. La demo del sito è in lavorazione: le va se gliela mostro quando è pronta? Nessun impegno. Ramona, AYROMEX`;
-
-export const FOLLOWUP_2_TEMPLATE = (name: string) =>
-  `Ultimo messaggio, promesso 🙂 Se per ${name} un sito non è una priorità adesso, nessun problema: le lascio il mio contatto e resto a disposizione. Ramona, AYROMEX`;
-
-export const ARCHIVE_REJECT_TEMPLATE = () =>
-  `Capito, nessun problema e grazie per la risposta! Se in futuro dovesse servirle una vetrina online, sa dove trovarmi. In bocca al lupo! Ramona, AYROMEX`;
+// Follow-up giorno 3/7, archivio gentile e demo pronta: i testi vivono
+// in message_templates (modificabili da /templates). Li consuma il
+// worker via worker/lib/templates.mjs — qui non esistono più copie.
 
 // ----- Stadio 3 — BUILD --------------------------------------
 

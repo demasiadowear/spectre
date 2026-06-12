@@ -18,19 +18,25 @@ import { LEAD_STATUS } from "@/lib/constants";
 import { cn, formatCurrency } from "@/lib/utils";
 import {
   activityType,
+  cityOf,
   fbUrl,
-  generateStep1,
-  generateStep2,
-  generateStep3,
   googleSearchUrl,
   igUrl,
   isMobilePhone,
   mapsUrl,
   nextBestAction,
+  slugify,
   telUrl,
   waUrl,
   type PitchActionKind,
 } from "@/lib/pitch";
+import {
+  complimentFor,
+  greetingNow,
+  renderTemplate,
+  type MessageTemplate,
+  type TemplateVars,
+} from "@/lib/templates/registry";
 import type { ApiResponse, Lead, LeadMeta, LeadStatus } from "@/types";
 
 interface LeadActionPanelProps {
@@ -69,6 +75,27 @@ const CHANNEL_META: Record<string, { icon: string; label: string }> = {
 };
 const CHANNELS = ["call", "whatsapp", "email", "meeting"] as const;
 
+/** Placeholder risolti coi dati del lead (testi Step 1/2/3 da
+ *  message_templates). {SALUTO} si risolve QUI perché l'operatore
+ *  invia subito a mano: il saluto giusto è quello di adesso. */
+function leadVars(lead: Lead): TemplateVars {
+  return {
+    SALUTO: greetingNow(),
+    NOME_ATTIVITA: lead.name,
+    RATING: lead.meta.rating != null ? String(lead.meta.rating) : "",
+    N_RECENSIONI: lead.meta.reviews != null ? String(lead.meta.reviews) : "",
+    COMPLIMENTO: complimentFor(lead.meta.rating, lead.meta.reviews),
+    CATEGORIA: activityType(lead).sing,
+    CITTA: cityOf(lead),
+    URL_DEMO:
+      lead.meta.preview_url || `https://${slugify(lead.name)}-ayromex.vercel.app`,
+    RIGA_PREZZO:
+      lead.value > 0
+        ? `\nPrezzo: €${lead.value.toLocaleString("it-IT")}, tutto incluso: dominio, hosting, setup e SEO.\n`
+        : "",
+  };
+}
+
 export default function LeadActionPanel({
   lead,
   onClose,
@@ -79,7 +106,29 @@ export default function LeadActionPanel({
   const [price, setPrice] = useState("");
   const [copied, setCopied] = useState<number | null>(null);
   const [lastChannel, setLastChannel] = useState<string | null>(null);
+  const [stepTemplates, setStepTemplates] = useState<Record<string, string> | null>(null);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Template Step 1/2/3 dal template manager, freschi a ogni apertura
+  // del pannello (no-store: un salvataggio in /templates vale subito).
+  useEffect(() => {
+    if (!lead) return;
+    let cancelled = false;
+    fetch("/api/templates", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j: ApiResponse<MessageTemplate[]>) => {
+        if (cancelled || !j.success || !j.data) return;
+        const map: Record<string, string> = {};
+        for (const t of j.data) map[t.key] = t.content;
+        setStepTemplates(map);
+      })
+      .catch(() => {
+        if (!cancelled) setStepTemplates({});
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [lead]);
 
   useEffect(() => {
     setNotes(lead?.notes ?? "");
@@ -125,10 +174,20 @@ export default function LeadActionPanel({
   const a = activityType(lead);
   const sm = LEAD_STATUS[lead.status];
 
+  // Testi step: override per-lead (meta.custom_stepN) > template DB.
+  const vars = leadVars(lead);
+  const stepText = (n: 1 | 2 | 3): string => {
+    const custom = [lead.meta.custom_step1, lead.meta.custom_step2, lead.meta.custom_step3][n - 1];
+    if (custom) return custom;
+    if (stepTemplates === null) return "Caricamento template…";
+    const content = stepTemplates[`manual_step${n}`];
+    if (!content?.trim()) return "⚠ Template mancante: compilalo in /templates.";
+    return renderTemplate(content, vars);
+  };
   const messages = [
-    { step: 1, label: "Step 1 · Primo contatto", text: generateStep1(lead) },
-    { step: 2, label: "Step 2 · Conferma preview", text: generateStep2(lead) },
-    { step: 3, label: "Step 3 · Consegna + prezzo", text: generateStep3(lead) },
+    { step: 1, label: "Step 1 · Primo contatto", text: stepText(1) },
+    { step: 2, label: "Step 2 · Conferma preview", text: stepText(2) },
+    { step: 3, label: "Step 3 · Consegna + prezzo", text: stepText(3) },
   ];
   const primaryStep =
     lead.status === "replied"

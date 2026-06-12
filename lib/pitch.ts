@@ -106,53 +106,10 @@ export function cityOf(lead: Lead): string {
 }
 
 // ---------- Message generation ----------
-// No auto-pricing, tiers or promos: the price shown is the one the operator
-// sets manually on the lead (lead.value). If unset, the price line is omitted.
-
-function compliment(lead: Lead): string {
-  const rating = lead.meta.rating ?? 0;
-  const rev = lead.meta.reviews ?? 0;
-  if (rating === 5 && rev >= 100) return `${rev} recensioni 5.0 su Google`;
-  if (rating === 5) return `5.0 su Google con ${rev} recensioni`;
-  if (rating >= 4.9 && rev >= 200) return `${rev} recensioni a ${rating}★`;
-  if (rating && rev) return `${rating}★ con ${rev} recensioni su Google`;
-  return "numeri importanti su Google";
-}
-
-export function generateStep1(lead: Lead): string {
-  if (lead.meta.custom_step1) return lead.meta.custom_step1;
-  const a = activityType(lead);
-  return `Ciao, sono Christian di AYROMEX. Creiamo siti web per ${a.plur} in Puglia.
-Ho visto che su Google avete ${compliment(lead)}, ma non avete un sito vostro diretto.
-SENZA IMPEGNO vi creo il vostro sito con il vostro materiale già online, così vedete come vi presenteremmo. Che ne dite?`;
-}
-
-export function generateStep2(lead: Lead): string {
-  if (lead.meta.custom_step2) return lead.meta.custom_step2;
-  const a = activityType(lead);
-  return `Perfetto.
-La preparo usando solo materiale già pubblico del vostro ${a.sing}: foto, recensioni Google, indirizzo, WhatsApp — così vi faccio vedere direttamente come può venire la vostra attività online.
-Vi scrivo appena è pronta (entro 24-48h). Se vi piace ne parliamo, se no amici come prima. Zero impegno.`;
-}
-
-export function generateStep3(lead: Lead): string {
-  if (lead.meta.custom_step3) return lead.meta.custom_step3;
-  const previewUrl =
-    lead.meta.preview_url || `https://${slugify(lead.name)}-ayromex.vercel.app`;
-  // Price = whatever the operator set on the lead. Nothing auto-suggested.
-  const priceLine =
-    lead.value > 0
-      ? `\nPrezzo: €${lead.value.toLocaleString("it-IT")}, tutto incluso — dominio, hosting, setup e SEO.\n`
-      : "";
-  return `Ciao, pronta:
-${previewUrl}
-
-L'ho pensata per trasformare meglio chi vi cerca su Google in contatti WhatsApp e prenotazioni — non solo "per fare bello".
-
-Se vi piace lo stile, la versione completa va online in 2 giorni con dominio + hosting + setup + SEO incluso. Possiamo fare piccole modifiche (foto o testi) se serve.
-${priceLine}
-Cosa ne pensate del risultato?`;
-}
+// I testi Step 1/2/3 (Cockpit/Visor) NON vivono più qui: stanno in
+// message_templates (keys manual_step1/2/3, pagina /templates) e
+// vengono risolti da LeadActionPanel con i dati del lead via
+// lib/templates/registry.ts. Restano qui solo le utility pure.
 
 // ---------- Funnel timing / stale detection ----------
 

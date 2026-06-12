@@ -8,7 +8,8 @@ import type {
   AutopilotStudy,
   StudyGeneration,
 } from "@/types/autopilot";
-import { STUDY_SYSTEM_PROMPT } from "./constants";
+import { getTemplateContent } from "@/lib/templates/db";
+import { buildStudyPrompt } from "./constants";
 import {
   addAlert,
   getPipelineLead,
@@ -206,8 +207,11 @@ export async function studyLead(lead: AutopilotLead): Promise<StudyOutcome> {
     gap_senza_sito: study.gaps,
   });
 
+  // Istruzioni variante A (stelle+demo) lette LIVE dal template manager:
+  // una modifica in /templates vale dal prossimo lead studiato.
+  const waInstructions = await getTemplateContent("study_wa_instructions");
   const generated = await geminiJSON<StudyGeneration>(
-    STUDY_SYSTEM_PROMPT,
+    buildStudyPrompt(waInstructions),
     userPrompt,
     { complex: true, temperature: 0.8 },
   );
