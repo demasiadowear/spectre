@@ -64,6 +64,10 @@ function rowToAutopilotLead(r: Row): AutopilotLead {
     bypass_sent_at: r.bypass_sent_at ? str(r.bypass_sent_at) : null,
     demo_url: str(r.demo_url),
     demo_sent_at: r.demo_sent_at ? str(r.demo_sent_at) : null,
+    next_action: str(r.next_action),
+    next_action_at: r.next_action_at ? str(r.next_action_at) : null,
+    lost_reason: str(r.lost_reason),
+    notes: str(r.notes),
     created_at: str(r.created_at),
     updated_at: str(r.updated_at),
     name: str(r.name),
@@ -76,7 +80,7 @@ function rowToAutopilotLead(r: Row): AutopilotLead {
 }
 
 const PIPELINE_SELECT = `
-  SELECT p.*, l.name, l.company, l.phone, l.meta
+  SELECT p.*, l.name, l.company, l.phone, l.meta, l.notes
   FROM autopilot_pipeline p
   JOIN leads l ON l.id = p.lead_id`;
 
@@ -237,6 +241,9 @@ export async function updatePipeline(
     archived_reason: string;
     bot_paused: number;
     demo_url: string;
+    next_action: string;
+    next_action_at: string | null;
+    lost_reason: string;
   }>,
 ): Promise<void> {
   if (!turso) return;
@@ -247,8 +254,61 @@ export async function updatePipeline(
     sql: `UPDATE autopilot_pipeline
           SET ${setClause}, updated_at = datetime('now')
           WHERE lead_id = ?`,
-    args: [...entries.map(([, v]) => v as string | number), leadId],
+    args: [...entries.map(([, v]) => v as string | number | null), leadId],
   });
+}
+
+// ----- Trattativa (stati manuali di Puccio) -------------------
+
+/** Stage selezionabili a mano dal drawer + mapping verso lo status
+ *  del CRM storico (leads.status, funnel Visor). */
+export const DEAL_STAGE_TO_LEAD_STATUS: Partial<Record<AutopilotStage, string>> = {
+  risposto_manuale: "replied",
+  da_chiamare: "negotiating",
+  demo_richiesta: "replied",
+  demo_inviata: "preview_sent",
+  in_trattativa: "negotiating",
+  tiepido: "replied",
+  vinto: "closed",
+  perso: "lost",
+};
+
+export interface DealUpdate {
+  stage?: AutopilotStage;
+  next_action?: string;
+  next_action_at?: string | null;
+  lost_reason?: string;
+  notes?: string;
+}
+
+/** Aggiornamento trattativa dal drawer: stage manuale + prossima
+ *  azione + note (le note vivono su leads.notes, condivise col Visor).
+ *  Tiene allineato anche leads.status per il funnel storico. */
+export async function updateDeal(leadId: string, upd: DealUpdate): Promise<void> {
+  if (!turso) return;
+  const fields: Parameters<typeof updatePipeline>[1] = {};
+  if (upd.stage) {
+    fields.stage = upd.stage;
+    fields.bot_paused = 1; // stati manuali: il bot resta muto, sempre
+  }
+  if (upd.next_action !== undefined) fields.next_action = upd.next_action;
+  if (upd.next_action_at !== undefined) fields.next_action_at = upd.next_action_at;
+  if (upd.lost_reason !== undefined) fields.lost_reason = upd.lost_reason;
+  await updatePipeline(leadId, fields);
+
+  if (upd.notes !== undefined) {
+    await turso.execute({
+      sql: "UPDATE leads SET notes = ?, updated_at = datetime('now') WHERE id = ?",
+      args: [upd.notes, leadId],
+    });
+  }
+  const status = upd.stage ? DEAL_STAGE_TO_LEAD_STATUS[upd.stage] : undefined;
+  if (status) {
+    await turso.execute({
+      sql: "UPDATE leads SET status = ?, updated_at = datetime('now') WHERE id = ?",
+      args: [status, leadId],
+    });
+  }
 }
 
 // ----- Coda approvazioni -------------------------------------

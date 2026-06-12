@@ -7,7 +7,6 @@ import {
   Archive,
   Check,
   ExternalLink,
-  MonitorSmartphone,
   Phone,
   Search,
   Star,
@@ -17,7 +16,9 @@ import NeonButton from "@/components/ui/spectre/NeonButton";
 import { googleSearchHref } from "@/lib/pitch";
 import { cn } from "@/lib/utils";
 import type { ApiResponse } from "@/types";
-import type { AutopilotLead, WaMessage } from "@/types/autopilot";
+import type { AutopilotLead, AutopilotStage, WaMessage } from "@/types/autopilot";
+import { DEAL_STAGES } from "@/types/autopilot";
+import { STAGE_LABELS } from "./format";
 import {
   STAGE_CHIP,
   TIER_BADGE,
@@ -35,11 +36,12 @@ interface Props {
   onApprove: (leadId: string, message?: string) => void;
   onReject: (leadId: string) => void;
   onArchive: (leadId: string) => void;
-  /** Il lead ha chiesto la demo: stato manuale che aspetta Puccio. */
-  onMarkDemoRequested: (leadId: string) => void;
   /** Link demo preparato FUORI da SPECTRE: incolla + approva e il
    *  worker lo invia. SPECTRE non builda nulla. */
   onApproveDemoUrl: (leadId: string, demoUrl: string) => void;
+  /** Stato trattativa + prossima azione + note: tutto manuale,
+   *  nessun automatismo verso il lead. */
+  onUpdateDeal: (leadId: string, fields: Record<string, unknown>) => void;
 }
 
 // ============================================================
@@ -73,12 +75,18 @@ export default function AutopilotLeadDrawer({
   onApprove,
   onReject,
   onArchive,
-  onMarkDemoRequested,
   onApproveDemoUrl,
+  onUpdateDeal,
 }: Props) {
   const [messages, setMessages] = useState<WaMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [demoDraft, setDemoDraft] = useState("");
+  // Form trattativa (stato + prossima azione + note): si salva in blocco.
+  const [dealStage, setDealStage] = useState<AutopilotStage | "">("");
+  const [dealAction, setDealAction] = useState("");
+  const [dealDate, setDealDate] = useState("");
+  const [dealNotes, setDealNotes] = useState("");
+  const [dealLost, setDealLost] = useState("");
   const chatRef = useRef<HTMLDivElement>(null);
 
   // Chat completa caricata on-open (non pesa sulla lista).
@@ -86,6 +94,13 @@ export default function AutopilotLeadDrawer({
     setMessages([]);
     setDraft(lead?.wa_first_message ?? "");
     setDemoDraft(lead?.demo_url ?? "");
+    setDealStage(
+      lead && (DEAL_STAGES as string[]).includes(lead.stage) ? lead.stage : "",
+    );
+    setDealAction(lead?.next_action ?? "");
+    setDealDate(lead?.next_action_at ? lead.next_action_at.slice(0, 16) : "");
+    setDealNotes(lead?.notes ?? "");
+    setDealLost(lead?.lost_reason ?? "");
     if (!lead) return;
     let alive = true;
     fetch(`/api/autopilot/pipeline?lead_id=${encodeURIComponent(lead.lead_id)}`, {
@@ -303,27 +318,108 @@ export default function AutopilotLeadDrawer({
               </Section>
             )}
 
+            {/* Trattativa: stati manuali di Puccio. Nessun automatismo
+                verso il lead, il bot resta muto: qui si tiene solo il
+                filo (chi chiamo, chi aspetta la demo, chi è tiepido). */}
+            {lead.stage !== "nuovo" &&
+              lead.stage !== "studiato" &&
+              lead.stage !== "archiviato" && (
+                <Section title="Trattativa">
+                  <div className="space-y-2">
+                    <div>
+                      <label className="mb-1 block font-ui text-[10px] uppercase tracking-[0.15em] text-text2">
+                        Stato
+                      </label>
+                      <select
+                        value={dealStage}
+                        onChange={(e) => setDealStage(e.target.value as AutopilotStage | "")}
+                        className="w-full rounded-sm border border-border bg-bg p-2 font-ui text-sm text-text focus:border-accent focus:outline-none"
+                      >
+                        <option value="">— lascia com&apos;è ({STAGE_LABELS[lead.stage]}) —</option>
+                        {DEAL_STAGES.map((s) => (
+                          <option key={s} value={s}>
+                            {STAGE_LABELS[s]}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {dealStage === "perso" && (
+                      <div>
+                        <label className="mb-1 block font-ui text-[10px] uppercase tracking-[0.15em] text-text2">
+                          Motivo perso
+                        </label>
+                        <input
+                          type="text"
+                          value={dealLost}
+                          onChange={(e) => setDealLost(e.target.value)}
+                          placeholder="prezzo / non interessato / ha già fornitore…"
+                          className="w-full rounded-sm border border-border bg-bg p-2 font-ui text-sm text-text focus:border-accent focus:outline-none"
+                        />
+                      </div>
+                    )}
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <div>
+                        <label className="mb-1 block font-ui text-[10px] uppercase tracking-[0.15em] text-text2">
+                          Prossima azione
+                        </label>
+                        <input
+                          type="text"
+                          value={dealAction}
+                          onChange={(e) => setDealAction(e.target.value)}
+                          placeholder="es. chiamare per appuntamento"
+                          className="w-full rounded-sm border border-border bg-bg p-2 font-ui text-sm text-text focus:border-accent focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block font-ui text-[10px] uppercase tracking-[0.15em] text-text2">
+                          Quando (agenda + promemoria WA)
+                        </label>
+                        <input
+                          type="datetime-local"
+                          value={dealDate}
+                          onChange={(e) => setDealDate(e.target.value)}
+                          className="w-full rounded-sm border border-border bg-bg p-2 font-ui text-sm text-text focus:border-accent focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="mb-1 block font-ui text-[10px] uppercase tracking-[0.15em] text-text2">
+                        Note (cosa ci siamo detti)
+                      </label>
+                      <textarea
+                        value={dealNotes}
+                        onChange={(e) => setDealNotes(e.target.value)}
+                        rows={3}
+                        className="w-full rounded-sm border border-border bg-bg p-2 font-ui text-sm text-text focus:border-accent focus:outline-none"
+                      />
+                    </div>
+                    <NeonButton
+                      size="sm"
+                      variant="cyan"
+                      filled
+                      disabled={busy || (dealStage === "perso" && !dealLost.trim())}
+                      onClick={() =>
+                        onUpdateDeal(lead.lead_id, {
+                          ...(dealStage ? { stage: dealStage } : {}),
+                          next_action: dealAction.trim(),
+                          next_action_at: dealDate || "",
+                          notes: dealNotes,
+                          ...(dealStage === "perso"
+                            ? { lost_reason: dealLost.trim() }
+                            : {}),
+                        })
+                      }
+                    >
+                      <Check className="h-3.5 w-3.5" /> Salva trattativa
+                    </NeonButton>
+                  </div>
+                </Section>
+              )}
+
             {/* Demo: SPECTRE non builda nulla. Puccio prepara la demo
                 fuori, incolla qui il link e approva: il worker invia il
                 messaggio (template demo_ready) al prossimo tick. */}
-            {lead.stage === "risposto_manuale" && (
-              <Section title="Demo">
-                <NeonButton
-                  size="sm"
-                  variant="cyan"
-                  disabled={busy}
-                  onClick={() => onMarkDemoRequested(lead.lead_id)}
-                >
-                  <MonitorSmartphone className="h-3.5 w-3.5" /> Segna demo richiesta
-                </NeonButton>
-                <p className="mt-1 font-ui text-[10px] text-text2">
-                  Il lead ha chiesto la demo? Segnalo: prepari il sito fuori
-                  da SPECTRE e incolli qui il link quando è pronto.
-                </p>
-              </Section>
-            )}
-
-            {lead.stage === "demo_richiesta" && (
+            {(lead.stage === "demo_richiesta" || lead.stage === "demo_inviata") && (
               <Section title="Demo">
                 {lead.demo_sent_at ? (
                   <>

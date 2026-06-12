@@ -42,9 +42,12 @@ type ViewMode = "list" | "kanban";
 
 type StatusFilter =
   | "azione"
+  | "agenda"
   | "tutti"
   | "escalation"
   | "risposti"
+  | "trattative"
+  | "chiusi"
   | "da_approvare"
   | "in_coda"
   | "demo"
@@ -52,11 +55,23 @@ type StatusFilter =
   | "nuovi"
   | "archiviati";
 
+/** Stati di trattativa gestiti a mano (post risposta umana). */
+const DEAL_FILTER_STAGES = [
+  "da_chiamare",
+  "demo_richiesta",
+  "demo_inviata",
+  "in_trattativa",
+  "tiepido",
+] as const;
+
 const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
   { id: "azione", label: "Richiede azione" },
+  { id: "agenda", label: "Agenda" },
   { id: "tutti", label: "Tutti" },
   { id: "escalation", label: "Escalation" },
   { id: "risposti", label: "Risposto — manuale" },
+  { id: "trattative", label: "Trattative" },
+  { id: "chiusi", label: "Vinti / Persi" },
   { id: "da_approvare", label: "Da approvare" },
   { id: "in_coda", label: "In coda invio" },
   { id: "demo", label: "Demo" },
@@ -67,9 +82,12 @@ const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
 
 const EMPTY_STATES: Record<StatusFilter, string> = {
   azione: "Niente da fare adesso — l'autopilot lavora da solo.",
+  agenda: "Nessuna azione pianificata: fissa data e prossima azione dal dettaglio lead.",
   tutti: "Nessun lead in pipeline. Lo scout gira ogni mattina alle 6.",
   escalation: "Nessuna escalation aperta.",
   risposti: "Nessuna chat in gestione manuale.",
+  trattative: "Nessuna trattativa aperta.",
+  chiusi: "Ancora nessun vinto o perso.",
   da_approvare: "Nessun lead da approvare oggi — la coda è pulita.",
   in_coda: "Nessun messaggio approvato in attesa di invio.",
   demo: "Nessuna demo in corso.",
@@ -85,18 +103,24 @@ function matchesStatus(lead: AutopilotLead, f: StatusFilter): boolean {
   switch (f) {
     case "azione":
       return actionPriority(lead) < 3;
+    case "agenda":
+      return Boolean(lead.next_action_at) && lead.stage !== "archiviato" && lead.stage !== "perso";
     case "tutti":
       return true;
     case "escalation":
       return lead.stage === "escalation";
     case "risposti":
       return lead.stage === "risposto_manuale";
+    case "trattative":
+      return (DEAL_FILTER_STAGES as readonly string[]).includes(lead.stage);
+    case "chiusi":
+      return lead.stage === "vinto" || lead.stage === "perso";
     case "da_approvare":
       return isPendingApproval(lead);
     case "in_coda":
       return isQueuedForSend(lead);
     case "demo":
-      return lead.stage === "demo_richiesta";
+      return lead.stage === "demo_richiesta" || lead.stage === "demo_inviata";
     case "contattati":
       return lead.stage === "contattato";
     case "nuovi":
@@ -213,18 +237,24 @@ export default function AutopilotConsole() {
     return c;
   }, [leads]);
 
-  const visible = useMemo(
-    () =>
-      sortByAction(
-        leads.filter(
-          (l) =>
-            matchesStatus(l, statusFilter) &&
-            (!tierFilter || l.tier === tierFilter) &&
-            (!categoryFilter || l.category === categoryFilter),
-        ),
-      ),
-    [leads, statusFilter, tierFilter, categoryFilter],
-  );
+  const visible = useMemo(() => {
+    const filtered = leads.filter(
+      (l) =>
+        matchesStatus(l, statusFilter) &&
+        (!tierFilter || l.tier === tierFilter) &&
+        (!categoryFilter || l.category === categoryFilter),
+    );
+    // Agenda: ordinata per data della prossima azione (la mattina apri
+    // SPECTRE e leggi cosa fare oggi, in ordine).
+    if (statusFilter === "agenda") {
+      return [...filtered].sort(
+        (a, b) =>
+          new Date(a.next_action_at ?? 0).getTime() -
+          new Date(b.next_action_at ?? 0).getTime(),
+      );
+    }
+    return sortByAction(filtered);
+  }, [leads, statusFilter, tierFilter, categoryFilter]);
 
   // ----- azioni -----------------------------------------------
 
@@ -248,15 +278,19 @@ export default function AutopilotConsole() {
     patch("/api/autopilot/queue", { lead_id: leadId, action: "reject" }, leadId);
   const archive = (leadId: string) =>
     patch("/api/autopilot/pipeline", { lead_id: leadId, action: "archive" }, leadId);
-  /** Il lead ha chiesto la demo: stato manuale, tocca a Puccio. */
-  const markDemoRequested = (leadId: string) =>
-    patch("/api/autopilot/pipeline", { lead_id: leadId, action: "demo_requested" }, leadId);
   /** Link demo preparato FUORI da SPECTRE: incolla + approva = il
    *  worker lo invia al prossimo tick. */
   const approveDemoUrl = (leadId: string, demoUrl: string) =>
     patch(
       "/api/autopilot/pipeline",
       { lead_id: leadId, action: "approve_demo_url", demo_url: demoUrl },
+      leadId,
+    );
+  /** Stati trattativa + prossima azione + note: tutto manuale. */
+  const updateDealAction = (leadId: string, fields: Record<string, unknown>) =>
+    patch(
+      "/api/autopilot/pipeline",
+      { lead_id: leadId, action: "update_deal", ...fields },
       leadId,
     );
 
@@ -399,6 +433,20 @@ export default function AutopilotConsole() {
         </p>
         <p className="hidden font-ui text-xs text-text2 sm:block">
           Inviati <b className="text-sm text-text">{stats?.today.messages_sent ?? "—"}</b>
+        </p>
+        <p className="hidden font-ui text-xs text-text2 md:block">
+          Trattative{" "}
+          <b className="text-sm text-text">
+            {stats
+              ? (stats.by_stage.da_chiamare ?? 0) +
+                (stats.by_stage.demo_richiesta ?? 0) +
+                (stats.by_stage.demo_inviata ?? 0) +
+                (stats.by_stage.in_trattativa ?? 0) +
+                (stats.by_stage.tiepido ?? 0)
+              : "—"}
+          </b>
+          {" · "}Vinti{" "}
+          <b className="text-sm text-success">{stats ? (stats.by_stage.vinto ?? 0) : "—"}</b>
         </p>
         <p
           className={cn(
@@ -614,8 +662,8 @@ export default function AutopilotConsole() {
         onApprove={approve}
         onReject={reject}
         onArchive={archive}
-        onMarkDemoRequested={markDemoRequested}
         onApproveDemoUrl={approveDemoUrl}
+        onUpdateDeal={updateDealAction}
       />
     </div>
   );

@@ -11,7 +11,13 @@ export const STAGE_LABELS: Record<AutopilotStage, string> = {
   studiato: "da approvare",
   contattato: "contattato",
   risposto_manuale: "risposto — manuale",
-  demo_richiesta: "demo richiesta — manuale",
+  da_chiamare: "da chiamare",
+  demo_richiesta: "demo da fare",
+  demo_inviata: "demo inviata",
+  in_trattativa: "in trattativa",
+  tiepido: "tiepido",
+  vinto: "vinto",
+  perso: "perso",
   escalation: "escalation",
   archiviato: "archiviato",
 };
@@ -22,7 +28,13 @@ export const STAGE_CHIP: Record<AutopilotStage, string> = {
   studiato: "bg-ochre text-onaccent",
   contattato: "bg-fn-replied text-onaccent",
   risposto_manuale: "bg-accent text-onaccent",
-  demo_richiesta: "bg-success text-onaccent",
+  da_chiamare: "bg-fn-step1 text-onaccent",
+  demo_richiesta: "bg-fn-step2 text-onaccent",
+  demo_inviata: "bg-fn-preview text-onaccent",
+  in_trattativa: "bg-fn-negotiating text-onaccent",
+  tiepido: "bg-ochre text-onaccent",
+  vinto: "bg-fn-closed text-onaccent",
+  perso: "bg-fn-lost text-onaccent",
   escalation: "bg-danger text-onaccent",
   archiviato: "bg-fn-lost text-onaccent",
 };
@@ -56,6 +68,41 @@ export function timeAgo(value: string | null): string {
 /** Per lo stadio "studiato" l'azione richiesta esiste solo se pending. */
 export function isPendingApproval(lead: AutopilotLead): boolean {
   return lead.stage === "studiato" && lead.approval_status === "pending";
+}
+
+// ----- Agenda (prossima azione manuale) ------------------------
+
+/** next_action_at arriva da <input type="datetime-local">: niente Z,
+ *  è ora locale. parseDbDate la tratta correttamente (contiene la T
+ *  ma il fuso resta locale per le stringhe senza suffisso). */
+export function nextActionDate(lead: AutopilotLead): Date | null {
+  if (!lead.next_action_at) return null;
+  const d = new Date(lead.next_action_at);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** Azione in scadenza: oggi o già passata (entra in "richiede azione"). */
+export function nextActionDue(lead: AutopilotLead, now = new Date()): boolean {
+  const d = nextActionDate(lead);
+  if (!d) return false;
+  const endOfToday = new Date(now);
+  endOfToday.setHours(23, 59, 59, 999);
+  return d <= endOfToday;
+}
+
+/** "oggi 09:00" / "dom 15/06 10:30" / "scaduta 2g fa". */
+export function nextActionLabel(lead: AutopilotLead): string {
+  const d = nextActionDate(lead);
+  if (!d) return "";
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  const time = d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+  if (sameDay) return `oggi ${time}`;
+  if (d < now) {
+    const days = Math.floor((now.getTime() - d.getTime()) / 86_400_000);
+    return days === 0 ? `scaduta oggi ${time}` : `scaduta ${days}g fa`;
+  }
+  return `${d.toLocaleDateString("it-IT", { weekday: "short", day: "2-digit", month: "2-digit" })} ${time}`;
 }
 
 // ----- Stima invio (SOLO UI: i delay reali sono del worker) ---
@@ -135,9 +182,10 @@ export function queuedSendLabels(
  * escalation (0) > demo_richiesta (1) > da approvare (2) > resto (3).
  */
 export function actionPriority(lead: AutopilotLead): number {
+  if (nextActionDue(lead)) return 0; // appuntamento di oggi / scaduto: prima di tutto
   if (lead.stage === "escalation") return 0;
   if (lead.stage === "risposto_manuale") return 1; // c'è un umano in attesa
-  if (lead.stage === "demo_richiesta") return 1;
+  if (lead.stage === "demo_richiesta") return 1; // demo da fare
   if (isPendingApproval(lead)) return 2;
   return 3;
 }
@@ -160,15 +208,32 @@ export function lastAction(
   lead: AutopilotLead,
   queuedLabel?: string | null,
 ): string {
+  // Prossima azione pianificata: vince su tutto, è quello che Puccio
+  // deve fare (es. "chiamare lunedì 9:00 · oggi 09:00").
+  if (lead.next_action_at || lead.next_action) {
+    const when = nextActionLabel(lead);
+    const what = lead.next_action || "prossima azione";
+    return when ? `→ ${what} · ${when}` : `→ ${what}`;
+  }
   switch (lead.stage) {
     case "escalation":
       return `⚠ ${lead.escalation_reason || "serve Puccio"} · ${timeAgo(lead.escalated_at)}`;
+    case "da_chiamare":
+      return `da chiamare: fissa data/ora nel dettaglio · ${timeAgo(lead.updated_at)}`;
     case "demo_richiesta":
-      if (lead.demo_sent_at)
-        return `demo inviata al cliente · ${timeAgo(lead.demo_sent_at)}`;
       if (lead.demo_url)
         return `demo approvata, invio in coda · ${timeAgo(lead.updated_at)}`;
-      return `demo richiesta: preparala e incolla il link nel dettaglio · ${timeAgo(lead.updated_at)}`;
+      return `demo da fare: preparala e incolla il link nel dettaglio · ${timeAgo(lead.updated_at)}`;
+    case "demo_inviata":
+      return `demo inviata, in attesa di risposta · ${timeAgo(lead.demo_sent_at ?? lead.updated_at)}`;
+    case "in_trattativa":
+      return `in trattativa · ${timeAgo(lead.updated_at)}`;
+    case "tiepido":
+      return `tiepido: fissa la data di ricontatto · ${timeAgo(lead.updated_at)}`;
+    case "vinto":
+      return `🏆 cliente acquisito · ${timeAgo(lead.updated_at)}`;
+    case "perso":
+      return `perso${lead.lost_reason ? `: ${lead.lost_reason}` : ""} · ${timeAgo(lead.updated_at)}`;
     case "studiato":
       return lead.approval_status === "pending"
         ? `messaggio da approvare · studiato ${timeAgo(lead.updated_at)}`

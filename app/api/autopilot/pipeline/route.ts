@@ -6,7 +6,9 @@ import {
   getStats,
   getWaMessages,
   markDemoRequested,
+  updateDeal,
 } from "@/lib/autopilot/db";
+import { DEAL_STAGES } from "@/types/autopilot";
 import type { ApiResponse } from "@/types";
 import type {
   AutopilotLead,
@@ -79,6 +81,31 @@ export async function PATCH(req: Request) {
       await archiveLead(leadId);
     } else if (action === "demo_requested") {
       await markDemoRequested(leadId);
+    } else if (action === "update_deal") {
+      // Stati trattativa: SOLO manuali, mai automatismi verso il lead.
+      const stage =
+        typeof body.stage === "string" &&
+        DEAL_STAGES.includes(body.stage as (typeof DEAL_STAGES)[number])
+          ? (body.stage as (typeof DEAL_STAGES)[number])
+          : undefined;
+      if (typeof body.stage === "string" && !stage) {
+        return NextResponse.json<ApiResponse<never>>(
+          { success: false, error: `Stage trattativa non valido: ${body.stage}` },
+          { status: 400 },
+        );
+      }
+      await updateDeal(leadId, {
+        stage,
+        next_action:
+          typeof body.next_action === "string" ? body.next_action : undefined,
+        next_action_at:
+          typeof body.next_action_at === "string"
+            ? body.next_action_at || null
+            : undefined,
+        lost_reason:
+          typeof body.lost_reason === "string" ? body.lost_reason : undefined,
+        notes: typeof body.notes === "string" ? body.notes : undefined,
+      });
     } else if (action === "approve_demo_url") {
       const demoUrl = typeof body.demo_url === "string" ? body.demo_url.trim() : "";
       if (!/^https?:\/\/\S+$/.test(demoUrl)) {
@@ -92,7 +119,8 @@ export async function PATCH(req: Request) {
       return NextResponse.json<ApiResponse<never>>(
         {
           success: false,
-          error: "action deve essere archive | demo_requested | approve_demo_url.",
+          error:
+            "action deve essere archive | demo_requested | update_deal | approve_demo_url.",
         },
         { status: 400 },
       );

@@ -24,6 +24,8 @@ export async function getSettings() {
     warmup_days: Number(map.get("warmup_days")) || 14,
     // OFF di default: il bot non conversa più, classifica e basta.
     bot_conversational: map.get("bot_conversational") === "1",
+    // Giorno (YYYY-MM-DD Rome) dell'ultimo digest agenda inviato.
+    agenda_reminder_day: map.get("agenda_reminder_day") || null,
   };
 }
 
@@ -277,6 +279,25 @@ export async function demosToSend(limit = 3) {
             AND p.stage != 'archiviato'
           ORDER BY p.updated_at ASC LIMIT ?`,
     args: [limit],
+  });
+  return res.rows;
+}
+
+// ----- Agenda (promemoria mattutino a Puccio) -----------------
+
+/** Azioni in scadenza per il digest del giorno `day` (YYYY-MM-DD):
+ *  next_action_at di oggi o scaduta da max 3 giorni (anti-spam: gli
+ *  arretrati più vecchi restano solo in dashboard). Stati attivi. */
+export async function agendaDueLeads(day) {
+  const res = await db.execute({
+    sql: `${PIPELINE_SELECT}
+          WHERE p.next_action_at IS NOT NULL AND p.next_action_at != ''
+            AND date(p.next_action_at) <= ?
+            AND date(p.next_action_at) >= date(?, '-3 days')
+            AND p.stage NOT IN ('archiviato', 'perso', 'vinto')
+          ORDER BY p.next_action_at ASC
+          LIMIT 20`,
+    args: [day, day],
   });
   return res.rows;
 }

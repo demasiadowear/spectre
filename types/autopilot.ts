@@ -10,9 +10,28 @@ export type AutopilotStage =
   | "studiato"
   | "contattato"
   | "risposto_manuale" // risposta umana: bot muto, chat in mano a Puccio
-  | "demo_richiesta"
+  // --- stati trattativa (SOLO manuali, li imposta Puccio dal drawer) ---
+  | "da_chiamare" // appuntamento telefonico (next_action_at = quando)
+  | "demo_richiesta" // "demo da fare": il lead ha detto sì, va preparata
+  | "demo_inviata" // demo mandata, in attesa di risposta
+  | "in_trattativa"
+  | "tiepido" // ricontattare il next_action_at
+  | "vinto"
+  | "perso" // lost_reason = motivo
   | "escalation"
   | "archiviato";
+
+/** Stati gestiti a mano da Puccio dal drawer (bot sempre muto). */
+export const DEAL_STAGES: AutopilotStage[] = [
+  "risposto_manuale",
+  "da_chiamare",
+  "demo_richiesta",
+  "demo_inviata",
+  "in_trattativa",
+  "tiepido",
+  "vinto",
+  "perso",
+];
 
 /** Tier scoring: T1 >=4.8/100+ rec, T2 >=4.6/50+, T3 >=4.5/30+. */
 export type AutopilotTier = "T1" | "T2" | "T3";
@@ -76,6 +95,15 @@ export interface AutopilotLead {
    *  demo_sent_at: SPECTRE non builda nulla. */
   demo_url: string;
   demo_sent_at: string | null;
+  /** Prossima azione manuale di Puccio (es. "chiamare lunedì 9:00"). */
+  next_action: string;
+  /** Quando va fatta (ISO locale da datetime-local): alimenta la vista
+   *  Agenda e il promemoria WA mattutino del worker. */
+  next_action_at: string | null;
+  /** Motivo del perso (prezzo, non interessato, …). */
+  lost_reason: string;
+  /** Note libere trattativa (vive su leads.notes, condivisa col Visor). */
+  notes: string;
   created_at: string;
   updated_at: string;
   // Dal lead collegato.

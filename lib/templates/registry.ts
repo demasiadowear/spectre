@@ -21,6 +21,7 @@ export const TEMPLATE_KEYS = [
   "escalation_notify",
   "demo_request_notify",
   "human_reply_notify",
+  "agenda_reminder",
   "kill_switch_notify",
 ] as const;
 
@@ -52,6 +53,7 @@ export const PLACEHOLDER_DOCS: Record<string, string> = {
   "{RIASSUNTO}": "riassunto AI della chat",
   "{MESSAGGIO}": "testo del messaggio ricevuto dal lead",
   "{LINK_CHAT}": "link wa.me alla chat del lead",
+  "{LISTA}": "elenco azioni del giorno (digest agenda), una per riga",
 };
 
 export interface TemplateVars {
@@ -68,6 +70,7 @@ export interface TemplateVars {
   RIASSUNTO?: string;
   MESSAGGIO?: string;
   LINK_CHAT?: string;
+  LISTA?: string;
   /** Solo per anteprime/UI: il worker lo risolve all'invio. */
   SALUTO?: string;
 }
@@ -120,4 +123,5 @@ export const PREVIEW_VARS: Required<Omit<TemplateVars, "SALUTO">> & { SALUTO: st
   RIASSUNTO: "Titolare interessato, chiede tempi e prezzo. Consiglio: chiamare nel pomeriggio.",
   MESSAGGIO: "Sì mi interessa, quanto costa?",
   LINK_CHAT: "https://wa.me/393331234567",
+  LISTA: "• Salone Marisa (09:00) — chiamare per appuntamento\n• ⚠ ARRETRATO +1g · Bar Centrale — mandare demo",
 };

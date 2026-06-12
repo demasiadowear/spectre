@@ -10,7 +10,13 @@ export const AUTOPILOT_STAGES: AutopilotStage[] = [
   "studiato",
   "contattato",
   "risposto_manuale",
+  "da_chiamare",
   "demo_richiesta",
+  "demo_inviata",
+  "in_trattativa",
+  "tiepido",
+  "vinto",
+  "perso",
   "escalation",
   "archiviato",
 ];

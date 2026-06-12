@@ -21,6 +21,7 @@ import qrcode from "qrcode-terminal";
 import QRCode from "qrcode";
 import {
   addAlert,
+  agendaDueLeads,
   alertExists,
   bumpCounters,
   chatHistory,
@@ -349,6 +350,18 @@ async function classifyInbound(lead, msg, body) {
   return "human";
 }
 
+/** Stati di trattativa manuale: una risposta umana qui NON cambia lo
+ *  stage (lo gestisce Puccio) ma viene sempre notificata — è l'evento
+ *  che sta aspettando (es. risposta dopo la demo inviata). */
+const NEGOTIATION_STAGES = new Set([
+  "da_chiamare",
+  "demo_richiesta",
+  "demo_inviata",
+  "in_trattativa",
+  "tiepido",
+  "vinto",
+]);
+
 /** Lead di test e2e (meta.test = true): il numero di Puccio può fare
  *  da lead solo se esiste questa riga, altrimenti resta ignorato. */
 function isTestLead(lead) {
@@ -493,12 +506,30 @@ async function handleInbound(msg, knownLead = null) {
   // sempre su questa chat, Puccio prende in mano. La notifica parte
   // anche a kill switch attivo: è verso di noi, non verso il lead.
   if (!settings.bot_conversational) {
+    // Trattativa attiva (stati manuali): la risposta è proprio
+    // l'evento che Puccio aspetta -> notifica, stage INVARIATO.
+    if (NEGOTIATION_STAGES.has(lead.stage)) {
+      await addAlert(
+        "human_reply",
+        `${lead.company} (${lead.stage}) ha scritto: "${body.slice(0, 160)}"`,
+        leadId,
+      );
+      const dg = chatIdFor(lead.phone)?.replace("@c.us", "") ?? "";
+      await notifyPuccio("human_reply_notify", {
+        NOME_ATTIVITA: lead.company,
+        TELEFONO: lead.phone,
+        MESSAGGIO: body.slice(0, 300),
+        LINK_CHAT: dg ? `https://wa.me/${dg}` : "",
+      });
+      return true;
+    }
     if (
       lead.stage === "risposto_manuale" ||
       lead.stage === "escalation" ||
-      lead.stage === "archiviato"
+      lead.stage === "archiviato" ||
+      lead.stage === "perso"
     ) {
-      return true; // già in mani umane: solo log, zero rumore
+      return true; // già in mani umane / chiuso: solo log, zero rumore
     }
     await updatePipeline(leadId, { stage: "risposto_manuale", bot_paused: 1 });
     await updateLeadStatus(leadId, "replied");
@@ -628,13 +659,53 @@ async function sendManualDemos() {
     if (ok) {
       await updatePipeline(String(row.lead_id), {
         demo_sent_at: new Date().toISOString(),
-        stage: "demo_richiesta",
+        stage: "demo_inviata",
       });
       await updateLeadStatus(String(row.lead_id), "preview_sent");
       console.log("[worker] demo inviata:", row.company);
     }
     await sleep(randomDelayMs());
   }
+}
+
+/** Digest agenda mattutino: UNA notifica WA a Puccio al giorno con le
+ *  azioni di oggi + le scadute da max 3 giorni ("ARRETRATO +Xgg").
+ *  Digest vuoto = nessun messaggio. Va a Puccio, NON al lead: parte
+ *  anche a kill switch attivo. */
+async function sendAgendaReminder() {
+  const day = romeDay();
+  const settings = await getSettings();
+  if (settings.agenda_reminder_day === day) return; // già mandato oggi
+
+  // Solo dalle 8:30 Europe/Rome in poi.
+  const nowRome = new Date().toLocaleTimeString("it-IT", {
+    timeZone: "Europe/Rome",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  if (nowRome < "08:30") return;
+
+  const due = await agendaDueLeads(day);
+  // Anche senza azioni: marca il giorno (evita query ripetute), ma
+  // niente messaggio — il silenzio è il segnale positivo.
+  await setSetting("agenda_reminder_day", day);
+  if (due.length === 0) return;
+
+  const lines = due.map((r) => {
+    const at = String(r.next_action_at);
+    const d = at.slice(0, 10);
+    const time = at.length > 10 ? at.slice(11, 16) : "";
+    const overdueDays = Math.max(
+      0,
+      Math.round((new Date(`${day}T00:00`) - new Date(`${d}T00:00`)) / 86_400_000),
+    );
+    const prefix = overdueDays > 0 ? `⚠ ARRETRATO +${overdueDays}g · ` : "";
+    const action = String(r.next_action || "azione da fare");
+    return `• ${prefix}${r.company}${time ? ` (${time})` : ""} — ${action}`;
+  });
+  await notifyPuccio("agenda_reminder", { LISTA: lines.join("\n") });
+  console.log(`[worker] agenda: promemoria inviato (${due.length} azioni)`);
 }
 
 /** Follow-up giorno 3 e 7 senza risposta, archivio al giorno 10. */
@@ -671,6 +742,14 @@ async function processFollowups() {
 }
 
 async function tick() {
+  // Il digest agenda va a Puccio, non ai lead: parte anche a kill
+  // switch attivo (un errore qui non deve fermare il tick).
+  try {
+    await sendAgendaReminder();
+  } catch (err) {
+    console.error("[worker] agenda reminder:", err.message);
+  }
+
   const settings = await getSettings();
   if (settings.kill_switch) return false;
 
@@ -725,7 +804,16 @@ async function tick() {
  *  le chat dei lead contattati e ripassa a handleInbound i messaggi
  *  non ancora in wa_messages (dedup su wa_id: idempotente). */
 async function syncMissedInbound() {
-  const stages = ["contattato", "risposto_manuale", "demo_richiesta", "escalation"];
+  const stages = [
+    "contattato",
+    "risposto_manuale",
+    "da_chiamare",
+    "demo_richiesta",
+    "demo_inviata",
+    "in_trattativa",
+    "tiepido",
+    "escalation",
+  ];
   let recovered = 0;
   for (const stage of stages) {
     for (const lead of await pipelineByStage(stage)) {
