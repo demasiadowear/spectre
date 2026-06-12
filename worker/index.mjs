@@ -34,6 +34,7 @@ import {
   logWaMessage,
   outboundWithinMinutes,
   pipelineByStage,
+  pipelineLead,
   readyForOutreach,
   romeDay,
   secondsSinceLastOutbound,
@@ -946,13 +947,20 @@ async function syncMissedInbound() {
       try {
         const chat = await client.getChatById(chatId);
         const msgs = await chat.fetchMessages({ limit: 20 });
+        // La riga lead va RIletta dopo ogni messaggio processato: il
+        // primo inbound umano cambia stage (triage) e i successivi
+        // devono vederlo, altrimenti ogni messaggio recuperato
+        // ri-trigghera transizione + notifica (visto il 12/06: tripla
+        // notifica per la stessa chat).
+        let freshLead = lead;
         for (const m of msgs) {
           if (m.fromMe) continue;
           const waId = m.id?._serialized ?? "";
           if (!waId || (await waMessageExists(waId))) continue;
-          // Lead noto dalla chat: niente matching dal from (che nelle
-          // chat LID non contiene il numero).
-          if (await handleInbound(m, lead)) recovered++;
+          if (await handleInbound(m, freshLead)) {
+            recovered++;
+            freshLead = (await pipelineLead(String(lead.lead_id))) ?? freshLead;
+          }
         }
       } catch (err) {
         console.error(

@@ -18,7 +18,9 @@ export async function geminiJSON(systemPrompt, userPrompt, temperature = 0.7) {
       systemInstruction: systemPrompt,
       generationConfig: {
         temperature,
-        maxOutputTokens: 1024,
+        // 2.5-flash consuma token anche per il "thinking" interno:
+        // 1024 troncava il JSON a metà su prompt lunghi.
+        maxOutputTokens: 4096,
         responseMimeType: "application/json",
       },
     });
