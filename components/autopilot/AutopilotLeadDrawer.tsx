@@ -7,6 +7,7 @@ import {
   Archive,
   Check,
   ExternalLink,
+  MonitorSmartphone,
   Phone,
   Search,
   Star,
@@ -16,11 +17,7 @@ import NeonButton from "@/components/ui/spectre/NeonButton";
 import { googleSearchHref } from "@/lib/pitch";
 import { cn } from "@/lib/utils";
 import type { ApiResponse } from "@/types";
-import type {
-  AutopilotBuild,
-  AutopilotLead,
-  WaMessage,
-} from "@/types/autopilot";
+import type { AutopilotLead, WaMessage } from "@/types/autopilot";
 import {
   STAGE_CHIP,
   TIER_BADGE,
@@ -31,7 +28,6 @@ import {
 
 interface Props {
   lead: AutopilotLead | null;
-  build: AutopilotBuild | null;
   /** "chat" scrolla subito alla conversazione (azione "Apri chat"). */
   focus?: "chat";
   busy: boolean;
@@ -39,7 +35,11 @@ interface Props {
   onApprove: (leadId: string, message?: string) => void;
   onReject: (leadId: string) => void;
   onArchive: (leadId: string) => void;
-  onApproveDemo: (buildId: string) => void;
+  /** Il lead ha chiesto la demo: stato manuale che aspetta Puccio. */
+  onMarkDemoRequested: (leadId: string) => void;
+  /** Link demo preparato FUORI da SPECTRE: incolla + approva e il
+   *  worker lo invia. SPECTRE non builda nulla. */
+  onApproveDemoUrl: (leadId: string, demoUrl: string) => void;
 }
 
 // ============================================================
@@ -67,23 +67,25 @@ function Section({
 
 export default function AutopilotLeadDrawer({
   lead,
-  build,
   focus,
   busy,
   onClose,
   onApprove,
   onReject,
   onArchive,
-  onApproveDemo,
+  onMarkDemoRequested,
+  onApproveDemoUrl,
 }: Props) {
   const [messages, setMessages] = useState<WaMessage[]>([]);
   const [draft, setDraft] = useState("");
+  const [demoDraft, setDemoDraft] = useState("");
   const chatRef = useRef<HTMLDivElement>(null);
 
   // Chat completa caricata on-open (non pesa sulla lista).
   useEffect(() => {
     setMessages([]);
     setDraft(lead?.wa_first_message ?? "");
+    setDemoDraft(lead?.demo_url ?? "");
     if (!lead) return;
     let alive = true;
     fetch(`/api/autopilot/pipeline?lead_id=${encodeURIComponent(lead.lead_id)}`, {
@@ -301,35 +303,80 @@ export default function AutopilotLeadDrawer({
               </Section>
             )}
 
-            {build && (
+            {/* Demo: SPECTRE non builda nulla. Puccio prepara la demo
+                fuori, incolla qui il link e approva: il worker invia il
+                messaggio (template demo_ready) al prossimo tick. */}
+            {lead.stage === "risposto_manuale" && (
               <Section title="Demo">
-                <p className="font-ui text-xs text-text2">
-                  template {build.template || "—"} · stato {build.status}
+                <NeonButton
+                  size="sm"
+                  variant="cyan"
+                  disabled={busy}
+                  onClick={() => onMarkDemoRequested(lead.lead_id)}
+                >
+                  <MonitorSmartphone className="h-3.5 w-3.5" /> Segna demo richiesta
+                </NeonButton>
+                <p className="mt-1 font-ui text-[10px] text-text2">
+                  Il lead ha chiesto la demo? Segnalo: prepari il sito fuori
+                  da SPECTRE e incolli qui il link quando è pronto.
                 </p>
-                {build.preview_url && (
-                  <a
-                    href={build.preview_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-1 inline-flex items-center gap-1 break-all font-ui text-sm text-accent hover:underline"
-                  >
-                    {build.preview_url} <ExternalLink className="h-3.5 w-3.5" />
-                  </a>
-                )}
-                {build.status === "deployed" && (
-                  <div className="mt-2">
-                    <NeonButton
-                      size="sm"
-                      variant="green"
-                      disabled={busy}
-                      onClick={() => onApproveDemo(build.id)}
+              </Section>
+            )}
+
+            {lead.stage === "demo_richiesta" && (
+              <Section title="Demo">
+                {lead.demo_sent_at ? (
+                  <>
+                    <p className="font-ui text-xs text-success">
+                      ✓ Demo inviata al cliente · {timeAgo(lead.demo_sent_at)}
+                    </p>
+                    {lead.demo_url && (
+                      <a
+                        href={lead.demo_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1 inline-flex items-center gap-1 break-all font-ui text-sm text-accent hover:underline"
+                      >
+                        {lead.demo_url} <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    )}
+                  </>
+                ) : lead.demo_url ? (
+                  <p className="font-ui text-xs text-text2">
+                    Demo approvata, invio in coda al worker:{" "}
+                    <a
+                      href={lead.demo_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="break-all text-accent hover:underline"
                     >
-                      <Check className="h-3.5 w-3.5" /> Approva e invia al cliente
-                    </NeonButton>
-                  </div>
-                )}
-                {build.status === "failed" && build.error && (
-                  <p className="mt-1 font-ui text-xs text-danger">{build.error}</p>
+                      {lead.demo_url}
+                    </a>
+                  </p>
+                ) : (
+                  <>
+                    <input
+                      type="url"
+                      value={demoDraft}
+                      onChange={(e) => setDemoDraft(e.target.value)}
+                      placeholder="https://demo-cliente.vercel.app"
+                      className="w-full rounded-sm border border-border bg-bg p-2 font-ui text-sm text-text focus:border-accent focus:outline-none"
+                    />
+                    <div className="mt-2">
+                      <NeonButton
+                        size="sm"
+                        variant="green"
+                        disabled={busy || !/^https?:\/\/\S+$/.test(demoDraft.trim())}
+                        onClick={() => onApproveDemoUrl(lead.lead_id, demoDraft.trim())}
+                      >
+                        <Check className="h-3.5 w-3.5" /> Approva e invia al cliente
+                      </NeonButton>
+                      <p className="mt-1 font-ui text-[10px] text-text2">
+                        La demo la prepari tu fuori da SPECTRE. Con l&apos;approvazione
+                        il worker manda il link su WhatsApp al lead.
+                      </p>
+                    </div>
+                  </>
                 )}
               </Section>
             )}

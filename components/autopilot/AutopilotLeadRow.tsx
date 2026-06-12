@@ -3,10 +3,9 @@
 import { Archive, Check, MessageSquare, Search, X } from "lucide-react";
 import { googleSearchHref } from "@/lib/pitch";
 import { cn } from "@/lib/utils";
-import type { AutopilotBuild, AutopilotLead } from "@/types/autopilot";
+import type { AutopilotLead } from "@/types/autopilot";
 import {
   STAGE_CHIP,
-  STAGE_LABELS,
   TIER_BADGE,
   isPendingApproval,
   lastAction,
@@ -18,12 +17,10 @@ export interface RowActions {
   onApprove: (leadId: string) => void;
   onReject: (leadId: string) => void;
   onArchive: (leadId: string) => void;
-  onApproveDemo: (buildId: string) => void;
 }
 
 interface Props extends RowActions {
   lead: AutopilotLead;
-  build: AutopilotBuild | null;
   busy: boolean;
   /** ETA invio per i lead approvati in coda (da queuedSendLabels). */
   queuedLabel?: string | null;
@@ -71,17 +68,14 @@ function QuickAction({
 
 export default function AutopilotLeadRow({
   lead,
-  build,
   busy,
   queuedLabel,
   onOpen,
   onApprove,
   onReject,
   onArchive,
-  onApproveDemo,
 }: Props) {
   const pending = isPendingApproval(lead);
-  const demoToApprove = lead.stage === "demo_richiesta" && build?.status === "deployed";
 
   return (
     <li
@@ -103,7 +97,7 @@ export default function AutopilotLeadRow({
           <span className="ml-1.5 font-normal text-text2">· {lead.category}</span>
         </p>
         <p className="truncate font-ui text-xs text-text2">
-          {lastAction(lead, build, queuedLabel)}
+          {lastAction(lead, queuedLabel)}
         </p>
       </div>
 
@@ -114,9 +108,6 @@ export default function AutopilotLeadRow({
             <QuickAction label="Approva" icon={Check} tone="ok" disabled={busy} onClick={() => onApprove(lead.lead_id)} />
             <QuickAction label="Scarta" icon={X} tone="no" disabled={busy} onClick={() => onReject(lead.lead_id)} />
           </>
-        )}
-        {demoToApprove && build && (
-          <QuickAction label="Approva e invia" icon={Check} tone="ok" disabled={busy} onClick={() => onApproveDemo(build.id)} />
         )}
         {lead.stage === "escalation" && (
           <QuickAction label="Apri chat" icon={MessageSquare} onClick={() => onOpen(lead, "chat")} />

@@ -1,28 +1,33 @@
 # SPECTRE Autopilot — Worker
 
-Processo long-running per gli stadi 2 e 3 della pipeline Autopilot.
+Processo long-running dello Stadio 2 della pipeline Autopilot.
 Gira su una macchina sempre accesa (VPS o Mac locale), **non su Vercel**:
 whatsapp-web.js ha bisogno di una sessione browser persistente.
 
 Condivide il DB Turso di SPECTRE: dashboard e cron (Vercel) scrivono la
 pipeline, il worker la consuma.
 
+> SPECTRE **non builda demo**: le demo le prepara Puccio fuori da SPECTRE.
+> Il worker invia solo il link (`demo_url`) incollato e approvato in
+> dashboard. Nessun build runner, nessun token Vercel.
+
 ## Componenti
 
 | Processo | Comando | Cosa fa |
 | --- | --- | --- |
-| Worker WA | `npm start` | Outreach primo contatto, follow-up gg 3/7, bot conversazione Gemini, escalation a Puccio, invio demo approvate, anomaly detection |
-| Build runner | `npm run build-runner` | Task `autopilot_builds`: scraping (JustEat per ristoranti), template gallery, deploy Vercel preview |
+| Worker WA | `npm start` | Outreach primo contatto, follow-up gg 3/7, classificatore risposte a 3 vie, notifiche a Puccio, invio link demo approvati, anomaly detection, heartbeat |
 
 ## Setup
 
 ```bash
 cd worker
 npm install
-npx playwright install chromium   # solo se usi il build runner
 cp .env.example .env              # compila i valori
 npm start
 ```
+
+Su Windows usa `start-worker.ps1`: watchdog con auto-restart (nel
+commento in testa c'è il comando `schtasks` per l'avvio al boot).
 
 Al primo avvio compare un QR in console: scansionalo con il **numero WA
 Business AYROMEX** (WhatsApp > Dispositivi collegati). La sessione resta
@@ -38,12 +43,20 @@ in `WA_SESSION_DIR` (default `./.wwebjs_auth`) e non viene più richiesta.
 - **Kill switch**: flag globale in `autopilot_settings`, togglabile dalla
   dashboard. Si attiva da solo su: 3 invii consecutivi falliti, 5+
   messaggi non consegnati in giornata, sessione WA disconnessa.
-- **Escalation**: lead caldo / domande complesse di prezzo / "posso
-  parlare con qualcuno?" → il bot si ferma su quella chat
-  (`bot_paused = 1`), Puccio riceve notifica WA con riassunto. La chiamata
-  di chiusura la fa sempre Puccio.
-- **Demo**: `demo_richiesta` crea il task di build; la preview deployata
-  va **approvata in dashboard** prima che il worker la invii al cliente.
+- **Classificatore risposte (3 vie)**: auto-reply WA Business (pattern,
+  latenza <3s, menu interattivi, Gemini nei dubbi — dubbio = umana) → un
+  solo messaggio di sblocco (`bypass_autoreply`), poi silenzio; risposta
+  umana → notifica WA immediata a Puccio + stage `risposto_manuale`, bot
+  muto per sempre su quella chat; opt-out → archivio gentile, zero
+  notifiche. Bot conversazionale legacy dietro flag `bot_conversational`
+  (default OFF).
+- **Follow-up gg 3/7**: solo per lead **mai** risposti da umano; archivio
+  automatico al giorno 10.
+- **Demo (manuale)**: `demo_richiesta` è solo uno stato. Puccio prepara
+  la demo fuori, incolla il link nel drawer e approva: il worker invia
+  il messaggio `demo_ready` e marca `demo_sent_at`.
+- **Heartbeat**: `worker_heartbeat` in `autopilot_settings` ogni ~60s;
+  la dashboard mostra WORKER OFFLINE se manca da più di 3 minuti.
 - **Logging**: ogni messaggio in/out finisce in `wa_messages` (stato
   consegna aggiornato dagli ack).
 
@@ -63,5 +76,3 @@ EnvironmentFile=/opt/spectre/worker/.env
 [Install]
 WantedBy=multi-user.target
 ```
-
-(Stesso schema per `build/runner.mjs` come secondo servizio.)

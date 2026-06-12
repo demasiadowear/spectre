@@ -1,4 +1,4 @@
-import type { AutopilotBuild, AutopilotLead, AutopilotStage } from "@/types/autopilot";
+import type { AutopilotLead, AutopilotStage } from "@/types/autopilot";
 
 // ============================================================
 // Helper condivisi della vista Autopilot: tempo relativo,
@@ -10,7 +10,8 @@ export const STAGE_LABELS: Record<AutopilotStage, string> = {
   nuovo: "nuovo",
   studiato: "da approvare",
   contattato: "contattato",
-  demo_richiesta: "demo richiesta",
+  risposto_manuale: "risposto — manuale",
+  demo_richiesta: "demo richiesta — manuale",
   escalation: "escalation",
   archiviato: "archiviato",
 };
@@ -20,6 +21,7 @@ export const STAGE_CHIP: Record<AutopilotStage, string> = {
   nuovo: "bg-fn-todo text-onaccent",
   studiato: "bg-ochre text-onaccent",
   contattato: "bg-fn-replied text-onaccent",
+  risposto_manuale: "bg-accent text-onaccent",
   demo_richiesta: "bg-success text-onaccent",
   escalation: "bg-danger text-onaccent",
   archiviato: "bg-fn-lost text-onaccent",
@@ -128,21 +130,13 @@ export function queuedSendLabels(
   );
 }
 
-/** Build più recente del lead (deployed in testa: è quella azionabile). */
-export function latestBuild(
-  lead: AutopilotLead,
-  builds: AutopilotBuild[],
-): AutopilotBuild | null {
-  const own = builds.filter((b) => b.lead_id === lead.lead_id);
-  return own.find((b) => b.status === "deployed") ?? own[0] ?? null;
-}
-
 /**
  * Ordinamento "richiede azione" in cima:
  * escalation (0) > demo_richiesta (1) > da approvare (2) > resto (3).
  */
 export function actionPriority(lead: AutopilotLead): number {
   if (lead.stage === "escalation") return 0;
+  if (lead.stage === "risposto_manuale") return 1; // c'è un umano in attesa
   if (lead.stage === "demo_richiesta") return 1;
   if (isPendingApproval(lead)) return 2;
   return 3;
@@ -164,29 +158,30 @@ export function sortByAction(leads: AutopilotLead[]): AutopilotLead[] {
  *  (da queuedSendLabels) sostituisce il generico "in coda di invio". */
 export function lastAction(
   lead: AutopilotLead,
-  build: AutopilotBuild | null,
   queuedLabel?: string | null,
 ): string {
   switch (lead.stage) {
     case "escalation":
       return `⚠ ${lead.escalation_reason || "serve Puccio"} · ${timeAgo(lead.escalated_at)}`;
     case "demo_richiesta":
-      if (build?.status === "deployed")
-        return `demo pronta da approvare · ${timeAgo(build.updated_at)}`;
-      if (build?.status === "sent")
-        return `demo inviata al cliente · ${timeAgo(build.updated_at)}`;
-      if (build?.status === "failed")
-        return `⚠ build demo fallita · ${timeAgo(build.updated_at)}`;
-      return `demo in costruzione · ${timeAgo(lead.updated_at)}`;
+      if (lead.demo_sent_at)
+        return `demo inviata al cliente · ${timeAgo(lead.demo_sent_at)}`;
+      if (lead.demo_url)
+        return `demo approvata, invio in coda · ${timeAgo(lead.updated_at)}`;
+      return `demo richiesta: preparala e incolla il link nel dettaglio · ${timeAgo(lead.updated_at)}`;
     case "studiato":
       return lead.approval_status === "pending"
         ? `messaggio da approvare · studiato ${timeAgo(lead.updated_at)}`
         : `${queuedLabel ?? "in coda di invio"} · approvato ${timeAgo(lead.approved_at ?? lead.updated_at)}`;
+    case "risposto_manuale":
+      return `ha risposto, bot muto: chat in mano tua · ${timeAgo(lead.updated_at)}`;
     case "contattato":
       if (lead.followup2_at)
         return `follow-up 2 inviato · ${timeAgo(lead.followup2_at)}`;
       if (lead.followup1_at)
         return `follow-up 1 inviato · ${timeAgo(lead.followup1_at)}`;
+      if (lead.bypass_sent_at)
+        return `auto-reply scavalcato ${timeAgo(lead.bypass_sent_at)} · in attesa di umano`;
       return `contattato ${timeAgo(lead.contacted_at)} · in attesa di risposta`;
     case "nuovo":
       return `trovato ${timeAgo(lead.created_at)} · study in coda`;

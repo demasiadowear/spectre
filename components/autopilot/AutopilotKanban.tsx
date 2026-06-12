@@ -22,7 +22,7 @@ export default function AutopilotKanban({ leads, queuedLabels, onOpen }: Props) 
   for (const l of leads) byStage.get(l.stage)?.push(l);
 
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
       {AUTOPILOT_STAGES.map((stage) => {
         const items = byStage.get(stage) ?? [];
         return (
@@ -55,7 +55,7 @@ export default function AutopilotKanban({ leads, queuedLabels, onOpen }: Props) 
                       <b className={cn("mr-1", TIER_BADGE[l.tier]?.split(" ")[1])}>
                         {l.tier}
                       </b>
-                      {lastAction(l, null, queuedLabels?.get(l.lead_id) ?? null)}
+                      {lastAction(l, queuedLabels?.get(l.lead_id) ?? null)}
                     </span>
                   </button>
                 </li>

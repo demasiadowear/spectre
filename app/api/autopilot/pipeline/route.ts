@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import {
+  approveDemoUrl,
   archiveLead,
   getPipeline,
   getStats,
   getWaMessages,
+  markDemoRequested,
 } from "@/lib/autopilot/db";
 import type { ApiResponse } from "@/types";
 import type {
@@ -49,7 +51,9 @@ export async function GET(req: Request) {
   }
 }
 
-/** Azioni rapide sulla pipeline (per ora: archivia). */
+/** Azioni rapide sulla pipeline: archivia, segna demo richiesta,
+ *  approva il link demo (incollato a mano da Puccio: SPECTRE non
+ *  builda nulla, il worker invia solo dietro questa approvazione). */
 export async function PATCH(req: Request) {
   let body: Record<string, unknown>;
   try {
@@ -63,15 +67,36 @@ export async function PATCH(req: Request) {
 
   const leadId = typeof body.lead_id === "string" ? body.lead_id : "";
   const action = typeof body.action === "string" ? body.action : "";
-  if (!leadId || action !== "archive") {
+  if (!leadId) {
     return NextResponse.json<ApiResponse<never>>(
-      { success: false, error: "Servono lead_id e action=archive." },
+      { success: false, error: "Serve lead_id." },
       { status: 400 },
     );
   }
 
   try {
-    await archiveLead(leadId);
+    if (action === "archive") {
+      await archiveLead(leadId);
+    } else if (action === "demo_requested") {
+      await markDemoRequested(leadId);
+    } else if (action === "approve_demo_url") {
+      const demoUrl = typeof body.demo_url === "string" ? body.demo_url.trim() : "";
+      if (!/^https?:\/\/\S+$/.test(demoUrl)) {
+        return NextResponse.json<ApiResponse<never>>(
+          { success: false, error: "demo_url non valido: serve un link http(s)." },
+          { status: 400 },
+        );
+      }
+      await approveDemoUrl(leadId, demoUrl);
+    } else {
+      return NextResponse.json<ApiResponse<never>>(
+        {
+          success: false,
+          error: "action deve essere archive | demo_requested | approve_demo_url.",
+        },
+        { status: 400 },
+      );
+    }
     return NextResponse.json<ApiResponse<{ lead_id: string }>>({
       success: true,
       data: { lead_id: leadId },

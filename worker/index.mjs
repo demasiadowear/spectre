@@ -1,10 +1,11 @@
 // ============================================================
-// SPECTRE AUTOPILOT — worker WhatsApp (Stadio 2 + invii Stadio 3).
+// SPECTRE AUTOPILOT — worker WhatsApp (outreach + classificatore).
 // Gira su VPS/macchina locale con sessione persistente sul numero
 // WA Business AYROMEX. NON gira su Vercel.
+// SPECTRE non builda demo: il worker invia solo i link demo che
+// Puccio prepara fuori e approva in dashboard (demo_url).
 //
-//   npm start          -> worker WA (outreach + bot conversazione)
-//   npm run build-runner -> processo build demo (Playwright/Vercel)
+//   npm start  -> worker WA (unico processo)
 //
 // Sicurezza operativa:
 // - warm-up: cap contatti/giorno da autopilot_settings (10 -> 15)
@@ -22,10 +23,9 @@ import {
   addAlert,
   alertExists,
   bumpCounters,
-  buildsByStatus,
   chatHistory,
-  createBuildTask,
   dailyCap,
+  demosToSend,
   findLeadByPhone,
   getSettings,
   getTodayCounters,
@@ -33,15 +33,14 @@ import {
   logWaMessage,
   outboundWithinMinutes,
   pipelineByStage,
-  pipelineLead,
   readyForOutreach,
   romeDay,
+  secondsSinceLastOutbound,
   setSetting,
   setWaMessageStatus,
   setWaMessageStatusByWaId,
   undeliveredTodayCount,
   waMessageExists,
-  updateBuild,
   updateLeadStatus,
   updatePipeline,
 } from "./lib/db.mjs";
@@ -57,10 +56,9 @@ import {
   sleep,
 } from "./lib/schedule.mjs";
 import {
+  CLASSIFY_INBOUND_PROMPT,
   CONVERSATION_SYSTEM_PROMPT,
-  DEFAULT_TEMPLATE,
   SUMMARY_SYSTEM_PROMPT,
-  TEMPLATE_BY_CATEGORY,
 } from "./lib/prompts.mjs";
 import { tpl } from "./lib/templates.mjs";
 
@@ -174,8 +172,16 @@ function applyGreeting(body) {
   );
 }
 
-/** Invio tracciato: log su wa_messages, contatori, anomaly detection. */
-async function sendToLead(lead, body, { aiGenerated = false, newContact = false } = {}) {
+/** Invio tracciato: log su wa_messages, contatori, anomaly detection.
+ *  skipChatLock: SOLO per il messaggio di sblocco auto-reply, che per
+ *  natura parte pochi secondi dopo il nostro outreach (il lock per-chat
+ *  lo bloccherebbe sempre). La sicurezza lì è bypass_sent_at: massimo
+ *  1 tentativo per lead, per sempre. */
+async function sendToLead(
+  lead,
+  body,
+  { aiGenerated = false, newContact = false, skipChatLock = false } = {},
+) {
   body = applyGreeting(body);
   const chatId = chatIdFor(lead.phone);
   if (!chatId) {
@@ -187,9 +193,8 @@ async function sendToLead(lead, body, { aiGenerated = false, newContact = false 
   }
   // LOCK PER-CHAT (hard, su DB quindi cross-processo): se è uscito
   // qualcosa verso questo lead negli ultimi PER_CHAT_GAP_MIN minuti,
-  // NON si invia. Nessuna eccezione: follow-up e demo ritentano al
-  // tick successivo, il bot risponderà al prossimo messaggio.
-  if (await outboundWithinMinutes(String(lead.lead_id), PER_CHAT_GAP_MIN)) {
+  // NON si invia. Unica eccezione: skipChatLock (vedi sopra).
+  if (!skipChatLock && (await outboundWithinMinutes(String(lead.lead_id), PER_CHAT_GAP_MIN))) {
     console.log(
       `[worker] LOCK per-chat: invio bloccato (<${PER_CHAT_GAP_MIN}min dall'ultimo out):`,
       lead.company,
@@ -283,6 +288,77 @@ function isAutoReply(text) {
   return AUTOREPLY_PATTERNS.some((re) => re.test(text));
 }
 
+// Opt-out esplicito: archivio gentile senza scomodare Gemini.
+const OPTOUT_PATTERNS = [
+  /non\s+(sono|siamo)\s+interessat/i,
+  /non\s+(mi|ci)\s+interessa/i,
+  /non\s+scrive(temi|rmi|teci)\s*(più)?/i,
+  /non\s+contattate(mi|ci)/i,
+  /smettete\s+di\s+scrivere/i,
+  /cancell(a|ate)(mi|ci)/i,
+  /toglie(temi|teci)|rimuove(temi|teci)/i,
+  /^\s*stop\s*$/i,
+  /lasciate\s+perdere/i,
+];
+
+function isOptOut(text) {
+  return OPTOUT_PATTERNS.some((re) => re.test(text));
+}
+
+// Tipi messaggio WhatsApp tipici dei risponditori Business (menu
+// interattivi, liste opzioni, bottoni): nessun umano li manda a mano.
+const MENU_MESSAGE_TYPES = new Set([
+  "list",
+  "list_response",
+  "buttons_response",
+  "template_button_reply",
+  "interactive",
+]);
+
+/** Latenza sotto cui un inbound è considerato macchina: nessun umano
+ *  legge e risponde al nostro outreach in meno di 3 secondi. */
+const AUTOREPLY_LATENCY_S = 3;
+
+/**
+ * Classificatore a 3 vie: "auto" | "human" | "optout".
+ * Ordine: euristiche certe prima (gratis), Gemini solo nei dubbi.
+ * REGOLA FERREA: qualunque dubbio o errore -> "human".
+ */
+async function classifyInbound(lead, msg, body) {
+  if (isOptOut(body)) return "optout";
+  if (isAutoReply(body)) return "auto";
+  if (MENU_MESSAGE_TYPES.has(msg.type ?? "")) return "auto";
+
+  const sinceOut = await secondsSinceLastOutbound(String(lead.lead_id));
+  if (sinceOut !== null && sinceOut >= 0 && sinceOut < AUTOREPLY_LATENCY_S) {
+    return "auto";
+  }
+
+  // Zona grigia: decide Gemini, freddo (temperature bassa).
+  const verdict = await geminiJSON(
+    CLASSIFY_INBOUND_PROMPT,
+    `Attività: ${lead.company} (${lead.category}, ${lead.city})\n` +
+      `Secondi trascorsi dal nostro ultimo messaggio: ${sinceOut === null ? "sconosciuti" : Math.round(sinceOut)}\n\n` +
+      `MESSAGGIO DEL CLIENTE:\n${body}`,
+    0.1,
+  );
+  if (!verdict) return "human"; // Gemini giù: si tratta come umano
+  const conf = Number(verdict.confidence) || 0;
+  if (verdict.classification === "auto_reply" && conf >= 0.75) return "auto";
+  if (verdict.classification === "opt_out" && conf >= 0.6) return "optout";
+  return "human";
+}
+
+/** Lead di test e2e (meta.test = true): il numero di Puccio può fare
+ *  da lead solo se esiste questa riga, altrimenti resta ignorato. */
+function isTestLead(lead) {
+  try {
+    return lead != null && JSON.parse(String(lead.meta ?? "{}")).test === true;
+  } catch {
+    return false;
+  }
+}
+
 /** Numero (solo cifre) del mittente. Le chat WhatsApp nuove usano il
  *  LID (`...@lid`) al posto del numero: lì il telefono va risolto via
  *  contatto, l'id LID non è derivato dal numero. */
@@ -301,6 +377,37 @@ async function phoneDigitsFor(msg) {
   return null; // gruppi/broadcast/ignoto: ignora
 }
 
+/** Sblocco auto-reply: il bot manda UN solo messaggio (template
+ *  bypass_autoreply) per scavalcare il risponditore automatico, poi
+ *  tace per sempre: il lead resta in attesa di risposta umana.
+ *  bypass_sent_at su DB = garanzia hard; il Set in-flight para i
+ *  doppi eventi ravvicinati (welcome card + away message insieme). */
+const bypassInFlight = new Set();
+
+async function handleAutoReplyUnlock(lead) {
+  const leadId = String(lead.lead_id);
+  if (lead.bypass_sent_at || bypassInFlight.has(leadId)) return;
+  bypassInFlight.add(leadId);
+  try {
+    const settings = await getSettings();
+    if (settings.kill_switch) return;
+    if (await hasHumanInbound(leadId)) return; // c'è già un umano in chat
+    const body = await tpl("bypass_autoreply");
+    const ok = await sendToLead(lead, body, {
+      aiGenerated: true,
+      skipChatLock: true,
+    });
+    if (ok) {
+      await updatePipeline(leadId, { bypass_sent_at: new Date().toISOString() });
+      console.log("[worker] sblocco auto-reply inviato:", lead.company);
+    }
+  } catch (err) {
+    console.error("[worker] sblocco auto-reply fallito:", err.message);
+  } finally {
+    bypassInFlight.delete(leadId);
+  }
+}
+
 /** @returns true se il messaggio è stato loggato (per il sync). */
 async function handleInbound(msg, knownLead = null) {
   if (msg.fromMe) return false;
@@ -310,8 +417,11 @@ async function handleInbound(msg, knownLead = null) {
   let lead = knownLead;
   if (!lead) {
     const digits = await phoneDigitsFor(msg);
-    if (!digits || digits === PUCCIO) return false;
+    if (!digits) return false;
     lead = await findLeadByPhone(digits);
+    // Il numero personale di Puccio fa da lead SOLO nel test e2e
+    // (riga pipeline con meta.test = true), mai in produzione.
+    if (digits === PUCCIO && !isTestLead(lead)) return false;
   }
   if (!lead) return false; // numero non in pipeline: ignora
 
@@ -323,39 +433,92 @@ async function handleInbound(msg, knownLead = null) {
   if (waId && (await waMessageExists(waId))) return false;
 
   // Messaggi senza testo (media, vcard, card di benvenuto Business):
-  // in chat col placeholder, NESSUNA risposta del bot (Gemini non deve
-  // conversare col nulla). Flag ai_generated cosicché i follow-up
-  // continuino come da piano.
+  // in chat col placeholder, nessuna conversazione. I menu interattivi
+  // senza testo sono però auto-reply a tutti gli effetti: tentano lo
+  // sblocco come gli altri.
   if (!body) {
+    const isMenu = MENU_MESSAGE_TYPES.has(msg.type ?? "");
     await logWaMessage({
       leadId,
       direction: "in",
-      body: "[contenuto non testuale]",
+      body: isMenu ? "[menu automatico]" : "[contenuto non testuale]",
       status: "delivered",
       waId,
       aiGenerated: true,
     });
-    console.log("[worker] inbound non testuale, nessuna risposta:", lead.company);
+    if (isMenu) await handleAutoReplyUnlock(lead);
+    else console.log("[worker] inbound non testuale, nessuna risposta:", lead.company);
     return true;
   }
 
-  // Auto-reply: in chat con flag ai_generated (= messaggio macchina),
-  // niente bot, stato invariato — resta "in attesa di risposta umana".
-  const autoReply = isAutoReply(body);
+  // ----- CLASSIFICATORE 3 VIE ---------------------------------
+  // auto  -> nessuna notifica, 1 solo messaggio di sblocco, poi tace
+  // human -> notifica immediata a Puccio, bot muto, kanban manuale
+  // optout-> archivio gentile, nessuna notifica
+  const cls = await classifyInbound(lead, msg, body);
+
   await logWaMessage({
     leadId,
     direction: "in",
     body,
     status: "delivered",
     waId,
-    aiGenerated: autoReply,
+    aiGenerated: cls === "auto",
   });
-  if (autoReply) {
-    console.log("[worker] auto-reply rilevato, nessuna risposta:", lead.company);
+
+  if (cls === "auto") {
+    console.log("[worker] auto-reply rilevato:", lead.company);
+    await handleAutoReplyUnlock(lead);
     return true;
   }
 
   const settings = await getSettings();
+
+  if (cls === "optout") {
+    if (!settings.kill_switch) {
+      await sendToLead(lead, await tpl("archive_reject"), { aiGenerated: true });
+    }
+    await updatePipeline(leadId, {
+      stage: "archiviato",
+      archived_reason: "opt-out",
+      bot_paused: 1,
+    });
+    await updateLeadStatus(leadId, "lost");
+    console.log("[worker] opt-out, archivio gentile:", lead.company);
+    return true;
+  }
+
+  // ----- RISPOSTA UMANA ---------------------------------------
+  // Bot conversazionale OFF (default): il bot si AMMUTOLISCE per
+  // sempre su questa chat, Puccio prende in mano. La notifica parte
+  // anche a kill switch attivo: è verso di noi, non verso il lead.
+  if (!settings.bot_conversational) {
+    if (
+      lead.stage === "risposto_manuale" ||
+      lead.stage === "escalation" ||
+      lead.stage === "archiviato"
+    ) {
+      return true; // già in mani umane: solo log, zero rumore
+    }
+    await updatePipeline(leadId, { stage: "risposto_manuale", bot_paused: 1 });
+    await updateLeadStatus(leadId, "replied");
+    await addAlert(
+      "human_reply",
+      `${lead.company} ha risposto: "${body.slice(0, 160)}"`,
+      leadId,
+    );
+    const digits = chatIdFor(lead.phone)?.replace("@c.us", "") ?? "";
+    await notifyPuccio("human_reply_notify", {
+      NOME_ATTIVITA: lead.company,
+      TELEFONO: lead.phone,
+      MESSAGGIO: body.slice(0, 300),
+      LINK_CHAT: digits ? `https://wa.me/${digits}` : "",
+    });
+    console.log("[worker] risposta umana, passo a manuale:", lead.company);
+    return true;
+  }
+
+  // ----- Bot conversazionale (legacy, solo con flag ON) --------
   if (settings.kill_switch || Number(lead.bot_paused) === 1) return true;
   if (lead.stage === "archiviato" || lead.stage === "escalation") return true;
 
@@ -417,15 +580,15 @@ async function handleInbound(msg, knownLead = null) {
   await sendToLead(lead, decision.reply, { aiGenerated: true });
 
   if (intent === "positivo" && lead.stage !== "demo_richiesta") {
+    // La build NON parte mai da sola: solo il bottone "Genera demo"
+    // in dashboard la mette in coda. Qui solo stato + notifica.
     await updatePipeline(leadId, { stage: "demo_richiesta" });
     await updateLeadStatus(leadId, "replied");
-    const template =
-      TEMPLATE_BY_CATEGORY[String(lead.category)] ?? DEFAULT_TEMPLATE;
-    const source = String(lead.category).includes("ristorante")
-      ? "justeat"
-      : "maps";
-    await createBuildTask(leadId, template, source);
-    await addAlert("info", `${lead.company} ha chiesto la demo: build in coda.`, leadId);
+    await addAlert(
+      "info",
+      `${lead.company} ha chiesto la demo: genera la build dalla dashboard.`,
+      leadId,
+    );
     await notifyPuccio("demo_request_notify", {
       NOME_ATTIVITA: lead.company,
       CITTA: lead.city,
@@ -452,29 +615,23 @@ async function anomalySweep() {
   }
 }
 
-/** Notifica (una sola volta) le demo deployate in attesa di approvazione. */
-async function notifyDeployedDemos() {
-  for (const b of await buildsByStatus("deployed")) {
-    const key = `demo pronta ${b.id}`;
-    if (await alertExists(key)) continue;
-    await addAlert("demo_ready", `demo pronta ${b.id}: ${b.preview_url}`, b.lead_id);
-    await notifyPuccio("demo_ready_notify", { URL_DEMO: b.preview_url });
-  }
-}
-
-/** Invia le demo approvate da Puccio in dashboard. */
-async function sendApprovedDemos() {
-  for (const b of await buildsByStatus("approved", 3)) {
-    const row = await pipelineLead(String(b.lead_id));
-    if (!row || !b.preview_url) continue;
+/** Invia i link demo che Puccio ha incollato e approvato in dashboard
+ *  (demo_url presente, demo_sent_at vuoto). SPECTRE non builda nulla:
+ *  la demo la prepara Puccio fuori, qui parte solo il messaggio WA. */
+async function sendManualDemos() {
+  for (const row of await demosToSend(3)) {
     const body = await tpl("demo_ready", {
       NOME_ATTIVITA: String(row.company),
-      URL_DEMO: String(b.preview_url),
+      URL_DEMO: String(row.demo_url),
     });
     const ok = await sendToLead(row, body);
     if (ok) {
-      await updateBuild(String(b.id), { status: "sent" });
-      await updateLeadStatus(String(b.lead_id), "preview_sent");
+      await updatePipeline(String(row.lead_id), {
+        demo_sent_at: new Date().toISOString(),
+        stage: "demo_richiesta",
+      });
+      await updateLeadStatus(String(row.lead_id), "preview_sent");
+      console.log("[worker] demo inviata:", row.company);
     }
     await sleep(randomDelayMs());
   }
@@ -518,11 +675,10 @@ async function tick() {
   if (settings.kill_switch) return false;
 
   await anomalySweep();
-  await notifyDeployedDemos();
 
   if (!inSendWindow()) return false;
 
-  await sendApprovedDemos();
+  await sendManualDemos();
 
   if (await processFollowups()) return true;
 
@@ -530,7 +686,21 @@ async function tick() {
   const cap = dailyCap(settings);
 
   // Nuovo contatto (primo messaggio) — rispetta il cap giornaliero.
-  if (counters.new_contacts >= cap) return false;
+  // Cap esaurito con approvati ancora in coda: Puccio lo deve sapere
+  // (alert una sola volta al giorno), altrimenti la coda sembra rotta.
+  if (counters.new_contacts >= cap) {
+    const [waiting] = await readyForOutreach(1);
+    if (waiting) {
+      const key = `cap esaurito ${romeDay()}`;
+      if (!(await alertExists(key))) {
+        await addAlert(
+          "info",
+          `Cap giornaliero esaurito (${key}): i messaggi approvati restano in coda fino a domani.`,
+        );
+      }
+    }
+    return false;
+  }
   const [lead] = await readyForOutreach(1);
   if (!lead) return false;
 
@@ -555,7 +725,7 @@ async function tick() {
  *  le chat dei lead contattati e ripassa a handleInbound i messaggi
  *  non ancora in wa_messages (dedup su wa_id: idempotente). */
 async function syncMissedInbound() {
-  const stages = ["contattato", "demo_richiesta", "escalation"];
+  const stages = ["contattato", "risposto_manuale", "demo_richiesta", "escalation"];
   let recovered = 0;
   for (const stage of stages) {
     for (const lead of await pipelineByStage(stage)) {
@@ -643,6 +813,15 @@ client.on("message_ack", (msg, ack) => {
 
 async function mainLoop() {
   for (;;) {
+    // Heartbeat SEMPRE, anche senza sessione WA: la dashboard mostra
+    // "WORKER OFFLINE" quando questo timestamp invecchia oltre 3 min.
+    // È il fix del bug "approvati fermi in coda e nessuno se ne accorge".
+    try {
+      await setSetting("worker_heartbeat", new Date().toISOString());
+      await setSetting("worker_wa_ready", waReady ? "1" : "0");
+    } catch (err) {
+      console.error("[worker] heartbeat:", err.message);
+    }
     let didSend = false;
     if (waReady) {
       try {

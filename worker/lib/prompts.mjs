@@ -35,16 +35,24 @@ intent:
 
 export const SUMMARY_SYSTEM_PROMPT = `Riassumi questa chat WhatsApp di vendita in 3 righe per Christian (il commerciale che deve richiamare): chi è il lead, a che punto è, cosa vuole, consiglio per la chiamata. Rispondi SOLO con JSON: {"summary": "..."}`;
 
+/** Classificatore a 3 vie degli inbound (sostituisce il bot
+ *  conversazionale quando bot_conversational è OFF). Usato SOLO nei
+ *  casi dubbi: le euristiche (pattern, latenza, menu) decidono prima. */
+export const CLASSIFY_INBOUND_PROMPT = `Sei un classificatore di messaggi WhatsApp in entrata da attività commerciali italiane (parrucchieri, ristoranti, centri estetici) a cui una web agency ha appena scritto un messaggio commerciale.
+
+Classifica l'ULTIMO messaggio del cliente in una di queste tre classi:
+
+1. "auto_reply" — risposta AUTOMATICA del WhatsApp Business dell'attività: messaggio di benvenuto/assenza, "grazie per averci contattato", orari di apertura, menu di opzioni numerate, link a listini/cataloghi, testo palesemente template senza riferimento a quello che abbiamo scritto. Nessun essere umano ha letto il nostro messaggio.
+
+2. "opt_out" — un UMANO chiede esplicitamente di non essere più contattato o rifiuta seccamente: "non mi interessa", "non scrivetemi più", "toglietemi dalla lista", "stop", "lasciate perdere".
+
+3. "human" — TUTTO il resto: qualsiasi risposta scritta da una persona (domande, interesse, convenevoli, anche un semplice "chi siete?" o "sì").
+
+REGOLA FERREA: nel dubbio tra auto_reply e human, scegli SEMPRE "human". Classifica auto_reply solo se è inequivocabilmente una macchina.
+
+Rispondi SOLO con JSON:
+{"classification": "auto_reply" | "opt_out" | "human", "confidence": 0.0-1.0, "reason": "una riga"}`;
+
 // Follow-up giorno 3/7, archivio gentile, demo pronta e notifiche a
 // Puccio: i testi vivono in message_templates (pagina /templates),
 // letti live da ./templates.mjs a ogni invio. Zero copie qui.
-
-/** Scelta template demo per categoria (ayromex-templates-gallery). */
-export const TEMPLATE_BY_CATEGORY = {
-  ristorante: "editoriale",
-  "lido balneare": "pop",
-  parrucchiere: "minimal",
-  "centro estetico": "minimal",
-  enoteca: "classico",
-};
-export const DEFAULT_TEMPLATE = "classico";

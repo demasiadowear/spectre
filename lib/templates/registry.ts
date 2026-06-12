@@ -17,9 +17,10 @@ export const TEMPLATE_KEYS = [
   "manual_step1",
   "manual_step2",
   "manual_step3",
+  "bypass_autoreply",
   "escalation_notify",
   "demo_request_notify",
-  "demo_ready_notify",
+  "human_reply_notify",
   "kill_switch_notify",
 ] as const;
 
@@ -49,6 +50,8 @@ export const PLACEHOLDER_DOCS: Record<string, string> = {
   "{TELEFONO}": "telefono del lead",
   "{MOTIVO}": "motivo di escalation/blocco",
   "{RIASSUNTO}": "riassunto AI della chat",
+  "{MESSAGGIO}": "testo del messaggio ricevuto dal lead",
+  "{LINK_CHAT}": "link wa.me alla chat del lead",
 };
 
 export interface TemplateVars {
@@ -63,6 +66,8 @@ export interface TemplateVars {
   TELEFONO?: string;
   MOTIVO?: string;
   RIASSUNTO?: string;
+  MESSAGGIO?: string;
+  LINK_CHAT?: string;
   /** Solo per anteprime/UI: il worker lo risolve all'invio. */
   SALUTO?: string;
 }
@@ -113,4 +118,6 @@ export const PREVIEW_VARS: Required<Omit<TemplateVars, "SALUTO">> & { SALUTO: st
   TELEFONO: "3331234567",
   MOTIVO: "vuole essere richiamato domani alle 15",
   RIASSUNTO: "Titolare interessato, chiede tempi e prezzo. Consiglio: chiamare nel pomeriggio.",
+  MESSAGGIO: "Sì mi interessa, quanto costa?",
+  LINK_CHAT: "https://wa.me/393331234567",
 };

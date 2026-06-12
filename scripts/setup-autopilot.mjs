@@ -25,7 +25,6 @@ await client.executeMultiple(schema);
 const tables = [
   "autopilot_pipeline",
   "wa_messages",
-  "autopilot_builds",
   "autopilot_settings",
   "autopilot_counters",
   "autopilot_alerts",

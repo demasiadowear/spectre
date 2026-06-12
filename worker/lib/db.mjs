@@ -22,6 +22,8 @@ export async function getSettings() {
     warmup_daily_cap: Number(map.get("warmup_daily_cap")) || 10,
     steady_daily_cap: Number(map.get("steady_daily_cap")) || 15,
     warmup_days: Number(map.get("warmup_days")) || 14,
+    // OFF di default: il bot non conversa più, classifica e basta.
+    bot_conversational: map.get("bot_conversational") === "1",
   };
 }
 
@@ -226,6 +228,20 @@ export async function outboundWithinMinutes(leadId, minutes) {
   return res.rows.length > 0;
 }
 
+/** Secondi trascorsi dall'ultimo messaggio in uscita (non fallito)
+ *  verso questo lead; null se non è mai uscito nulla. Serve al
+ *  classificatore: un inbound a <3s dal nostro invio è una macchina. */
+export async function secondsSinceLastOutbound(leadId) {
+  const res = await db.execute({
+    sql: `SELECT (julianday('now') - julianday(created_at)) * 86400 AS s
+          FROM wa_messages
+          WHERE lead_id = ? AND direction = 'out' AND status != 'failed'
+          ORDER BY created_at DESC LIMIT 1`,
+    args: [leadId],
+  });
+  return res.rows[0] ? Number(res.rows[0].s) : null;
+}
+
 /** Dedup inbound: true se un messaggio con questo wa_id è già loggato
  *  (message + message_create + sync possono ripresentarlo). */
 export async function waMessageExists(waId) {
@@ -249,31 +265,20 @@ export async function undeliveredTodayCount() {
   return Number(res.rows[0].n);
 }
 
-// ----- Builds ------------------------------------------------
+// ----- Demo manuali ------------------------------------------
+// SPECTRE non builda demo: Puccio le prepara fuori e incolla il
+// link in dashboard (demo_url). Il worker invia e marca demo_sent_at.
 
-export async function createBuildTask(leadId, template, source) {
-  await db.execute({
-    sql: `INSERT INTO autopilot_builds (id, lead_id, status, template, source)
-          VALUES (?, ?, 'pending', ?, ?)`,
-    args: [`build-${randomUUID()}`, leadId, template, source],
-  });
-}
-
-export async function buildsByStatus(status, limit = 10) {
+export async function demosToSend(limit = 3) {
   const res = await db.execute({
-    sql: "SELECT * FROM autopilot_builds WHERE status = ? ORDER BY created_at ASC LIMIT ?",
-    args: [status, limit],
+    sql: `${PIPELINE_SELECT}
+          WHERE p.demo_url IS NOT NULL AND p.demo_url != ''
+            AND p.demo_sent_at IS NULL
+            AND p.stage != 'archiviato'
+          ORDER BY p.updated_at ASC LIMIT ?`,
+    args: [limit],
   });
   return res.rows;
-}
-
-export async function updateBuild(id, fields) {
-  const entries = Object.entries(fields);
-  const setClause = entries.map(([k]) => `${k} = ?`).join(", ");
-  await db.execute({
-    sql: `UPDATE autopilot_builds SET ${setClause}, updated_at = datetime('now') WHERE id = ?`,
-    args: [...entries.map(([, v]) => v), id],
-  });
 }
 
 // ----- Alerts ------------------------------------------------

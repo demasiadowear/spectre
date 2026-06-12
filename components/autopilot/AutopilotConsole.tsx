@@ -17,7 +17,6 @@ import { cn } from "@/lib/utils";
 import type { ApiResponse } from "@/types";
 import type {
   AutopilotAlert,
-  AutopilotBuild,
   AutopilotLead,
   AutopilotStats,
 } from "@/types/autopilot";
@@ -28,7 +27,6 @@ import {
   actionPriority,
   isPendingApproval,
   isQueuedForSend,
-  latestBuild,
   queuedSendLabels,
   sortByAction,
 } from "./format";
@@ -46,6 +44,7 @@ type StatusFilter =
   | "azione"
   | "tutti"
   | "escalation"
+  | "risposti"
   | "da_approvare"
   | "in_coda"
   | "demo"
@@ -57,6 +56,7 @@ const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
   { id: "azione", label: "Richiede azione" },
   { id: "tutti", label: "Tutti" },
   { id: "escalation", label: "Escalation" },
+  { id: "risposti", label: "Risposto — manuale" },
   { id: "da_approvare", label: "Da approvare" },
   { id: "in_coda", label: "In coda invio" },
   { id: "demo", label: "Demo" },
@@ -69,6 +69,7 @@ const EMPTY_STATES: Record<StatusFilter, string> = {
   azione: "Niente da fare adesso — l'autopilot lavora da solo.",
   tutti: "Nessun lead in pipeline. Lo scout gira ogni mattina alle 6.",
   escalation: "Nessuna escalation aperta.",
+  risposti: "Nessuna chat in gestione manuale.",
   da_approvare: "Nessun lead da approvare oggi — la coda è pulita.",
   in_coda: "Nessun messaggio approvato in attesa di invio.",
   demo: "Nessuna demo in corso.",
@@ -88,6 +89,8 @@ function matchesStatus(lead: AutopilotLead, f: StatusFilter): boolean {
       return true;
     case "escalation":
       return lead.stage === "escalation";
+    case "risposti":
+      return lead.stage === "risposto_manuale";
     case "da_approvare":
       return isPendingApproval(lead);
     case "in_coda":
@@ -142,7 +145,6 @@ function Chip({
 export default function AutopilotConsole() {
   const [leads, setLeads] = useState<AutopilotLead[]>([]);
   const [stats, setStats] = useState<AutopilotStats | null>(null);
-  const [builds, setBuilds] = useState<AutopilotBuild[]>([]);
   const [alerts, setAlerts] = useState<AutopilotAlert[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -158,22 +160,19 @@ export default function AutopilotConsole() {
 
   const refresh = useCallback(async () => {
     try {
-      const [pipRes, buildsRes, alertsRes] = await Promise.all([
+      const [pipRes, alertsRes] = await Promise.all([
         fetch("/api/autopilot/pipeline", { cache: "no-store" }),
-        fetch("/api/autopilot/builds", { cache: "no-store" }),
         fetch("/api/autopilot/alerts?unread=1", { cache: "no-store" }),
       ]);
       const pip = (await pipRes.json()) as ApiResponse<{
         leads: AutopilotLead[];
         stats: AutopilotStats;
       }>;
-      const b = (await buildsRes.json()) as ApiResponse<AutopilotBuild[]>;
       const a = (await alertsRes.json()) as ApiResponse<AutopilotAlert[]>;
       if (pip.success && pip.data) {
         setLeads(pip.data.leads);
         setStats(pip.data.stats);
       }
-      if (b.success && b.data) setBuilds(b.data);
       if (a.success && a.data) setAlerts(a.data);
       setError(null);
     } catch {
@@ -249,8 +248,17 @@ export default function AutopilotConsole() {
     patch("/api/autopilot/queue", { lead_id: leadId, action: "reject" }, leadId);
   const archive = (leadId: string) =>
     patch("/api/autopilot/pipeline", { lead_id: leadId, action: "archive" }, leadId);
-  const approveDemo = (buildId: string) =>
-    patch("/api/autopilot/builds", { build_id: buildId, action: "approve" }, buildId);
+  /** Il lead ha chiesto la demo: stato manuale, tocca a Puccio. */
+  const markDemoRequested = (leadId: string) =>
+    patch("/api/autopilot/pipeline", { lead_id: leadId, action: "demo_requested" }, leadId);
+  /** Link demo preparato FUORI da SPECTRE: incolla + approva = il
+   *  worker lo invia al prossimo tick. */
+  const approveDemoUrl = (leadId: string, demoUrl: string) =>
+    patch(
+      "/api/autopilot/pipeline",
+      { lead_id: leadId, action: "approve_demo_url", demo_url: demoUrl },
+      leadId,
+    );
 
   async function toggleKillSwitch() {
     if (!stats) return;
@@ -464,6 +472,23 @@ export default function AutopilotConsole() {
         </p>
       )}
 
+      {stats && !stats.worker_online && (
+        <GlassCard className="border-danger/60 px-4 py-3">
+          <p className="flex items-center gap-2 font-ui text-sm text-danger">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span>
+              <b>WORKER OFFLINE</b> — nessun heartbeat
+              {stats.worker_heartbeat
+                ? ` da ${Math.round((Date.now() - new Date(stats.worker_heartbeat).getTime()) / 60_000)} min`
+                : " ricevuto"}
+              : i messaggi approvati restano in coda. Sulla macchina del
+              worker lancia{" "}
+              <code className="rounded bg-surface2 px-1">worker\start-worker.ps1</code>.
+            </span>
+          </p>
+        </GlassCard>
+      )}
+
       {showAlerts && (
         <GlassCard className="p-4" glow="amber">
           <div className="mb-2 flex items-center justify-between">
@@ -570,13 +595,11 @@ export default function AutopilotConsole() {
                 key={l.lead_id}
                 lead={l}
                 queuedLabel={queuedLabels.get(l.lead_id) ?? null}
-                build={latestBuild(l, builds)}
                 busy={busyId === l.lead_id}
                 onOpen={openDrawer}
                 onApprove={(id) => approve(id)}
                 onReject={reject}
                 onArchive={archive}
-                onApproveDemo={approveDemo}
               />
             ))}
           </ul>
@@ -585,14 +608,14 @@ export default function AutopilotConsole() {
 
       <AutopilotLeadDrawer
         lead={openLead}
-        build={openLead ? latestBuild(openLead, builds) : null}
         focus={drawerFocus}
         busy={busyId === openLead?.lead_id}
         onClose={() => setOpenLead(null)}
         onApprove={approve}
         onReject={reject}
         onArchive={archive}
-        onApproveDemo={approveDemo}
+        onMarkDemoRequested={markDemoRequested}
+        onApproveDemoUrl={approveDemoUrl}
       />
     </div>
   );

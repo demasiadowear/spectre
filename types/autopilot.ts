@@ -9,6 +9,7 @@ export type AutopilotStage =
   | "nuovo"
   | "studiato"
   | "contattato"
+  | "risposto_manuale" // risposta umana: bot muto, chat in mano a Puccio
   | "demo_richiesta"
   | "escalation"
   | "archiviato";
@@ -29,14 +30,6 @@ export type WaMessageStatus =
   | "read"
   | "failed";
 
-export type BuildStatus =
-  | "pending"
-  | "scraping"
-  | "building"
-  | "deployed" // preview pronta, in attesa di approvazione Puccio
-  | "approved" // approvata: il worker invia il link al cliente
-  | "sent"
-  | "failed";
 
 /** Esito enrichment Stadio 1.5 (study_json sulla pipeline). */
 export interface AutopilotStudy {
@@ -76,6 +69,13 @@ export interface AutopilotLead {
   archived_reason: string;
   /** true = il bot non risponde più su questa chat (escalation). */
   bot_paused: boolean;
+  /** ISO dell'unico messaggio di sblocco auto-reply (max 1 per lead). */
+  bypass_sent_at: string | null;
+  /** Link demo preparato da Puccio FUORI da SPECTRE e incollato in
+   *  dashboard. Il worker lo invia (template demo_ready) e marca
+   *  demo_sent_at: SPECTRE non builda nulla. */
+  demo_url: string;
+  demo_sent_at: string | null;
   created_at: string;
   updated_at: string;
   // Dal lead collegato.
@@ -98,21 +98,6 @@ export interface WaMessage {
   created_at: string;
 }
 
-export interface AutopilotBuild {
-  id: string;
-  lead_id: string;
-  status: BuildStatus;
-  /** Template ayromex-templates-gallery: editoriale/classico/minimal/pop/mono. */
-  template: string;
-  /** Sorgente dati scraping (es. justeat). */
-  source: string;
-  manifest_json: string;
-  preview_url: string;
-  error: string;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface AutopilotAlert {
   id: string;
   type: string; // escalation / anomaly / demo_ready / info
@@ -133,6 +118,11 @@ export interface AutopilotSettings {
   steady_daily_cap: number;
   /** Giorni di warm-up (approvazione manuale + cap ridotto). */
   warmup_days: number;
+  /** "1" = bot conversazionale legacy attivo; default OFF: il bot
+   *  classifica soltanto (auto-reply / umana / opt-out) e tace. */
+  bot_conversational: boolean;
+  /** ISO dell'ultimo heartbeat del worker (ogni ~60s quando vivo). */
+  worker_heartbeat: string | null;
 }
 
 export interface AutopilotCounters {
@@ -149,6 +139,10 @@ export interface AutopilotStats {
   pending_approvals: number;
   unread_alerts: number;
   kill_switch: boolean;
+  /** false = heartbeat assente o più vecchio di 3 minuti: il worker
+   *  non sta girando, gli approvati restano in coda. */
+  worker_online: boolean;
+  worker_heartbeat: string | null;
 }
 
 /** Output Gemini per lo Stadio 1.5 (brief + primo messaggio). */

@@ -9,6 +9,7 @@ export const AUTOPILOT_STAGES: AutopilotStage[] = [
   "nuovo",
   "studiato",
   "contattato",
+  "risposto_manuale",
   "demo_richiesta",
   "escalation",
   "archiviato",
@@ -139,22 +140,6 @@ intent:
 // in message_templates (modificabili da /templates). Li consuma il
 // worker via worker/lib/templates.mjs — qui non esistono più copie.
 
-// ----- Stadio 3 — BUILD --------------------------------------
-
-/** Template ayromex-templates-gallery. */
-export const BUILD_TEMPLATES = [
-  "editoriale",
-  "classico",
-  "minimal",
-  "pop",
-  "mono",
-] as const;
-
-/** Scelta template di default per categoria (override manuale in dashboard). */
-export const TEMPLATE_BY_CATEGORY: Record<string, string> = {
-  ristorante: "editoriale",
-  "lido balneare": "pop",
-  parrucchiere: "minimal",
-  "centro estetico": "minimal",
-  enoteca: "classico",
-};
+// Stadio 3 (build demo automatica) RIMOSSO il 12/06/2026: SPECTRE non
+// builda nulla. Le demo le prepara Puccio fuori, incolla il link nel
+// drawer (demo_url) e il worker invia solo dietro approvazione.

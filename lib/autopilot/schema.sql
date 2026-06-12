@@ -6,8 +6,8 @@
 -- ============================================================
 
 -- Stato pipeline Autopilot per lead. stage:
---   nuovo -> studiato -> contattato -> demo_richiesta
---   -> escalation / archiviato
+--   nuovo -> studiato -> contattato -> risposto_manuale
+--   -> demo_richiesta (manuale) -> escalation / archiviato
 create table if not exists autopilot_pipeline (
   lead_id           text primary key references leads(id) on delete cascade,
   stage             text not null default 'nuovo',
@@ -27,6 +27,9 @@ create table if not exists autopilot_pipeline (
   escalation_reason text default '',
   archived_reason   text default '',
   bot_paused        integer default 0,               -- 1 = bot muto su questa chat
+  bypass_sent_at    text,                            -- sblocco auto-reply (max 1)
+  demo_url          text,                            -- link demo incollato da Puccio
+  demo_sent_at      text,                            -- inviato al lead dal worker
   created_at        text default (datetime('now')),
   updated_at        text default (datetime('now'))
 );
@@ -43,19 +46,9 @@ create table if not exists wa_messages (
   created_at   text default (datetime('now'))
 );
 
--- Task di build demo (Stadio 3). Creato quando stage -> demo_richiesta.
-create table if not exists autopilot_builds (
-  id            text primary key,
-  lead_id       text references leads(id) on delete cascade,
-  status        text default 'pending',  -- pending/scraping/building/deployed/approved/sent/failed
-  template      text default '',         -- editoriale/classico/minimal/pop/mono
-  source        text default '',         -- justeat/maps/manual
-  manifest_json text default '{}',
-  preview_url   text default '',
-  error         text default '',
-  created_at    text default (datetime('now')),
-  updated_at    text default (datetime('now'))
-);
+-- NESSUNA tabella build: SPECTRE non genera demo (decisione 12/06/2026).
+-- Le demo le prepara Puccio fuori; demo_url/demo_sent_at vivono sulla
+-- pipeline e il worker invia il link solo dietro approvazione.
 
 -- Configurazione runtime (kill switch, warm-up, cap giornalieri).
 create table if not exists autopilot_settings (
@@ -83,7 +76,6 @@ create table if not exists autopilot_alerts (
 create index if not exists idx_ap_pipeline_stage on autopilot_pipeline(stage);
 create index if not exists idx_ap_wa_lead on wa_messages(lead_id);
 create index if not exists idx_ap_wa_created on wa_messages(created_at);
-create index if not exists idx_ap_builds_status on autopilot_builds(status);
 create index if not exists idx_ap_alerts_read on autopilot_alerts(read);
 
 -- Default settings (insert or ignore: non sovrascrive valori esistenti).
@@ -92,4 +84,5 @@ insert or ignore into autopilot_settings (key, value) values
   ('warmup_started_at', ''),
   ('warmup_daily_cap', '10'),
   ('steady_daily_cap', '15'),
-  ('warmup_days', '14');
+  ('warmup_days', '14'),
+  ('bot_conversational', '0');

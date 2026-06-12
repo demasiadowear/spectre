@@ -117,14 +117,7 @@ Esempio del taglio giusto:
     label: "Notifica Puccio · demo richiesta dal lead",
     variables: ["{NOME_ATTIVITA}", "{CITTA}"],
     content:
-      "✅ DEMO RICHIESTA — {NOME_ATTIVITA} ({CITTA}). Build automatica in coda.",
-  },
-  {
-    key: "demo_ready_notify",
-    label: "Notifica Puccio · demo deployata da approvare",
-    variables: ["{URL_DEMO}"],
-    content:
-      "🖥️ Demo pronta: {URL_DEMO}\nApprova dalla dashboard SPECTRE per inviarla al cliente.",
+      "✅ DEMO RICHIESTA — {NOME_ATTIVITA} ({CITTA}). Prepara la demo e incolla il link in dashboard.",
   },
   {
     key: "kill_switch_notify",

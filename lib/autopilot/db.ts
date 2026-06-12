@@ -2,7 +2,6 @@ import { turso } from "@/lib/turso";
 import type {
   ApprovalStatus,
   AutopilotAlert,
-  AutopilotBuild,
   AutopilotCounters,
   AutopilotLead,
   AutopilotSettings,
@@ -62,6 +61,9 @@ function rowToAutopilotLead(r: Row): AutopilotLead {
     escalation_reason: str(r.escalation_reason),
     archived_reason: str(r.archived_reason),
     bot_paused: num(r.bot_paused) === 1,
+    bypass_sent_at: r.bypass_sent_at ? str(r.bypass_sent_at) : null,
+    demo_url: str(r.demo_url),
+    demo_sent_at: r.demo_sent_at ? str(r.demo_sent_at) : null,
     created_at: str(r.created_at),
     updated_at: str(r.updated_at),
     name: str(r.name),
@@ -87,6 +89,8 @@ export async function getSettings(): Promise<AutopilotSettings> {
     warmup_daily_cap: 10,
     steady_daily_cap: 15,
     warmup_days: 14,
+    bot_conversational: false,
+    worker_heartbeat: null,
   };
   if (!turso) return defaults;
   const res = await turso.execute("SELECT key, value FROM autopilot_settings");
@@ -97,7 +101,19 @@ export async function getSettings(): Promise<AutopilotSettings> {
     warmup_daily_cap: Number(map.get("warmup_daily_cap")) || defaults.warmup_daily_cap,
     steady_daily_cap: Number(map.get("steady_daily_cap")) || defaults.steady_daily_cap,
     warmup_days: Number(map.get("warmup_days")) || defaults.warmup_days,
+    bot_conversational: map.get("bot_conversational") === "1",
+    worker_heartbeat: map.get("worker_heartbeat") || null,
   };
+}
+
+/** Worker considerato vivo se l'heartbeat ha meno di 3 minuti
+ *  (il loop lo scrive ogni ~60s; 3x = margine per lag di rete). */
+export const WORKER_STALE_MS = 3 * 60 * 1000;
+
+export function isWorkerOnline(settings: AutopilotSettings): boolean {
+  if (!settings.worker_heartbeat) return false;
+  const t = new Date(settings.worker_heartbeat).getTime();
+  return Number.isFinite(t) && Date.now() - t < WORKER_STALE_MS;
 }
 
 export async function setSetting(key: string, value: string): Promise<void> {
@@ -220,6 +236,7 @@ export async function updatePipeline(
     escalation_reason: string;
     archived_reason: string;
     bot_paused: number;
+    demo_url: string;
   }>,
 ): Promise<void> {
   if (!turso) return;
@@ -297,52 +314,28 @@ export async function getWaMessages(leadId: string): Promise<WaMessage[]> {
   }));
 }
 
-// ----- Builds ------------------------------------------------
+// ----- Demo manuale ------------------------------------------
+// SPECTRE non builda demo. Puccio la prepara fuori, segna il lead
+// come "demo richiesta", incolla il link e approva: il worker invia.
 
-function rowToBuild(r: Row): AutopilotBuild {
-  return {
-    id: str(r.id),
-    lead_id: str(r.lead_id),
-    status: str(r.status) as AutopilotBuild["status"],
-    template: str(r.template),
-    source: str(r.source),
-    manifest_json: str(r.manifest_json),
-    preview_url: str(r.preview_url),
-    error: str(r.error),
-    created_at: str(r.created_at),
-    updated_at: str(r.updated_at),
-  };
+/** Il lead ha chiesto la demo: stato che richiede azione di Puccio. */
+export async function markDemoRequested(leadId: string): Promise<void> {
+  await updatePipeline(leadId, { stage: "demo_richiesta" });
 }
 
-export async function getBuilds(): Promise<AutopilotBuild[]> {
-  if (!turso) return [];
-  const res = await turso.execute(
-    "SELECT * FROM autopilot_builds ORDER BY created_at DESC LIMIT 100",
-  );
-  return res.rows.map((r) => rowToBuild(r as Row));
-}
-
-export async function createBuildTask(
+/** Incolla + approva il link demo: il worker lo invia al prossimo
+ *  tick (demo_sent_at vuoto = in coda invio). */
+export async function approveDemoUrl(
   leadId: string,
-  template: string,
-  source: string,
+  demoUrl: string,
 ): Promise<void> {
   if (!turso) return;
   await turso.execute({
-    sql: `INSERT INTO autopilot_builds (id, lead_id, status, template, source)
-          VALUES (?, ?, 'pending', ?, ?)`,
-    args: [`build-${crypto.randomUUID()}`, leadId, template, source],
-  });
-}
-
-/** Approvazione manuale di Puccio: il worker invierà il link demo. */
-export async function approveBuild(buildId: string): Promise<void> {
-  if (!turso) return;
-  await turso.execute({
-    sql: `UPDATE autopilot_builds
-          SET status = 'approved', updated_at = datetime('now')
-          WHERE id = ? AND status = 'deployed'`,
-    args: [buildId],
+    sql: `UPDATE autopilot_pipeline
+          SET demo_url = ?, demo_sent_at = NULL, stage = 'demo_richiesta',
+              updated_at = datetime('now')
+          WHERE lead_id = ?`,
+    args: [demoUrl, leadId],
   });
 }
 
@@ -436,5 +429,7 @@ export async function getStats(): Promise<AutopilotStats> {
     pending_approvals: pending,
     unread_alerts: unread,
     kill_switch: settings.kill_switch,
+    worker_online: isWorkerOnline(settings),
+    worker_heartbeat: settings.worker_heartbeat,
   };
 }
