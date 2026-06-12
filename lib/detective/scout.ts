@@ -1,28 +1,21 @@
 import { searchGooglePlaces } from "@/lib/hunter/google-places";
 import { isTursoConnected } from "@/lib/turso";
 import { buildDedupIndex, insertCase, isDuplicate } from "./db";
+import {
+  AUDIT_LIMIT_MAX,
+  AUDIT_LIMIT_MIN,
+  DEFAULT_AUDIT_CATEGORIES,
+  DEFAULT_AUDIT_LIMIT,
+  DEFAULT_AUDIT_LOCATIONS,
+} from "./presets";
 
 // ============================================================
 // DETECTIVE scout — mode "audit": filtro INVERSO rispetto allo
-// scout Autopilot. Pesca attività che HANNO un sito web, stessa
-// zona Bari/provincia, verticale salone/estetica/parrucchiere.
+// scout Autopilot. Pesca attività che HANNO un sito web, zona e
+// categoria parametrizzabili dal form in dashboard (default v1:
+// salone/estetica, Bari/provincia — vedi lib/detective/presets.ts).
 // Dedup obbligatoria contro TUTTO il DB SPECTER prima di inserire.
 // ============================================================
-
-export const AUDIT_CATEGORIES = [
-  "parrucchiere",
-  "centro estetico",
-  "salone di bellezza",
-] as const;
-
-export const AUDIT_LOCATIONS = [
-  "Bari",
-  "Modugno",
-  "Bitonto",
-  "Molfetta",
-  "Triggiano",
-  "Giovinazzo",
-] as const;
 
 /** Requisiti minimi: attività viva e con una reputazione da analizzare. */
 const MIN_REVIEWS = 15;
@@ -36,12 +29,20 @@ export interface AuditScoutResult {
 }
 
 export interface AuditScoutParams {
-  /** Default: tutte le AUDIT_CATEGORIES. */
+  /** Default: DEFAULT_AUDIT_CATEGORIES (v1: salone/estetica). */
   categories?: string[];
-  /** Default: tutte le AUDIT_LOCATIONS. */
+  /** Default: DEFAULT_AUDIT_LOCATIONS (v1: 6 località Bari/provincia). */
   locations?: string[];
   /** Tetto inserimenti per run (partita controllata, no cron). */
   limit?: number;
+}
+
+/** Normalizza una lista libera dal form: trim, scarta vuoti, dedup. */
+function cleanList(values: string[] | undefined, fallback: string[]): string[] {
+  const cleaned = (values ?? [])
+    .map((v) => v.trim())
+    .filter((v) => v.length > 0);
+  return cleaned.length > 0 ? Array.from(new Set(cleaned)) : [...fallback];
 }
 
 export async function runAuditScout(
@@ -51,13 +52,12 @@ export async function runAuditScout(
     throw new Error("Turso non configurato: lo scout audit richiede il DB.");
   }
 
-  const categories = params.categories?.length
-    ? params.categories
-    : [...AUDIT_CATEGORIES];
-  const locations = params.locations?.length
-    ? params.locations
-    : [...AUDIT_LOCATIONS];
-  const limit = params.limit ?? 30;
+  const categories = cleanList(params.categories, DEFAULT_AUDIT_CATEGORIES);
+  const locations = cleanList(params.locations, DEFAULT_AUDIT_LOCATIONS);
+  const limit = Math.min(
+    AUDIT_LIMIT_MAX,
+    Math.max(AUDIT_LIMIT_MIN, Math.round(params.limit ?? DEFAULT_AUDIT_LIMIT)),
+  );
 
   const index = await buildDedupIndex();
   const result: AuditScoutResult = {

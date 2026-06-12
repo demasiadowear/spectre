@@ -10,6 +10,9 @@ import {
 } from "lucide-react";
 import GlassCard from "@/components/ui/spectre/GlassCard";
 import NeonButton from "@/components/ui/spectre/NeonButton";
+import ScoutAuditForm, {
+  type ScoutAuditParams,
+} from "@/components/detective/ScoutAuditForm";
 import { cn } from "@/lib/utils";
 import type { ApiResponse } from "@/types";
 import type { DetectiveCase, DetectiveStatus } from "@/types/detective";
@@ -49,6 +52,7 @@ export default function DetectiveBoard() {
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [scoutFormOpen, setScoutFormOpen] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -89,11 +93,14 @@ export default function DetectiveBoard() {
     }
   }
 
-  const runScout = async () => {
+  const runScout = async (params: ScoutAuditParams) => {
     flash("Scout audit in corso… (può richiedere 1-2 minuti)");
-    const res = await post("/api/detective/scout", { limit: 20 }, "scout");
+    const res = await post("/api/detective/scout", { ...params }, "scout");
     const d = res?.data as { inserted?: number; skipped_duplicates?: number } | undefined;
-    if (d) flash(`Scout: ${d.inserted ?? 0} nuovi casi, ${d.skipped_duplicates ?? 0} duplicati esclusi.`);
+    if (d) {
+      setScoutFormOpen(false);
+      flash(`Scout: ${d.inserted ?? 0} nuovi casi, ${d.skipped_duplicates ?? 0} duplicati esclusi.`);
+    }
   };
 
   const investigate = (id: string) =>
@@ -133,7 +140,11 @@ export default function DetectiveBoard() {
     <div className="space-y-4">
       {/* trigger manuali */}
       <GlassCard className="flex flex-wrap items-center gap-3 px-4 py-3">
-        <NeonButton size="sm" disabled={busy === "scout"} onClick={runScout}>
+        <NeonButton
+          size="sm"
+          disabled={busy === "scout"}
+          onClick={() => setScoutFormOpen((open) => !open)}
+        >
           <Search className="h-3.5 w-3.5" /> Scout audit (con sito)
         </NeonButton>
         <NeonButton
@@ -148,6 +159,14 @@ export default function DetectiveBoard() {
           {cases.length} casi · funnel separato, invio sempre manuale
         </p>
       </GlassCard>
+
+      {scoutFormOpen && (
+        <ScoutAuditForm
+          busy={busy === "scout"}
+          onLaunch={runScout}
+          onClose={() => setScoutFormOpen(false)}
+        />
+      )}
 
       {toast && (
         <p className="font-ui text-xs text-accent" role="status">
