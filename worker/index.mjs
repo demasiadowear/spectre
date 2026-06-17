@@ -124,6 +124,7 @@ for (const sig of ["SIGINT", "SIGTERM"]) {
 
 let consecutiveFailures = 0;
 let waReady = false;
+let waProbeFailures = 0;
 
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: SESSION_DIR }),
@@ -990,6 +991,7 @@ client.on("qr", (qr) => {
 
 client.on("ready", async () => {
   waReady = true;
+  waProbeFailures = 0;
   console.log("[worker] WhatsApp pronto. Loop outreach attivo.");
   // QR consumato: via il PNG, non serve più (e non deve restare in giro).
   try {
@@ -1031,6 +1033,31 @@ client.on("message_ack", (msg, ack) => {
 
 // ----- Main --------------------------------------------------
 
+/** Probe di liveness REALE della sessione WhatsApp. Il bug del 13-15/06:
+ *  la pagina Puppeteer si stacca ("detached Frame") senza che parta
+ *  l'evento "disconnected", quindi waReady resta true e il processo
+ *  resta vivo a vuoto — heartbeat verde, zero messaggi per ore, e il
+ *  watchdog (che riavvia solo se il processo MUORE) non interviene mai.
+ *  Qui interroghiamo lo stato vero: se getState() lancia (frame morto)
+ *  o non è CONNECTED per 2 giri di fila, usciamo e lasciamo che pm2/
+ *  watchdog riavvii con una sessione pulita. */
+async function waHealthOk() {
+  if (!waReady) return true; // ancora in avvio: ci pensa l'init/QR
+  try {
+    const state = await client.getState();
+    if (state === "CONNECTED") {
+      waProbeFailures = 0;
+      return true;
+    }
+    waProbeFailures++;
+    console.error(`[worker] WA health: stato anomalo "${state}" (${waProbeFailures}/2)`);
+  } catch (err) {
+    waProbeFailures++;
+    console.error(`[worker] WA health: getState ko (${waProbeFailures}/2):`, err.message);
+  }
+  return waProbeFailures < 2;
+}
+
 async function mainLoop() {
   for (;;) {
     // Heartbeat SEMPRE, anche senza sessione WA: la dashboard mostra
@@ -1041,6 +1068,13 @@ async function mainLoop() {
       await setSetting("worker_wa_ready", waReady ? "1" : "0");
     } catch (err) {
       console.error("[worker] heartbeat:", err.message);
+    }
+
+    // Sessione WA zombie (frame staccato) -> esci, il supervisor riavvia.
+    if (!(await waHealthOk())) {
+      console.error("[worker] sessione WA zombie: esco per farmi riavviare dal supervisor.");
+      await setSetting("worker_wa_ready", "0").catch(() => {});
+      process.exit(1);
     }
     let didSend = false;
     if (waReady) {
