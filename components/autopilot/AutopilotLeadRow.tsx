@@ -4,7 +4,15 @@ import { Archive, Check, MessageSquare, Search } from "lucide-react";
 import { googleSearchHref } from "@/lib/pitch";
 import { cn } from "@/lib/utils";
 import type { AutopilotLead } from "@/types/autopilot";
-import { STAGE_CHIP, TIER_BADGE, lastAction, stageLabel } from "./format";
+import {
+  HEAT_BADGE,
+  STAGE_CHIP,
+  lastAction,
+  leadHeat,
+  priceLabel,
+  qualityLabel,
+  stageLabel,
+} from "./format";
 
 export interface RowActions {
   onOpen: (lead: AutopilotLead, tab?: "chat") => void;
@@ -105,15 +113,23 @@ export default function AutopilotLeadRow({
         )}
       </div>
 
-      {/* 2. tier */}
-      <span
-        className={cn(
-          "shrink-0 rounded-sm border px-1.5 py-0.5 font-ui text-[10px] font-bold",
-          TIER_BADGE[lead.tier] ?? TIER_BADGE.T3,
-        )}
-      >
-        {lead.tier}
-      </span>
+      {/* 2. prezzo manuale (se impostato) + qualità (stelle Google) */}
+      {priceLabel(lead) && (
+        <span className="shrink-0 rounded-sm border border-accent/50 px-1.5 py-0.5 font-ui text-[10px] font-bold text-accent">
+          {priceLabel(lead)}
+        </span>
+      )}
+      {qualityLabel(lead) && (
+        <span
+          className={cn(
+            "hidden shrink-0 rounded-sm border px-1.5 py-0.5 font-ui text-[10px] font-semibold sm:inline",
+            HEAT_BADGE[leadHeat(lead)],
+          )}
+          title="Qualità: stelle Google + recensioni"
+        >
+          {qualityLabel(lead)}
+        </span>
+      )}
 
       {/* 3. stadio pipeline */}
       <span

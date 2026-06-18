@@ -4,7 +4,14 @@ import GlassCard from "@/components/ui/spectre/GlassCard";
 import { cn } from "@/lib/utils";
 import type { AutopilotLead, AutopilotStage } from "@/types/autopilot";
 import { AUTOPILOT_STAGES } from "@/lib/autopilot/constants";
-import { STAGE_CHIP, STAGE_LABELS, TIER_BADGE, lastAction } from "./format";
+import {
+  HEAT_BADGE,
+  STAGE_CHIP,
+  STAGE_LABELS,
+  lastAction,
+  leadHeat,
+  qualityLabel,
+} from "./format";
 
 interface Props {
   leads: AutopilotLead[];
@@ -50,9 +57,11 @@ export default function AutopilotKanban({ leads, onOpen }: Props) {
                       {l.company}
                     </span>
                     <span className="block truncate font-ui text-[10px] text-text2">
-                      <b className={cn("mr-1", TIER_BADGE[l.tier]?.split(" ")[1])}>
-                        {l.tier}
-                      </b>
+                      {qualityLabel(l) && (
+                        <b className={cn("mr-1", HEAT_BADGE[leadHeat(l)].split(" ")[1])}>
+                          {qualityLabel(l)}
+                        </b>
+                      )}
                       {lastAction(l)}
                     </span>
                   </button>

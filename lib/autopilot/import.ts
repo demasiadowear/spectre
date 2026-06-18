@@ -2,11 +2,10 @@ import { getLeads } from "@/lib/data";
 import { cityOf, isMobilePhone } from "@/lib/pitch";
 import { isTursoConnected, turso } from "@/lib/turso";
 import type { Lead } from "@/types";
-import { scoreTier } from "./constants";
 import { insertPipelineRow, normalizePhone } from "./db";
 
 // ============================================================
-// Import manuale Visor -> Autopilot. Prende i lead SPECTRE mai
+// Import manuale lead esistenti -> Pipeline. Prende i lead SPECTRE mai
 // contattati (status "todo", quindi esclusi persi/clienti/
 // trattative) con telefono, dedup contro la pipeline su lead_id
 // e telefono normalizzato (i lead Visor non hanno place_id: lo
@@ -64,8 +63,8 @@ export interface VisorImportResult {
   imported: number;
 }
 
-/** Importa in batch tutti gli eleggibili in stage "nuovo". Lo Study
- *  li processa poi a lotti (tier più alto prima), entro i cap. */
+/** Importa in batch tutti gli eleggibili in stage "da_contattare". Lo
+ *  Study li prepara poi a lotti (primo messaggio WA). */
 export async function importFromVisor(): Promise<VisorImportResult> {
   if (!isTursoConnected()) {
     throw new Error("Turso non configurato: l'import richiede il DB.");
@@ -73,14 +72,8 @@ export async function importFromVisor(): Promise<VisorImportResult> {
   const eligible = await eligibleVisorLeads();
   let imported = 0;
   for (const l of eligible) {
-    const rating = l.meta.rating ?? 0;
-    const reviews = l.meta.reviews ?? 0;
-    // Senza dati Places il tier resta prudente (T3): lo Study li
-    // recupera prima di generare il messaggio.
-    const tier = rating > 0 && reviews > 0 ? scoreTier(rating, reviews) : "T3";
     await insertPipelineRow({
       lead_id: l.id,
-      tier,
       place_id: "",
       category: l.meta.category ?? "attività",
       city: cityOf(l),

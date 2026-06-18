@@ -4,15 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
-  Eye,
   LayoutDashboard,
-  AudioLines,
   Hand,
-  Gauge,
-  Map as MapIcon,
-  TrendingUp,
   Crosshair,
-  Bot,
   Fingerprint,
   MessageSquareText,
   LogOut,
@@ -27,15 +21,9 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
-  { href: "/visor", label: "Visor", icon: Eye },
-  { href: "/cockpit", label: "Cockpit", icon: LayoutDashboard },
+  { href: "/pipeline", label: "Pipeline", icon: LayoutDashboard },
   { href: "/hunter", label: "Hunter", icon: Crosshair },
-  { href: "/whisper", label: "Whisper", icon: AudioLines },
   { href: "/hand", label: "Hand", icon: Hand },
-  { href: "/oracle", label: "Oracle", icon: Gauge },
-  { href: "/territorio", label: "Territorio", icon: MapIcon },
-  { href: "/forecast", label: "Forecast", icon: TrendingUp },
-  { href: "/autopilot", label: "Autopilot", icon: Bot },
   { href: "/detective", label: "Detective", icon: Fingerprint },
   { href: "/templates", label: "Templates", icon: MessageSquareText },
 ];
@@ -52,7 +40,7 @@ export default function Sidebar({ authEnabled = false }: SidebarProps) {
     <nav className="z-30 flex w-16 shrink-0 flex-col items-center border-r border-border bg-surface py-4 backdrop-blur-xl">
       {/* Brand mark */}
       <Link
-        href="/visor"
+        href="/pipeline"
         className="mb-6 flex h-9 w-9 items-center justify-center border border-spectre-cyan/40 text-spectre-cyan shadow-neon-cyan"
         aria-label="SPECTRE home"
       >

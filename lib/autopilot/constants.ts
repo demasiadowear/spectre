@@ -1,24 +1,18 @@
-import type { AutopilotStage, AutopilotTier } from "@/types/autopilot";
+import type { AutopilotStage } from "@/types/autopilot";
 
 // ============================================================
-// Autopilot — configurazione di pipeline e prompt Gemini.
+// Pipeline — configurazione e prompt Gemini.
 // Stack lock: Gemini Flash only fino a 200 clienti.
 // ============================================================
 
+/** Colonne della Pipeline, in ordine (kanban + conteggi). */
 export const AUTOPILOT_STAGES: AutopilotStage[] = [
-  "nuovo",
-  "studiato",
+  "da_contattare",
   "contattato",
-  "risposto_manuale",
-  "da_chiamare",
-  "demo_richiesta",
-  "demo_inviata",
-  "richiesta_prezzo",
+  "ha_risposto",
   "in_trattativa",
-  "tiepido",
   "vinto",
   "perso",
-  "escalation",
   "archiviato",
 ];
 
@@ -54,20 +48,6 @@ export const SCOUT_QUERIES_PER_RUN = 5;
 /** Filtro base: rating >=4.5, 30+ recensioni, SENZA sito proprio. */
 export const SCOUT_MIN_RATING = 4.5;
 export const SCOUT_MIN_REVIEWS = 30;
-
-/** Tier scoring: T1 >=4.8/100+ rec, T2 >=4.6/50+, T3 >=4.5/30+. */
-export function scoreTier(rating: number, reviews: number): AutopilotTier {
-  if (rating >= 4.8 && reviews >= 100) return "T1";
-  if (rating >= 4.6 && reviews >= 50) return "T2";
-  return "T3";
-}
-
-/** Valore stimato per tier (per il campo value del lead). */
-export const TIER_VALUE: Record<AutopilotTier, number> = {
-  T1: 980,
-  T2: 700,
-  T3: 499,
-};
 
 // ----- Prompt Gemini -----------------------------------------
 

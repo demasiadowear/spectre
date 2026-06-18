@@ -1,48 +1,34 @@
 // ============================================================
-// AYRO SPECTRE — Autopilot types
-// Pipeline autonoma: scout -> study -> WA outreach -> demo ->
-// escalation a Puccio / archivio.
+// AYRO SPECTRE — Pipeline types
+// Macchina a stati UNICA della Pipeline (ex Visor + Autopilot fusi):
+//   da_contattare -> contattato -> ha_risposto -> in_trattativa ->
+//   vinto / perso   (+ archiviato come bidone laterale)
+// Sorgente unica: autopilot_pipeline.stage. leads.status è storico.
+// Il dettaglio fine (demo da fare, richiamo, prezzo) vive in next_action.
 // ============================================================
 
-/** Stadi della pipeline Autopilot (dashboard pipeline view). */
+/** Stati della Pipeline — sequenza unica dal contatto alla chiusura. */
 export type AutopilotStage =
-  | "nuovo"
-  | "studiato"
-  | "contattato"
-  | "risposto_manuale" // risposta umana: bot muto, chat in mano a Puccio
-  // --- stati trattativa: assegnati dal triage Gemini alla risposta
-  //     umana (solo catalogazione interna) o a mano dal drawer ---
-  | "da_chiamare" // appuntamento telefonico (next_action_at = quando)
-  | "demo_richiesta" // "demo da fare": il lead ha detto sì, va preparata
-  | "demo_inviata" // demo mandata, in attesa di risposta
-  | "richiesta_prezzo" // ha chiesto quanto costa
-  | "in_trattativa"
-  | "tiepido" // ricontattare il next_action_at
+  | "da_contattare" // lead pronto (o da preparare): primo messaggio non ancora inviato
+  | "contattato" // primo messaggio inviato, in attesa di risposta
+  | "ha_risposto" // il cliente ha risposto, da gestire
+  | "in_trattativa" // trattativa attiva (demo, richiamo, prezzo… nel next_action)
   | "vinto"
   | "perso" // lost_reason = motivo
-  | "escalation"
-  | "archiviato";
+  | "archiviato"; // fuori pipeline (numero fisso, opt-out, scartato)
 
-/** Stati trattativa selezionabili dal drawer (bot sempre muto).
- *  Il triage automatico può assegnare: risposto_manuale (da
- *  rispondere), da_chiamare, demo_richiesta, richiesta_prezzo, perso. */
+/** Stati selezionabili a mano dal drawer. "archiviato" no: si usa il
+ *  pulsante Archivia dedicato (che imposta anche archived_reason). */
 export const DEAL_STAGES: AutopilotStage[] = [
-  "risposto_manuale",
-  "da_chiamare",
-  "demo_richiesta",
-  "demo_inviata",
-  "richiesta_prezzo",
+  "da_contattare",
+  "contattato",
+  "ha_risposto",
   "in_trattativa",
-  "tiepido",
   "vinto",
   "perso",
 ];
 
-/** Tier scoring: T1 >=4.8/100+ rec, T2 >=4.6/50+, T3 >=4.5/30+. */
-export type AutopilotTier = "T1" | "T2" | "T3";
-
-/** Stato del primo messaggio WA. Nel copilota manuale è sempre "auto"
- *  (pronto da contattare); gli altri valori restano per righe storiche. */
+/** Stato del primo messaggio WA (storico: sempre "auto" nel flusso attuale). */
 export type ApprovalStatus = "pending" | "approved" | "rejected" | "auto";
 
 export type WaDirection = "in" | "out";
@@ -77,7 +63,6 @@ export interface AutopilotStudy {
 export interface AutopilotLead {
   lead_id: string;
   stage: AutopilotStage;
-  tier: AutopilotTier;
   place_id: string;
   category: string;
   city: string;
@@ -111,13 +96,21 @@ export interface AutopilotLead {
   notes: string;
   created_at: string;
   updated_at: string;
+  /** Prezzo deciso a mano da Puccio (€). null = nessun prezzo (default).
+   *  Niente prezzo automatico dal sistema. Vive in leads.meta.price. */
+  price: number | null;
   // Dal lead collegato.
   name: string;
   company: string;
   phone: string;
+  /** Qualità lead = stelle Google + n. recensioni (NON è un tier, NON
+   *  c'entra col prezzo). Serve solo a sapere chi contattare prima. */
   rating: number;
   reviews: number;
   address: string;
+  /** Coordinate per la vista Mappa (da leads.meta.lat/lng). */
+  lat: number | null;
+  lng: number | null;
 }
 
 export interface WaMessage {

@@ -48,10 +48,10 @@ export default function GlobalError({
               <RotateCcw className="h-4 w-4" strokeWidth={1.5} />
               Riavvia modulo
             </NeonButton>
-            <Link href="/visor">
+            <Link href="/pipeline">
               <NeonButton variant="ghost">
                 <Eye className="h-4 w-4" strokeWidth={1.5} />
-                Torna al Visor
+                Torna alla Pipeline
               </NeonButton>
             </Link>
           </div>

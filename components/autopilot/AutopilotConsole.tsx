@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Bell, BookOpen, Columns3, Download, List } from "lucide-react";
+import { Bell, BookOpen, Columns3, Download, List, Map as MapIcon } from "lucide-react";
 import GlassCard from "@/components/ui/spectre/GlassCard";
 import { cn } from "@/lib/utils";
 import type { ApiResponse } from "@/types";
@@ -13,7 +13,8 @@ import type {
 import AutopilotKanban from "./AutopilotKanban";
 import AutopilotLeadDrawer, { type ConversationResult } from "./AutopilotLeadDrawer";
 import AutopilotLeadRow from "./AutopilotLeadRow";
-import { actionPriority, isReadyToContact, sortByAction } from "./format";
+import PipelineMap from "./PipelineMap";
+import { actionPriority, sortByAction, sortByQuality } from "./format";
 
 // ============================================================
 // AUTOPILOT console — copilota MANUALE. Scout+Study trovano e
@@ -22,44 +23,28 @@ import { actionPriority, isReadyToContact, sortByAction } from "./format";
 // invio automatico. Poll ogni 30s.
 // ============================================================
 
-type ViewMode = "list" | "kanban";
+type ViewMode = "list" | "kanban" | "mappa";
 
 type StatusFilter =
   | "azione"
   | "agenda"
   | "tutti"
-  | "escalation"
+  | "da_contattare"
+  | "contattati"
   | "risposti"
   | "trattative"
   | "chiusi"
-  | "da_contattare"
-  | "demo"
-  | "contattati"
-  | "nuovi"
   | "archiviati";
 
-/** Stati di trattativa (smistati dal triage o impostati a mano). */
-const DEAL_FILTER_STAGES = [
-  "da_chiamare",
-  "demo_richiesta",
-  "demo_inviata",
-  "richiesta_prezzo",
-  "in_trattativa",
-  "tiepido",
-] as const;
-
 const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
-  { id: "azione", label: "Richiede azione" },
+  { id: "azione", label: "Cosa fare ora" },
   { id: "agenda", label: "Agenda" },
   { id: "tutti", label: "Tutti" },
   { id: "da_contattare", label: "Da contattare" },
-  { id: "risposti", label: "Da rispondere" },
-  { id: "trattative", label: "Trattative" },
-  { id: "demo", label: "Demo" },
   { id: "contattati", label: "Contattati" },
+  { id: "risposti", label: "Ha risposto" },
+  { id: "trattative", label: "In trattativa" },
   { id: "chiusi", label: "Vinti / Persi" },
-  { id: "nuovi", label: "Nuovi" },
-  { id: "escalation", label: "Escalation" },
   { id: "archiviati", label: "Archiviati" },
 ];
 
@@ -67,14 +52,11 @@ const EMPTY_STATES: Record<StatusFilter, string> = {
   azione: "Niente da fare adesso. Lo scout gira ogni mattina alle 6.",
   agenda: "Nessuna azione pianificata: fissa data e prossima azione dal dettaglio lead.",
   tutti: "Nessun lead in pipeline. Lo scout gira ogni mattina alle 6.",
-  escalation: "Nessuna escalation aperta.",
+  da_contattare: "Nessun lead pronto da contattare: lo study li sta preparando.",
+  contattati: "Nessun lead contattato in attesa di risposta.",
   risposti: "Nessuna risposta da gestire.",
   trattative: "Nessuna trattativa aperta.",
   chiusi: "Ancora nessun vinto o perso.",
-  da_contattare: "Nessun lead pronto da contattare: lo study li sta preparando.",
-  demo: "Nessuna demo in corso.",
-  contattati: "Nessun lead contattato in attesa di risposta.",
-  nuovi: "Nessun lead nuovo: lo study li ha già processati tutti.",
   archiviati: "Archivio vuoto.",
 };
 
@@ -87,22 +69,16 @@ function matchesStatus(lead: AutopilotLead, f: StatusFilter): boolean {
       return Boolean(lead.next_action_at) && lead.stage !== "archiviato" && lead.stage !== "perso";
     case "tutti":
       return true;
-    case "escalation":
-      return lead.stage === "escalation";
-    case "risposti":
-      return lead.stage === "risposto_manuale";
-    case "trattative":
-      return (DEAL_FILTER_STAGES as readonly string[]).includes(lead.stage);
-    case "chiusi":
-      return lead.stage === "vinto" || lead.stage === "perso";
     case "da_contattare":
-      return isReadyToContact(lead);
-    case "demo":
-      return lead.stage === "demo_richiesta" || lead.stage === "demo_inviata";
+      return lead.stage === "da_contattare";
     case "contattati":
       return lead.stage === "contattato";
-    case "nuovi":
-      return lead.stage === "nuovo";
+    case "risposti":
+      return lead.stage === "ha_risposto";
+    case "trattative":
+      return lead.stage === "in_trattativa";
+    case "chiusi":
+      return lead.stage === "vinto" || lead.stage === "perso";
     case "archiviati":
       return lead.stage === "archiviato";
   }
@@ -153,7 +129,7 @@ export default function AutopilotConsole() {
 
   const [view, setView] = useState<ViewMode>("list");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("azione");
-  const [tierFilter, setTierFilter] = useState<string | null>(null);
+  const [sortMode, setSortMode] = useState<"azione" | "qualita">("azione");
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [showAlerts, setShowAlerts] = useState(false);
 
@@ -212,7 +188,6 @@ export default function AutopilotConsole() {
     const filtered = leads.filter(
       (l) =>
         matchesStatus(l, statusFilter) &&
-        (!tierFilter || l.tier === tierFilter) &&
         (!categoryFilter || l.category === categoryFilter),
     );
     if (statusFilter === "agenda") {
@@ -222,8 +197,8 @@ export default function AutopilotConsole() {
           new Date(b.next_action_at ?? 0).getTime(),
       );
     }
-    return sortByAction(filtered);
-  }, [leads, statusFilter, tierFilter, categoryFilter]);
+    return sortMode === "qualita" ? sortByQuality(filtered) : sortByAction(filtered);
+  }, [leads, statusFilter, categoryFilter, sortMode]);
 
   // ----- azioni -----------------------------------------------
 
@@ -288,6 +263,8 @@ export default function AutopilotConsole() {
   const suggest = (leadId: string) => conv(leadId, { action: "suggest" });
   const markDemoSent = (leadId: string, demoUrl?: string) =>
     conv(leadId, { action: "mark_demo_sent", demo_url: demoUrl });
+  const setPrice = (leadId: string, price: number | null) =>
+    conv(leadId, { action: "set_price", price });
 
   /** Run di Study on-demand: stessa logica del cron (lotto da 10). */
   async function studyNow() {
@@ -320,7 +297,7 @@ export default function AutopilotConsole() {
     }
   }
 
-  /** Import manuale dei lead Visor mai contattati. */
+  /** Import manuale dei lead esistenti mai contattati. */
   async function importVisorLeads() {
     setBusyId("import");
     try {
@@ -334,13 +311,13 @@ export default function AutopilotConsole() {
         return;
       }
       if (j.data.eligible === 0) {
-        window.alert("Nessun lead Visor eleggibile (mai contattati, con telefono, non già in pipeline).");
+        window.alert("Nessun lead eleggibile (mai contattati, con telefono, non già in pipeline).");
         return;
       }
       const sample = j.data.sample.join(", ");
       if (
         !window.confirm(
-          `${j.data.eligible} lead Visor eleggibili (es. ${sample}).\n\nImportarli in Autopilot? Lo study li preparerà a lotti nei prossimi giorni.`,
+          `${j.data.eligible} lead eleggibili (es. ${sample}).\n\nImportarli in Pipeline? Lo study li preparerà a lotti nei prossimi giorni.`,
         )
       ) {
         return;
@@ -349,7 +326,7 @@ export default function AutopilotConsole() {
       const pj = (await post.json()) as ApiResponse<{ imported: number }>;
       window.alert(
         pj.success
-          ? `Importati ${pj.data?.imported ?? 0} lead in pipeline (stato "nuovo").`
+          ? `Importati ${pj.data?.imported ?? 0} lead in pipeline (stato "da contattare").`
           : `Errore import: ${pj.error ?? "sconosciuto"}`,
       );
       await refresh();
@@ -371,14 +348,7 @@ export default function AutopilotConsole() {
     setOpenLead(lead);
   }
 
-  const trattativeCount = stats
-    ? (stats.by_stage.da_chiamare ?? 0) +
-      (stats.by_stage.demo_richiesta ?? 0) +
-      (stats.by_stage.demo_inviata ?? 0) +
-      (stats.by_stage.richiesta_prezzo ?? 0) +
-      (stats.by_stage.in_trattativa ?? 0) +
-      (stats.by_stage.tiepido ?? 0)
-    : null;
+  const trattativeCount = stats ? (stats.by_stage.in_trattativa ?? 0) : null;
 
   // ----- render -----------------------------------------------
 
@@ -397,6 +367,7 @@ export default function AutopilotConsole() {
             [
               { id: "list", label: "Lista", icon: List },
               { id: "kanban", label: "Kanban", icon: Columns3 },
+              { id: "mappa", label: "Mappa", icon: MapIcon },
             ] as const
           ).map(({ id, label, icon: Icon }) => (
             <button
@@ -416,7 +387,7 @@ export default function AutopilotConsole() {
         <p className="font-ui text-xs text-text2">
           Da contattare{" "}
           <b className="text-sm text-text">
-            {stats ? (stats.by_stage.studiato ?? 0) : "—"}
+            {stats ? (stats.by_stage.da_contattare ?? 0) : "—"}
           </b>
         </p>
         <p className="hidden font-ui text-xs text-text2 sm:block">
@@ -453,7 +424,7 @@ export default function AutopilotConsole() {
           >
             <Download className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">
-              {busyId === "import" ? "Importo…" : "Importa da Visor"}
+              {busyId === "import" ? "Importo…" : "Importa lead"}
             </span>
           </button>
           <button
@@ -523,23 +494,24 @@ export default function AutopilotConsole() {
               label={f.label}
               count={counts[f.id]}
               active={statusFilter === f.id}
-              warn={f.id === "escalation" && counts.escalation > 0}
               onClick={() => setStatusFilter(f.id)}
             />
           ))}
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="w-16 font-ui text-[10px] uppercase tracking-[0.18em] text-text2">
-            Tier
+            Ordina
           </span>
-          {["T1", "T2", "T3"].map((t) => (
-            <Chip
-              key={t}
-              label={t}
-              active={tierFilter === t}
-              onClick={() => setTierFilter((cur) => (cur === t ? null : t))}
-            />
-          ))}
+          <Chip
+            label="Cosa fare ora"
+            active={sortMode === "azione"}
+            onClick={() => setSortMode("azione")}
+          />
+          <Chip
+            label="Qualità ⭐"
+            active={sortMode === "qualita"}
+            onClick={() => setSortMode("qualita")}
+          />
           {categories.length > 0 && (
             <>
               <span className="ml-3 w-auto font-ui text-[10px] uppercase tracking-[0.18em] text-text2">
@@ -558,8 +530,10 @@ export default function AutopilotConsole() {
         </div>
       </div>
 
-      {/* lista / kanban */}
-      {view === "kanban" ? (
+      {/* lista / kanban / mappa */}
+      {view === "mappa" ? (
+        <PipelineMap leads={visible} onOpen={openDrawer} />
+      ) : view === "kanban" ? (
         <AutopilotKanban leads={visible} onOpen={openDrawer} />
       ) : visible.length === 0 ? (
         <GlassCard className="px-6 py-10 text-center">
@@ -592,6 +566,7 @@ export default function AutopilotConsole() {
         onLogInbound={logInbound}
         onSuggest={suggest}
         onMarkDemoSent={markDemoSent}
+        onSetPrice={setPrice}
       />
     </div>
   );

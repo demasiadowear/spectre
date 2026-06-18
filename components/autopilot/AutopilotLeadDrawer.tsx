@@ -20,7 +20,15 @@ import { cn } from "@/lib/utils";
 import type { ApiResponse } from "@/types";
 import type { AutopilotLead, AutopilotStage, WaMessage } from "@/types/autopilot";
 import { DEAL_STAGES } from "@/types/autopilot";
-import { STAGE_CHIP, STAGE_LABELS, TIER_BADGE, stageLabel, timeAgo } from "./format";
+import {
+  HEAT_BADGE,
+  STAGE_CHIP,
+  STAGE_LABELS,
+  leadHeat,
+  qualityLabel,
+  stageLabel,
+  timeAgo,
+} from "./format";
 
 /** Esito di un'azione conversazione (dal route /api/autopilot/conversation). */
 export interface ConversationResult {
@@ -46,6 +54,8 @@ interface Props {
   onSuggest: (leadId: string) => Promise<ConversationResult | null>;
   /** Segna la demo inviata a mano (link incollato + mandato su WA). */
   onMarkDemoSent: (leadId: string, demoUrl?: string) => Promise<ConversationResult | null>;
+  /** Prezzo manuale del lead (€). null = nessun prezzo. */
+  onSetPrice: (leadId: string, price: number | null) => Promise<ConversationResult | null>;
 }
 
 // ============================================================
@@ -87,6 +97,7 @@ export default function AutopilotLeadDrawer({
   onLogInbound,
   onSuggest,
   onMarkDemoSent,
+  onSetPrice,
 }: Props) {
   const [messages, setMessages] = useState<WaMessage[]>([]);
   const [msgVersion, setMsgVersion] = useState(0);
@@ -96,6 +107,7 @@ export default function AutopilotLeadDrawer({
   const [suggestDraft, setSuggestDraft] = useState("");
   const [localBusy, setLocalBusy] = useState(false);
   const [demoDraft, setDemoDraft] = useState("");
+  const [priceDraft, setPriceDraft] = useState("");
   // Form trattativa (stato + prossima azione + note): si salva in blocco.
   const [dealStage, setDealStage] = useState<AutopilotStage | "">("");
   const [dealAction, setDealAction] = useState("");
@@ -117,6 +129,7 @@ export default function AutopilotLeadDrawer({
     setSuggestion(null);
     setSuggestDraft("");
     setDemoDraft(lead?.demo_url ?? "");
+    setPriceDraft(lead?.price != null ? String(lead.price) : "");
     setDealStage(
       lead && (DEAL_STAGES as string[]).includes(lead.stage) ? lead.stage : "",
     );
@@ -186,13 +199,11 @@ export default function AutopilotLeadDrawer({
   const phone = lead.phone;
   const lastInbound =
     messages.length > 0 && messages[messages.length - 1].direction === "in";
-  const notContacted = lead.stage === "nuovo" || lead.stage === "studiato";
+  const notContacted = lead.stage === "da_contattare";
   const conversational =
-    lead.stage !== "nuovo" &&
-    lead.stage !== "studiato" &&
-    lead.stage !== "archiviato" &&
-    lead.stage !== "perso" &&
-    lead.stage !== "vinto";
+    lead.stage === "contattato" ||
+    lead.stage === "ha_risposto" ||
+    lead.stage === "in_trattativa";
 
   // ----- handler locali ---------------------------------------
 
@@ -231,6 +242,13 @@ export default function AutopilotLeadDrawer({
 
   async function sendDemo() {
     await run(() => onMarkDemoSent(lead!.lead_id, demoDraft.trim() || undefined));
+  }
+
+  async function savePrice() {
+    const t = priceDraft.trim();
+    const price = t === "" ? null : Number(t);
+    if (price != null && (!Number.isFinite(price) || price < 0)) return;
+    await run(() => onSetPrice(lead!.lead_id, price));
   }
 
   const showSuggestion = suggestion !== null || (conversational && lastInbound);
@@ -284,14 +302,17 @@ export default function AutopilotLeadDrawer({
                 </button>
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <span
-                  className={cn(
-                    "rounded-sm border px-1.5 py-0.5 font-ui text-[10px] font-bold",
-                    TIER_BADGE[lead.tier] ?? TIER_BADGE.T3,
-                  )}
-                >
-                  {lead.tier}
-                </span>
+                {qualityLabel(lead) && (
+                  <span
+                    className={cn(
+                      "rounded-sm border px-1.5 py-0.5 font-ui text-[10px] font-semibold",
+                      HEAT_BADGE[leadHeat(lead)],
+                    )}
+                    title="Qualità: stelle Google + recensioni"
+                  >
+                    {qualityLabel(lead)}
+                  </span>
+                )}
                 <span
                   className={cn(
                     "rounded-full px-2.5 py-1 font-ui text-[11px]",
@@ -470,10 +491,27 @@ export default function AutopilotLeadDrawer({
               </Section>
             )}
 
+            {/* Prezzo manuale: lo decide Puccio lead per lead, vuoto di
+                default. Nessun prezzo automatico dal sistema. */}
+            <Section title="Prezzo (manuale)">
+              <div className="flex items-center gap-2">
+                <span className="font-ui text-sm text-text2">€</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={priceDraft}
+                  onChange={(e) => setPriceDraft(e.target.value)}
+                  placeholder="es. 499 (vuoto = nessun prezzo)"
+                  className="w-40 rounded-sm border border-border bg-bg p-2 font-ui text-sm text-text focus:border-accent focus:outline-none"
+                />
+                <NeonButton size="sm" variant="cyan" disabled={working} onClick={savePrice}>
+                  <Check className="h-3.5 w-3.5" /> Salva
+                </NeonButton>
+              </div>
+            </Section>
+
             {/* Trattativa: stati manuali. */}
-            {lead.stage !== "nuovo" &&
-              lead.stage !== "studiato" &&
-              lead.stage !== "archiviato" && (
+            {lead.stage !== "da_contattare" && lead.stage !== "archiviato" && (
                 <Section title="Trattativa">
                   <div className="space-y-2">
                     <div>
@@ -568,7 +606,7 @@ export default function AutopilotLeadDrawer({
 
             {/* Demo: SPECTRE non builda nulla. Prepari la demo fuori,
                 incolli il link e la mandi a mano da WhatsApp. */}
-            {(lead.stage === "demo_richiesta" || lead.stage === "demo_inviata") && (
+            {(lead.stage === "ha_risposto" || lead.stage === "in_trattativa") && (
               <Section title="Demo">
                 {lead.demo_sent_at ? (
                   <>

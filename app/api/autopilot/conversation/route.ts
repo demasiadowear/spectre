@@ -6,6 +6,7 @@ import {
   logWaMessage,
   markContacted,
   markDemoSent,
+  setLeadPrice,
   updateDeal,
 } from "@/lib/autopilot/db";
 import { triageInbound } from "@/lib/autopilot/triage";
@@ -26,16 +27,15 @@ import type { AutopilotLead, AutopilotStage } from "@/types/autopilot";
 
 export const dynamic = "force-dynamic";
 
-/** Stati trattativa attivi: una risposta vaga qui NON deve declassare
- *  lo stage (lo gestisce Puccio); il triage lo lascia com'è. */
+/** Stati in cui una risposta vaga NON deve cambiare stage da sola (lo
+ *  gestisce Puccio): trattativa attiva e stati terminali. Un perso che
+ *  riscrive resta perso ma genera comunque l'alert; se invece il triage
+ *  rileva un intento forte (es. "mandami la demo") lo riapre. */
 const NEGOTIATION_STAGES = new Set<AutopilotStage>([
-  "da_chiamare",
-  "demo_richiesta",
-  "demo_inviata",
-  "richiesta_prezzo",
   "in_trattativa",
-  "tiepido",
   "vinto",
+  "perso",
+  "archiviato",
 ]);
 
 interface ConversationPayload {
@@ -69,7 +69,7 @@ export async function POST(req: Request) {
       if (!text) return bad("Serve il testo del messaggio inviato.");
       await logWaMessage({ leadId, direction: "out", body: text });
       // Primo contatto: la pipeline avanza a "contattato".
-      if (lead.stage === "nuovo" || lead.stage === "studiato") {
+      if (lead.stage === "da_contattare") {
         await markContacted(leadId);
       }
       const fresh = (await getPipelineLead(leadId)) ?? lead;
@@ -91,7 +91,7 @@ export async function POST(req: Request) {
 
       // In trattativa attiva una risposta vaga non declassa lo stage.
       const keepStage =
-        NEGOTIATION_STAGES.has(lead.stage) && triage.stage === "risposto_manuale";
+        NEGOTIATION_STAGES.has(lead.stage) && triage.stage === "ha_risposto";
       await updateDeal(leadId, {
         ...(keepStage ? {} : { stage: triage.stage }),
         ...(triage.next_action ? { next_action: triage.next_action } : {}),
@@ -152,8 +152,24 @@ export async function POST(req: Request) {
       });
     }
 
+    if (action === "set_price") {
+      // Prezzo manuale, deciso da Puccio. null/"" = nessun prezzo.
+      const raw = body.price;
+      const price =
+        raw == null || raw === "" ? null : Number(raw);
+      if (price != null && (!Number.isFinite(price) || price < 0)) {
+        return bad("prezzo non valido: numero >= 0 o vuoto.");
+      }
+      await setLeadPrice(leadId, price);
+      const fresh = (await getPipelineLead(leadId)) ?? lead;
+      return NextResponse.json<ApiResponse<ConversationPayload>>({
+        success: true,
+        data: { lead: fresh },
+      });
+    }
+
     return bad(
-      "action deve essere log_outbound | log_inbound | suggest | mark_demo_sent.",
+      "action deve essere log_outbound | log_inbound | suggest | mark_demo_sent | set_price.",
     );
   } catch (err) {
     return bad((err as Error).message, 500);

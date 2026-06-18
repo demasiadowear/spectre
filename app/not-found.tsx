@@ -23,10 +23,10 @@ export default function NotFound() {
             settore della rete SPECTRE.
           </p>
 
-          <Link href="/visor" className="mt-8">
+          <Link href="/pipeline" className="mt-8">
             <NeonButton variant="cyan" filled>
               <Eye className="h-4 w-4" strokeWidth={1.5} />
-              Torna al Visor
+              Torna alla Pipeline
             </NeonButton>
           </Link>
         </div>

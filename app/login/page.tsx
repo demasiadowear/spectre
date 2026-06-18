@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export default function LoginPage() {
   // No password configured → there's nothing to log into. Go straight in.
-  if (AUTH_DISABLED) redirect("/visor");
+  if (AUTH_DISABLED) redirect("/pipeline");
 
   return (
     <Suspense>

@@ -14,7 +14,7 @@ const INPUT =
 export default function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const from = params.get("from") || "/visor";
+  const from = params.get("from") || "/pipeline";
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");

@@ -226,10 +226,11 @@ export async function studyLead(lead: AutopilotLead): Promise<StudyOutcome> {
     .filter(Boolean)
     .slice(0, 5);
 
-  // Copilota manuale: ogni lead studiato è pronto da contattare a mano
-  // (niente coda di approvazione, niente invio automatico).
+  // Lead pronto da contattare a mano: lo stage resta "da_contattare",
+  // ora col primo messaggio preparato (wa_first_message). Nessuna coda
+  // di approvazione, nessun invio automatico.
   await updatePipeline(lead.lead_id, {
-    stage: "studiato",
+    stage: "da_contattare",
     brief: generated.brief.trim(),
     wa_first_message: generated.wa_message.trim(),
     study_json: JSON.stringify(study),
@@ -246,8 +247,9 @@ export interface StudyResult {
   archived: number;
 }
 
-/** Studia fino a `limit` lead in stato "nuovo" (T1 prima), saltando
- *  quelli già marcati "da completare". */
+/** Prepara fino a `limit` lead "da contattare" ancora senza primo
+ *  messaggio (quelli che lo Scout ha appena trovato), saltando quelli
+ *  già marcati "da completare". */
 export async function runStudy(limit = 10): Promise<StudyResult> {
   if (!isTursoConnected() || !turso) {
     throw new Error("Turso non configurato: lo study richiede il DB.");
@@ -255,9 +257,10 @@ export async function runStudy(limit = 10): Promise<StudyResult> {
   const res = await turso.execute({
     sql: `SELECT p.*, l.name, l.company, l.phone, l.meta
           FROM autopilot_pipeline p JOIN leads l ON l.id = p.lead_id
-          WHERE p.stage = 'nuovo'
+          WHERE p.stage = 'da_contattare'
+            AND (p.wa_first_message IS NULL OR p.wa_first_message = '')
             AND (p.brief IS NULL OR p.brief NOT LIKE '${INCOMPLETE_BRIEF_PREFIX}%')
-          ORDER BY p.tier ASC, p.created_at ASC LIMIT ?`,
+          ORDER BY p.created_at ASC LIMIT ?`,
     args: [limit],
   });
 

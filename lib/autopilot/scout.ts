@@ -8,16 +8,16 @@ import {
   SCOUT_MIN_RATING,
   SCOUT_MIN_REVIEWS,
   SCOUT_QUERIES_PER_RUN,
-  TIER_VALUE,
-  scoreTier,
 } from "./constants";
 import { insertPipelineRow, knownPhones, knownPlaceIds, normalizePhone } from "./db";
 
 // ============================================================
 // Stadio 1 — SCOUT (cron giornaliero).
 // Places Text Search su categorie×località ruotate, filtro
-// rating>=4.5 / 30+ recensioni / senza sito, tier scoring,
-// dedup contro il DB SPECTRE, inserimento stato "nuovo".
+// rating>=4.5 / 30+ recensioni / senza sito, dedup contro il DB,
+// inserimento stato "da_contattare". Nessun prezzo automatico:
+// rating+recensioni restano in meta (qualità), il prezzo lo mette
+// Puccio a mano lead per lead.
 // ============================================================
 
 export interface ScoutResult {
@@ -87,7 +87,6 @@ export async function runScout(): Promise<ScoutResult> {
         continue;
       }
 
-      const tier = scoreTier(r.rating, r.reviews);
       const lead = await createLead({
         name: r.name,
         company: r.name,
@@ -95,12 +94,12 @@ export async function runScout(): Promise<ScoutResult> {
         phone: r.phone,
         source: "maps",
         status: "todo",
-        value: TIER_VALUE[tier],
-        probability: tier === "T1" ? 40 : tier === "T2" ? 30 : 20,
+        value: 0, // niente prezzo automatico: lo decide Puccio a mano
+        probability: 0,
         last_contact: new Date().toISOString(),
-        next_action: "Autopilot: study + primo contatto WA",
-        notes: `Autopilot scout — ${category} a ${location}, ${r.rating}★ / ${r.reviews} recensioni, senza sito.`,
-        tags: ["autopilot", category.split(" ")[0], tier.toLowerCase()],
+        next_action: "Pipeline: study + primo contatto WA",
+        notes: `Scout — ${category} a ${location}, ${r.rating}★ / ${r.reviews} recensioni, senza sito.`,
+        tags: ["autopilot", category.split(" ")[0]],
         meta: {
           rating: r.rating,
           reviews: r.reviews,
@@ -113,7 +112,6 @@ export async function runScout(): Promise<ScoutResult> {
 
       await insertPipelineRow({
         lead_id: lead.id,
-        tier,
         place_id: r.id,
         category,
         city: location,

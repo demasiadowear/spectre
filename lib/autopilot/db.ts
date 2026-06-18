@@ -6,7 +6,6 @@ import type {
   AutopilotStage,
   AutopilotStats,
   AutopilotStudy,
-  AutopilotTier,
   WaMessage,
 } from "@/types/autopilot";
 import { AUTOPILOT_STAGES } from "./constants";
@@ -43,7 +42,6 @@ function rowToAutopilotLead(r: Row): AutopilotLead {
   return {
     lead_id: str(r.lead_id),
     stage: str(r.stage) as AutopilotStage,
-    tier: str(r.tier) as AutopilotTier,
     place_id: str(r.place_id),
     category: str(r.category),
     city: str(r.city),
@@ -68,12 +66,15 @@ function rowToAutopilotLead(r: Row): AutopilotLead {
     notes: str(r.notes),
     created_at: str(r.created_at),
     updated_at: str(r.updated_at),
+    price: meta.price == null || meta.price === "" ? null : num(meta.price),
     name: str(r.name),
     company: str(r.company),
     phone: str(r.phone),
     rating: num(meta.rating),
     reviews: num(meta.reviews),
     address: str(meta.address),
+    lat: typeof meta.lat === "number" ? meta.lat : null,
+    lng: typeof meta.lng === "number" ? meta.lng : null,
   };
 }
 
@@ -110,7 +111,6 @@ export async function getPipelineLead(
 
 export interface NewPipelineRow {
   lead_id: string;
-  tier: AutopilotTier;
   place_id: string;
   category: string;
   city: string;
@@ -118,13 +118,13 @@ export interface NewPipelineRow {
 
 export async function insertPipelineRow(row: NewPipelineRow): Promise<void> {
   if (!turso) return;
-  // place_id vuoto (import da Visor) -> NULL: la colonna è UNIQUE e in
-  // SQLite due '' collidono, due NULL no.
+  // place_id vuoto -> NULL: la colonna è UNIQUE e in SQLite due '' collidono,
+  // due NULL no. tier resta '' (colonna storica, non più usata).
   await turso.execute({
     sql: `INSERT OR IGNORE INTO autopilot_pipeline
             (lead_id, stage, tier, place_id, category, city)
-          VALUES (?, 'nuovo', ?, ?, ?, ?)`,
-    args: [row.lead_id, row.tier, row.place_id || null, row.category, row.city],
+          VALUES (?, 'da_contattare', '', ?, ?, ?)`,
+    args: [row.lead_id, row.place_id || null, row.category, row.city],
   });
 }
 
@@ -229,18 +229,6 @@ export async function updatePipeline(
 
 /** Stage selezionabili a mano dal drawer + mapping verso lo status
  *  del CRM storico (leads.status, funnel Visor). */
-export const DEAL_STAGE_TO_LEAD_STATUS: Partial<Record<AutopilotStage, string>> = {
-  risposto_manuale: "replied",
-  da_chiamare: "negotiating",
-  demo_richiesta: "replied",
-  demo_inviata: "preview_sent",
-  richiesta_prezzo: "negotiating",
-  in_trattativa: "negotiating",
-  tiepido: "replied",
-  vinto: "closed",
-  perso: "lost",
-};
-
 export interface DealUpdate {
   stage?: AutopilotStage;
   next_action?: string;
@@ -249,16 +237,13 @@ export interface DealUpdate {
   notes?: string;
 }
 
-/** Aggiornamento trattativa dal drawer: stage manuale + prossima
- *  azione + note (le note vivono su leads.notes, condivise col Visor).
- *  Tiene allineato anche leads.status per il funnel storico. */
+/** Aggiornamento trattativa dal drawer: stage + prossima azione + note.
+ *  Sorgente unica = autopilot_pipeline.stage; le note vivono su
+ *  leads.notes. Niente più sync con leads.status (storico). */
 export async function updateDeal(leadId: string, upd: DealUpdate): Promise<void> {
   if (!turso) return;
   const fields: Parameters<typeof updatePipeline>[1] = {};
-  if (upd.stage) {
-    fields.stage = upd.stage;
-    fields.bot_paused = 1; // stati manuali: il bot resta muto, sempre
-  }
+  if (upd.stage) fields.stage = upd.stage;
   if (upd.next_action !== undefined) fields.next_action = upd.next_action;
   if (upd.next_action_at !== undefined) fields.next_action_at = upd.next_action_at;
   if (upd.lost_reason !== undefined) fields.lost_reason = upd.lost_reason;
@@ -270,13 +255,28 @@ export async function updateDeal(leadId: string, upd: DealUpdate): Promise<void>
       args: [upd.notes, leadId],
     });
   }
-  const status = upd.stage ? DEAL_STAGE_TO_LEAD_STATUS[upd.stage] : undefined;
-  if (status) {
-    await turso.execute({
-      sql: "UPDATE leads SET status = ?, updated_at = datetime('now') WHERE id = ?",
-      args: [status, leadId],
-    });
+}
+
+/** Prezzo manuale del lead (€), deciso da Puccio. null = nessun prezzo.
+ *  Vive in leads.meta.price; nessun prezzo automatico dal sistema. */
+export async function setLeadPrice(leadId: string, price: number | null): Promise<void> {
+  if (!turso) return;
+  const res = await turso.execute({
+    sql: "SELECT meta FROM leads WHERE id = ? LIMIT 1",
+    args: [leadId],
+  });
+  let meta: Record<string, unknown> = {};
+  try {
+    meta = JSON.parse(str(res.rows[0]?.meta) || "{}");
+  } catch {
+    /* meta corrotta: riparte da zero */
   }
+  if (price == null) delete meta.price;
+  else meta.price = price;
+  await turso.execute({
+    sql: "UPDATE leads SET meta = ?, updated_at = datetime('now') WHERE id = ?",
+    args: [JSON.stringify(meta), leadId],
+  });
 }
 
 /** Archivio manuale dalla dashboard (qualsiasi stadio). */
@@ -284,7 +284,6 @@ export async function archiveLead(leadId: string): Promise<void> {
   await updatePipeline(leadId, {
     stage: "archiviato",
     archived_reason: "archiviato manualmente",
-    bot_paused: 1,
   });
 }
 
@@ -333,15 +332,6 @@ export async function logWaMessage(msg: {
   });
 }
 
-/** Allinea lo status del CRM storico (leads.status, funnel Visor). */
-async function setLeadStatus(leadId: string, status: string): Promise<void> {
-  if (!turso) return;
-  await turso.execute({
-    sql: "UPDATE leads SET status = ?, updated_at = datetime('now') WHERE id = ?",
-    args: [status, leadId],
-  });
-}
-
 /** Primo contatto inviato a mano: la pipeline passa a "contattato".
  *  Idempotente: il guard `contacted_at IS NULL` non sovrascrive il
  *  timestamp di un contatto già segnato. */
@@ -353,30 +343,21 @@ export async function markContacted(leadId: string): Promise<void> {
           WHERE lead_id = ? AND contacted_at IS NULL`,
     args: [new Date().toISOString(), leadId],
   });
-  await setLeadStatus(leadId, "step1_sent");
 }
 
-/** Demo inviata a mano (link incollato + mandato su WhatsApp da Puccio). */
+/** Demo inviata a mano (link incollato + mandato su WhatsApp da Puccio).
+ *  La demo non è più uno stato: il lead resta "in trattativa", il
+ *  dettaglio sta in next_action. */
 export async function markDemoSent(leadId: string, demoUrl?: string): Promise<void> {
   if (!turso) return;
-  if (demoUrl) {
-    await turso.execute({
-      sql: `UPDATE autopilot_pipeline
-            SET demo_url = ?, demo_sent_at = datetime('now'), stage = 'demo_inviata',
-                updated_at = datetime('now')
-            WHERE lead_id = ?`,
-      args: [demoUrl, leadId],
-    });
-  } else {
-    await turso.execute({
-      sql: `UPDATE autopilot_pipeline
-            SET demo_sent_at = datetime('now'), stage = 'demo_inviata',
-                updated_at = datetime('now')
-            WHERE lead_id = ?`,
-      args: [leadId],
-    });
-  }
-  await setLeadStatus(leadId, "preview_sent");
+  await turso.execute({
+    sql: `UPDATE autopilot_pipeline
+          SET ${demoUrl ? "demo_url = ?, " : ""}demo_sent_at = datetime('now'),
+              stage = 'in_trattativa', next_action = 'demo inviata, attesa risposta',
+              updated_at = datetime('now')
+          WHERE lead_id = ?`,
+    args: demoUrl ? [demoUrl, leadId] : [leadId],
+  });
 }
 
 // ----- Alerts ------------------------------------------------

@@ -25,23 +25,34 @@ export interface TriageResult {
 const TRIAGE_MIN_CONF = 0.6;
 const TRIAGE_LOST_MIN_CONF = 0.75;
 
+/** Output Gemini (dettaglio fine) -> stato unico della Pipeline. Il
+ *  dettaglio (demo, richiamo, prezzo) non è più una colonna: vive nel
+ *  next_action. */
 const STAGE_MAP: Record<string, AutopilotStage> = {
-  demo_richiesta: "demo_richiesta",
-  da_chiamare: "da_chiamare",
-  richiesta_prezzo: "richiesta_prezzo",
-  tiepido: "tiepido",
+  demo_richiesta: "in_trattativa",
+  da_chiamare: "in_trattativa",
+  richiesta_prezzo: "in_trattativa",
+  tiepido: "in_trattativa",
   perso: "perso",
-  da_rispondere: "risposto_manuale",
+  da_rispondere: "ha_risposto",
 };
 
-/** Etichette leggibili per la riga alert/notifica. */
+/** Etichetta leggibile del dettaglio (alert/notifica + default next_action). */
 export const TRIAGE_LABELS: Record<string, string> = {
-  risposto_manuale: "da rispondere",
+  da_rispondere: "da rispondere",
   da_chiamare: "da chiamare",
   demo_richiesta: "demo da fare",
   richiesta_prezzo: "richiesta prezzo",
   tiepido: "tiepido",
   perso: "perso",
+};
+
+/** next_action di default per ogni dettaglio (se Gemini non ne dà uno). */
+const DEFAULT_NEXT_ACTION: Record<string, string> = {
+  da_chiamare: "richiamare",
+  demo_richiesta: "demo da fare",
+  richiesta_prezzo: "mandare il prezzo",
+  tiepido: "tiepido: ricontattare",
 };
 
 interface TriageVerdict {
@@ -63,11 +74,11 @@ export async function triageInbound(
   history: WaMessage[],
 ): Promise<TriageResult> {
   const fallback: TriageResult = {
-    stage: "risposto_manuale",
+    stage: "ha_risposto",
     callback_at: "",
     next_action: "",
     lost_reason: "",
-    label: TRIAGE_LABELS.risposto_manuale,
+    label: TRIAGE_LABELS.da_rispondere,
   };
 
   try {
@@ -97,11 +108,17 @@ export async function triageInbound(
     );
     if (!verdict) return fallback;
 
-    let stage = STAGE_MAP[verdict.stage ?? ""] ?? "risposto_manuale";
+    // detail = classificazione fine di Gemini; stage = stato coarse della
+    // Pipeline. Nel dubbio (confidenza bassa) si retrocede a "da rispondere".
+    let detail = verdict.stage ?? "da_rispondere";
+    let stage = STAGE_MAP[detail] ?? "ha_risposto";
     const conf = Number(verdict.confidence) || 0;
-    if (stage === "perso" && conf < TRIAGE_LOST_MIN_CONF) stage = "risposto_manuale";
-    else if (stage !== "risposto_manuale" && conf < TRIAGE_MIN_CONF) {
-      stage = "risposto_manuale";
+    if (stage === "perso" && conf < TRIAGE_LOST_MIN_CONF) {
+      stage = "ha_risposto";
+      detail = "da_rispondere";
+    } else if (stage === "in_trattativa" && conf < TRIAGE_MIN_CONF) {
+      stage = "ha_risposto";
+      detail = "da_rispondere";
     }
 
     const callback =
@@ -110,18 +127,20 @@ export async function triageInbound(
         ? verdict.callback_at
         : "";
 
+    const nextAction =
+      typeof verdict.next_action === "string" && verdict.next_action.trim()
+        ? verdict.next_action.slice(0, 120)
+        : (DEFAULT_NEXT_ACTION[detail] ?? "");
+
     return {
       stage,
       callback_at: callback,
-      next_action:
-        typeof verdict.next_action === "string"
-          ? verdict.next_action.slice(0, 120)
-          : "",
+      next_action: nextAction,
       lost_reason:
         stage === "perso" && typeof verdict.lost_reason === "string"
           ? verdict.lost_reason.slice(0, 120)
           : "",
-      label: TRIAGE_LABELS[stage] ?? stage,
+      label: TRIAGE_LABELS[detail] ?? detail,
     };
   } catch (err) {
     console.error(
