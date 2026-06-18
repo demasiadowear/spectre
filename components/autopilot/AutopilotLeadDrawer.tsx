@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -8,7 +8,9 @@ import {
   Check,
   ExternalLink,
   Phone,
+  RefreshCw,
   Search,
+  Send,
   Star,
   X,
 } from "lucide-react";
@@ -18,45 +20,52 @@ import { cn } from "@/lib/utils";
 import type { ApiResponse } from "@/types";
 import type { AutopilotLead, AutopilotStage, WaMessage } from "@/types/autopilot";
 import { DEAL_STAGES } from "@/types/autopilot";
-import { STAGE_LABELS } from "./format";
-import {
-  STAGE_CHIP,
-  TIER_BADGE,
-  isPendingApproval,
-  stageLabel,
-  timeAgo,
-} from "./format";
+import { STAGE_CHIP, STAGE_LABELS, TIER_BADGE, stageLabel, timeAgo } from "./format";
+
+/** Esito di un'azione conversazione (dal route /api/autopilot/conversation). */
+export interface ConversationResult {
+  lead: AutopilotLead;
+  suggested?: { reply: string; note: string } | null;
+  triage?: { stage: AutopilotStage; label: string };
+}
 
 interface Props {
   lead: AutopilotLead | null;
-  /** "chat" scrolla subito alla conversazione (azione "Apri chat"). */
+  /** "chat" scrolla subito alla conversazione (azione "Apri"). */
   focus?: "chat";
   busy: boolean;
   onClose: () => void;
-  onApprove: (leadId: string, message?: string) => void;
-  onReject: (leadId: string) => void;
   onArchive: (leadId: string) => void;
-  /** Link demo preparato FUORI da SPECTRE: incolla + approva e il
-   *  worker lo invia. SPECTRE non builda nulla. */
-  onApproveDemoUrl: (leadId: string, demoUrl: string) => void;
-  /** Stato trattativa + prossima azione + note: tutto manuale,
-   *  nessun automatismo verso il lead. */
+  /** Stato trattativa + prossima azione + note: tutto manuale. */
   onUpdateDeal: (leadId: string, fields: Record<string, unknown>) => void;
+  /** Registra un nostro messaggio inviato a mano (e segna "contattato"). */
+  onLogOutbound: (leadId: string, body: string) => Promise<ConversationResult | null>;
+  /** Registra la risposta del cliente incollata: triage + suggerimento. */
+  onLogInbound: (leadId: string, body: string) => Promise<ConversationResult | null>;
+  /** Rigenera la risposta suggerita sulla conversazione corrente. */
+  onSuggest: (leadId: string) => Promise<ConversationResult | null>;
+  /** Segna la demo inviata a mano (link incollato + mandato su WA). */
+  onMarkDemoSent: (leadId: string, demoUrl?: string) => Promise<ConversationResult | null>;
 }
 
 // ============================================================
-// Drawer laterale di dettaglio: TUTTO quello che non sta in
-// riga (recensioni, brief, telefono, messaggio WA editabile,
-// chat completa, demo). Su mobile occupa l'intera larghezza.
+// Drawer di dettaglio — copilota MANUALE. Niente worker: Puccio
+// manda da "Apri in WhatsApp" (wa.me precompilato) e incolla qui
+// la risposta del cliente; SPECTRE la cataloga e prepara la bozza
+// della prossima risposta.
 // ============================================================
 
-function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
+/** Link wa.me con testo precompilato (numero italiano normalizzato). */
+function waHref(phone: string, text = ""): string | null {
+  let d = phone.replace(/\D/g, "");
+  if (!d) return null;
+  if (d.startsWith("00")) d = d.slice(2);
+  if (!d.startsWith("39")) d = `39${d}`;
+  const q = text ? `?text=${encodeURIComponent(text)}` : "";
+  return `https://wa.me/${d}${q}`;
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="border-t border-surface2 px-5 py-4">
       <h3 className="mb-2 font-ui text-[10px] uppercase tracking-[0.18em] text-text2">
@@ -72,14 +81,20 @@ export default function AutopilotLeadDrawer({
   focus,
   busy,
   onClose,
-  onApprove,
-  onReject,
   onArchive,
-  onApproveDemoUrl,
   onUpdateDeal,
+  onLogOutbound,
+  onLogInbound,
+  onSuggest,
+  onMarkDemoSent,
 }: Props) {
   const [messages, setMessages] = useState<WaMessage[]>([]);
-  const [draft, setDraft] = useState("");
+  const [msgVersion, setMsgVersion] = useState(0);
+  const [firstDraft, setFirstDraft] = useState("");
+  const [inboundDraft, setInboundDraft] = useState("");
+  const [suggestion, setSuggestion] = useState<{ reply: string; note: string } | null>(null);
+  const [suggestDraft, setSuggestDraft] = useState("");
+  const [localBusy, setLocalBusy] = useState(false);
   const [demoDraft, setDemoDraft] = useState("");
   // Form trattativa (stato + prossima azione + note): si salva in blocco.
   const [dealStage, setDealStage] = useState<AutopilotStage | "">("");
@@ -89,10 +104,18 @@ export default function AutopilotLeadDrawer({
   const [dealLost, setDealLost] = useState("");
   const chatRef = useRef<HTMLDivElement>(null);
 
-  // Chat completa caricata on-open (non pesa sulla lista).
+  const leadId = lead?.lead_id ?? null;
+  const working = busy || localBusy;
+
+  // Reset dei campi SOLO al cambio di lead (non a ogni poll/refresh, così
+  // la bozza suggerita e i draft non si azzerano sotto le mani).
   useEffect(() => {
     setMessages([]);
-    setDraft(lead?.wa_first_message ?? "");
+    setMsgVersion(0);
+    setFirstDraft(lead?.wa_first_message ?? "");
+    setInboundDraft("");
+    setSuggestion(null);
+    setSuggestDraft("");
     setDemoDraft(lead?.demo_url ?? "");
     setDealStage(
       lead && (DEAL_STAGES as string[]).includes(lead.stage) ? lead.stage : "",
@@ -101,9 +124,14 @@ export default function AutopilotLeadDrawer({
     setDealDate(lead?.next_action_at ? lead.next_action_at.slice(0, 16) : "");
     setDealNotes(lead?.notes ?? "");
     setDealLost(lead?.lost_reason ?? "");
-    if (!lead) return;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leadId]);
+
+  // Chat completa caricata on-open e dopo ogni azione (msgVersion).
+  useEffect(() => {
+    if (!leadId) return;
     let alive = true;
-    fetch(`/api/autopilot/pipeline?lead_id=${encodeURIComponent(lead.lead_id)}`, {
+    fetch(`/api/autopilot/pipeline?lead_id=${encodeURIComponent(leadId)}`, {
       cache: "no-store",
     })
       .then((r) => r.json())
@@ -114,7 +142,7 @@ export default function AutopilotLeadDrawer({
     return () => {
       alive = false;
     };
-  }, [lead]);
+  }, [leadId, msgVersion]);
 
   useEffect(() => {
     if (focus === "chat" && messages.length > 0) {
@@ -129,8 +157,7 @@ export default function AutopilotLeadDrawer({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // Scroll lock sul body a drawer aperto (è portaled su body: senza
-  // lock la pagina sotto scrolla e il pannello sembra "tagliato").
+  // Scroll lock sul body a drawer aperto.
   useEffect(() => {
     if (!lead) return;
     const prev = document.body.style.overflow;
@@ -140,14 +167,73 @@ export default function AutopilotLeadDrawer({
     };
   }, [lead]);
 
-  const pending = lead ? isPendingApproval(lead) : false;
-  const waLink = lead?.phone
-    ? `https://wa.me/${lead.phone.replace(/\D/g, "")}`
-    : null;
+  const run = useCallback(
+    async (fn: () => Promise<ConversationResult | null>) => {
+      setLocalBusy(true);
+      try {
+        const res = await fn();
+        setMsgVersion((v) => v + 1);
+        return res;
+      } finally {
+        setLocalBusy(false);
+      }
+    },
+    [],
+  );
 
-  // Portal su document.body: dentro il layout HUD un antenato con
-  // transform rompe position:fixed e il drawer esce tagliato.
   if (!lead) return null;
+
+  const phone = lead.phone;
+  const lastInbound =
+    messages.length > 0 && messages[messages.length - 1].direction === "in";
+  const notContacted = lead.stage === "nuovo" || lead.stage === "studiato";
+  const conversational =
+    lead.stage !== "nuovo" &&
+    lead.stage !== "studiato" &&
+    lead.stage !== "archiviato" &&
+    lead.stage !== "perso" &&
+    lead.stage !== "vinto";
+
+  // ----- handler locali ---------------------------------------
+
+  async function sendFirst() {
+    if (!firstDraft.trim()) return;
+    await run(() => onLogOutbound(lead!.lead_id, firstDraft.trim()));
+  }
+
+  async function registerInbound() {
+    if (!inboundDraft.trim()) return;
+    const res = await run(() => onLogInbound(lead!.lead_id, inboundDraft.trim()));
+    setInboundDraft("");
+    if (res?.suggested) {
+      setSuggestion(res.suggested);
+      setSuggestDraft(res.suggested.reply);
+    } else {
+      setSuggestion({ reply: "", note: "" });
+      setSuggestDraft("");
+    }
+  }
+
+  async function regenerate() {
+    const res = await run(() => onSuggest(lead!.lead_id));
+    if (res?.suggested) {
+      setSuggestion(res.suggested);
+      setSuggestDraft(res.suggested.reply);
+    }
+  }
+
+  async function sendSuggested() {
+    if (!suggestDraft.trim()) return;
+    await run(() => onLogOutbound(lead!.lead_id, suggestDraft.trim()));
+    setSuggestion(null);
+    setSuggestDraft("");
+  }
+
+  async function sendDemo() {
+    await run(() => onMarkDemoSent(lead!.lead_id, demoDraft.trim() || undefined));
+  }
+
+  const showSuggestion = suggestion !== null || (conversational && lastInbound);
 
   return createPortal(
     <AnimatePresence>
@@ -214,14 +300,14 @@ export default function AutopilotLeadDrawer({
                 >
                   {stageLabel(lead)}
                 </span>
-                {lead.phone && (
+                {phone && (
                   <a
-                    href={waLink ?? `tel:${lead.phone}`}
+                    href={waHref(phone) ?? `tel:${phone}`}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-1 font-ui text-xs text-accent hover:underline"
                   >
-                    <Phone className="h-3 w-3" /> {lead.phone}
+                    <Phone className="h-3 w-3" /> {phone}
                   </a>
                 )}
                 <a
@@ -237,17 +323,6 @@ export default function AutopilotLeadDrawer({
                 <p className="mt-1 font-ui text-xs text-text2">{lead.address}</p>
               )}
             </div>
-
-            {lead.stage === "escalation" && (
-              <Section title="Escalation">
-                <p className="font-ui text-sm text-danger">
-                  ⚠ {lead.escalation_reason || "richiesta da gestire di persona"}
-                  <span className="ml-1 text-text2">
-                    · {timeAgo(lead.escalated_at)} — bot fermo, chiusura a voce
-                  </span>
-                </p>
-              </Section>
-            )}
 
             {lead.brief && (
               <Section title="Lead brief">
@@ -281,46 +356,121 @@ export default function AutopilotLeadDrawer({
               </Section>
             )}
 
-            {lead.wa_first_message && (
+            {/* PRIMO MESSAGGIO — solo finché non contattato. Lo mandi tu da
+                WhatsApp, poi "Segna come inviato" fa avanzare la pipeline. */}
+            {notContacted && lead.wa_first_message && (
               <Section title="Primo messaggio WA">
-                {pending ? (
-                  <>
-                    <textarea
-                      value={draft}
-                      onChange={(e) => setDraft(e.target.value)}
-                      rows={5}
-                      className="w-full rounded-sm border border-border bg-bg p-2 font-ui text-sm text-text focus:border-accent focus:outline-none"
-                    />
-                    <div className="mt-2 flex gap-2">
-                      <NeonButton
-                        size="sm"
-                        variant="green"
-                        disabled={busy}
-                        onClick={() => onApprove(lead.lead_id, draft)}
-                      >
-                        <Check className="h-3.5 w-3.5" /> Approva
-                      </NeonButton>
-                      <NeonButton
-                        size="sm"
-                        variant="magenta"
-                        disabled={busy}
-                        onClick={() => onReject(lead.lead_id)}
-                      >
-                        <X className="h-3.5 w-3.5" /> Scarta
-                      </NeonButton>
-                    </div>
-                  </>
-                ) : (
-                  <p className="whitespace-pre-line rounded-sm border border-surface2 bg-bg p-2 font-ui text-sm text-text">
-                    {lead.wa_first_message}
-                  </p>
-                )}
+                <textarea
+                  value={firstDraft}
+                  onChange={(e) => setFirstDraft(e.target.value)}
+                  rows={5}
+                  className="w-full rounded-sm border border-border bg-bg p-2 font-ui text-sm text-text focus:border-accent focus:outline-none"
+                />
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <a
+                    href={waHref(phone, firstDraft) ?? "#"}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-sm border px-3 py-1.5 font-ui text-xs font-semibold",
+                      phone
+                        ? "border-success/50 bg-success/10 text-success hover:bg-success/20"
+                        : "pointer-events-none border-border text-text2 opacity-40",
+                    )}
+                  >
+                    <Send className="h-3.5 w-3.5" /> Apri in WhatsApp
+                  </a>
+                  <NeonButton
+                    size="sm"
+                    variant="cyan"
+                    filled
+                    disabled={working || !firstDraft.trim()}
+                    onClick={sendFirst}
+                  >
+                    <Check className="h-3.5 w-3.5" /> Segna come inviato
+                  </NeonButton>
+                </div>
+                <p className="mt-1 font-ui text-[10px] text-text2">
+                  Apri WhatsApp col messaggio già scritto, rivedilo e invialo.
+                  Poi segna come inviato.
+                </p>
               </Section>
             )}
 
-            {/* Trattativa: stati manuali di Puccio. Nessun automatismo
-                verso il lead, il bot resta muto: qui si tiene solo il
-                filo (chi chiamo, chi aspetta la demo, chi è tiepido). */}
+            {/* RISPOSTA DEL CLIENTE — incolla cosa ti ha scritto: triage +
+                bozza della prossima risposta. */}
+            {conversational && (
+              <Section title="Risposta del cliente">
+                <textarea
+                  value={inboundDraft}
+                  onChange={(e) => setInboundDraft(e.target.value)}
+                  rows={3}
+                  placeholder="Incolla qui cosa ti ha risposto il cliente su WhatsApp…"
+                  className="w-full rounded-sm border border-border bg-bg p-2 font-ui text-sm text-text focus:border-accent focus:outline-none"
+                />
+                <div className="mt-2">
+                  <NeonButton
+                    size="sm"
+                    variant="cyan"
+                    filled
+                    disabled={working || !inboundDraft.trim()}
+                    onClick={registerInbound}
+                  >
+                    <Check className="h-3.5 w-3.5" /> Registra risposta
+                  </NeonButton>
+                </div>
+              </Section>
+            )}
+
+            {/* RISPOSTA SUGGERITA — bozza editabile, la mandi tu da WhatsApp. */}
+            {showSuggestion && (
+              <Section title="Risposta suggerita">
+                {suggestion?.note && (
+                  <p className="mb-2 font-ui text-xs text-ochre">💡 {suggestion.note}</p>
+                )}
+                <textarea
+                  value={suggestDraft}
+                  onChange={(e) => setSuggestDraft(e.target.value)}
+                  rows={4}
+                  placeholder={
+                    suggestion
+                      ? "Bozza vuota: scrivi la risposta a mano o rigenera."
+                      : "Genera una bozza di risposta sulla conversazione."
+                  }
+                  className="w-full rounded-sm border border-border bg-bg p-2 font-ui text-sm text-text focus:border-accent focus:outline-none"
+                />
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <a
+                    href={waHref(phone, suggestDraft) ?? "#"}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-sm border px-3 py-1.5 font-ui text-xs font-semibold",
+                      suggestDraft.trim() && phone
+                        ? "border-success/50 bg-success/10 text-success hover:bg-success/20"
+                        : "pointer-events-none border-border text-text2 opacity-40",
+                    )}
+                  >
+                    <Send className="h-3.5 w-3.5" /> Apri in WhatsApp
+                  </a>
+                  <NeonButton
+                    size="sm"
+                    variant="cyan"
+                    filled
+                    disabled={working || !suggestDraft.trim()}
+                    onClick={sendSuggested}
+                  >
+                    <Check className="h-3.5 w-3.5" /> Segna come inviato
+                  </NeonButton>
+                  <NeonButton size="sm" variant="ghost" disabled={working} onClick={regenerate}>
+                    <RefreshCw className={cn("h-3.5 w-3.5", working && "animate-spin")} />{" "}
+                    {suggestion ? "Rigenera" : "Genera bozza"}
+                  </NeonButton>
+                </div>
+              </Section>
+            )}
+
+            {/* Trattativa: stati manuali. */}
             {lead.stage !== "nuovo" &&
               lead.stage !== "studiato" &&
               lead.stage !== "archiviato" && (
@@ -372,7 +522,7 @@ export default function AutopilotLeadDrawer({
                       </div>
                       <div>
                         <label className="mb-1 block font-ui text-[10px] uppercase tracking-[0.15em] text-text2">
-                          Quando (agenda + promemoria WA)
+                          Quando (agenda)
                         </label>
                         <input
                           type="datetime-local"
@@ -397,7 +547,7 @@ export default function AutopilotLeadDrawer({
                       size="sm"
                       variant="cyan"
                       filled
-                      disabled={busy || (dealStage === "perso" && !dealLost.trim())}
+                      disabled={working || (dealStage === "perso" && !dealLost.trim())}
                       onClick={() =>
                         onUpdateDeal(lead.lead_id, {
                           ...(dealStage ? { stage: dealStage } : {}),
@@ -416,9 +566,8 @@ export default function AutopilotLeadDrawer({
                 </Section>
               )}
 
-            {/* Demo: SPECTRE non builda nulla. Puccio prepara la demo
-                fuori, incolla qui il link e approva: il worker invia il
-                messaggio (template demo_ready) al prossimo tick. */}
+            {/* Demo: SPECTRE non builda nulla. Prepari la demo fuori,
+                incolli il link e la mandi a mano da WhatsApp. */}
             {(lead.stage === "demo_richiesta" || lead.stage === "demo_inviata") && (
               <Section title="Demo">
                 {lead.demo_sent_at ? (
@@ -437,18 +586,6 @@ export default function AutopilotLeadDrawer({
                       </a>
                     )}
                   </>
-                ) : lead.demo_url ? (
-                  <p className="font-ui text-xs text-text2">
-                    Demo approvata, invio in coda al worker:{" "}
-                    <a
-                      href={lead.demo_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="break-all text-accent hover:underline"
-                    >
-                      {lead.demo_url}
-                    </a>
-                  </p>
                 ) : (
                   <>
                     <input
@@ -458,20 +595,41 @@ export default function AutopilotLeadDrawer({
                       placeholder="https://demo-cliente.vercel.app"
                       className="w-full rounded-sm border border-border bg-bg p-2 font-ui text-sm text-text focus:border-accent focus:outline-none"
                     />
-                    <div className="mt-2">
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <a
+                        href={
+                          waHref(
+                            phone,
+                            demoDraft.trim()
+                              ? `Ecco la demo del sito: ${demoDraft.trim()}`
+                              : "",
+                          ) ?? "#"
+                        }
+                        target="_blank"
+                        rel="noreferrer"
+                        className={cn(
+                          "inline-flex items-center gap-1.5 rounded-sm border px-3 py-1.5 font-ui text-xs font-semibold",
+                          /^https?:\/\/\S+$/.test(demoDraft.trim()) && phone
+                            ? "border-success/50 bg-success/10 text-success hover:bg-success/20"
+                            : "pointer-events-none border-border text-text2 opacity-40",
+                        )}
+                      >
+                        <Send className="h-3.5 w-3.5" /> Apri in WhatsApp
+                      </a>
                       <NeonButton
                         size="sm"
-                        variant="green"
-                        disabled={busy || !/^https?:\/\/\S+$/.test(demoDraft.trim())}
-                        onClick={() => onApproveDemoUrl(lead.lead_id, demoDraft.trim())}
+                        variant="cyan"
+                        filled
+                        disabled={working || !/^https?:\/\/\S+$/.test(demoDraft.trim())}
+                        onClick={sendDemo}
                       >
-                        <Check className="h-3.5 w-3.5" /> Approva e invia al cliente
+                        <Check className="h-3.5 w-3.5" /> Segna demo inviata
                       </NeonButton>
-                      <p className="mt-1 font-ui text-[10px] text-text2">
-                        La demo la prepari tu fuori da SPECTRE. Con l&apos;approvazione
-                        il worker manda il link su WhatsApp al lead.
-                      </p>
                     </div>
+                    <p className="mt-1 font-ui text-[10px] text-text2">
+                      Prepari la demo fuori da SPECTRE. Mandi il link a mano su
+                      WhatsApp, poi segna come inviata.
+                    </p>
                   </>
                 )}
               </Section>
@@ -480,9 +638,7 @@ export default function AutopilotLeadDrawer({
             <div ref={chatRef}>
               <Section title={`Chat WA (${messages.length})`}>
                 {messages.length === 0 ? (
-                  <p className="font-ui text-xs text-text2">
-                    Nessun messaggio ancora.
-                  </p>
+                  <p className="font-ui text-xs text-text2">Nessun messaggio ancora.</p>
                 ) : (
                   <ul className="space-y-2">
                     {messages.map((m) => (
@@ -497,12 +653,8 @@ export default function AutopilotLeadDrawer({
                       >
                         <p className="whitespace-pre-line">{m.body}</p>
                         <p className="mt-0.5 text-right text-[10px] text-text2">
-                          {m.direction === "out"
-                            ? `${m.ai_generated ? "bot" : "tu"} · ${m.status}`
-                            : m.ai_generated
-                              ? "cliente · auto-reply"
-                              : "cliente"}{" "}
-                          · {timeAgo(m.created_at)}
+                          {m.direction === "out" ? "tu" : "cliente"} ·{" "}
+                          {timeAgo(m.created_at)}
                         </p>
                       </li>
                     ))}
@@ -516,7 +668,7 @@ export default function AutopilotLeadDrawer({
                 <NeonButton
                   size="sm"
                   variant="ghost"
-                  disabled={busy}
+                  disabled={working}
                   onClick={() => onArchive(lead.lead_id)}
                 >
                   <Archive className="h-3.5 w-3.5" /> Archivia lead

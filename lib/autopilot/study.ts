@@ -13,8 +13,6 @@ import { buildStudyPrompt } from "./constants";
 import {
   addAlert,
   getPipelineLead,
-  getSettings,
-  isWarmupActive,
   normalizePhone,
   placeIdInPipeline,
   updatePipeline,
@@ -24,8 +22,8 @@ import {
 // Stadio 1.5 — STUDY (enrichment + messaggio mirato).
 // Per ogni lead "nuovo": recensioni recenti da Places Details,
 // gap analysis, poi Gemini Flash genera lead brief (5 righe) e
-// primo messaggio WA unico. In warm-up il messaggio finisce in
-// coda "da approvare" (approval_status=pending), poi auto.
+// primo messaggio WA unico. Esito: stato "studiato" = pronto da
+// contattare a mano (copilota manuale, nessuna coda di approvazione).
 // ============================================================
 
 const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_PLACES_API_KEY;
@@ -228,13 +226,14 @@ export async function studyLead(lead: AutopilotLead): Promise<StudyOutcome> {
     .filter(Boolean)
     .slice(0, 5);
 
-  const settings = await getSettings();
+  // Copilota manuale: ogni lead studiato è pronto da contattare a mano
+  // (niente coda di approvazione, niente invio automatico).
   await updatePipeline(lead.lead_id, {
     stage: "studiato",
     brief: generated.brief.trim(),
     wa_first_message: generated.wa_message.trim(),
     study_json: JSON.stringify(study),
-    approval_status: isWarmupActive(settings) ? "pending" : "auto",
+    approval_status: "auto",
   });
   return "studied";
 }

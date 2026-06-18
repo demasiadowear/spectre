@@ -1,18 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  AlertTriangle,
-  Bell,
-  BookOpen,
-  Columns3,
-  Download,
-  List,
-  Pause,
-  Play,
-} from "lucide-react";
+import { Bell, BookOpen, Columns3, Download, List } from "lucide-react";
 import GlassCard from "@/components/ui/spectre/GlassCard";
-import NeonButton from "@/components/ui/spectre/NeonButton";
 import { cn } from "@/lib/utils";
 import type { ApiResponse } from "@/types";
 import type {
@@ -21,21 +11,15 @@ import type {
   AutopilotStats,
 } from "@/types/autopilot";
 import AutopilotKanban from "./AutopilotKanban";
-import AutopilotLeadDrawer from "./AutopilotLeadDrawer";
+import AutopilotLeadDrawer, { type ConversationResult } from "./AutopilotLeadDrawer";
 import AutopilotLeadRow from "./AutopilotLeadRow";
-import {
-  actionPriority,
-  isPendingApproval,
-  isQueuedForSend,
-  queuedSendLabels,
-  sortByAction,
-} from "./format";
+import { actionPriority, isReadyToContact, sortByAction } from "./format";
 
 // ============================================================
-// AUTOPILOT console — lista compatta (default) con ordinamento
-// "richiede azione", filtri a chip, drawer di dettaglio, kanban
-// come vista alternativa, contatore outreach e kill switch.
-// Poll ogni 30s.
+// AUTOPILOT console — copilota MANUALE. Scout+Study trovano e
+// preparano i lead; Puccio contatta a mano (wa.me), incolla le
+// risposte, SPECTRE le smista e suggerisce. Nessun worker, nessun
+// invio automatico. Poll ogni 30s.
 // ============================================================
 
 type ViewMode = "list" | "kanban";
@@ -48,8 +32,7 @@ type StatusFilter =
   | "risposti"
   | "trattative"
   | "chiusi"
-  | "da_approvare"
-  | "in_coda"
+  | "da_contattare"
   | "demo"
   | "contattati"
   | "nuovi"
@@ -69,37 +52,33 @@ const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
   { id: "azione", label: "Richiede azione" },
   { id: "agenda", label: "Agenda" },
   { id: "tutti", label: "Tutti" },
-  { id: "escalation", label: "Escalation" },
+  { id: "da_contattare", label: "Da contattare" },
   { id: "risposti", label: "Da rispondere" },
   { id: "trattative", label: "Trattative" },
-  { id: "chiusi", label: "Vinti / Persi" },
-  { id: "da_approvare", label: "Da approvare" },
-  { id: "in_coda", label: "In coda invio" },
   { id: "demo", label: "Demo" },
   { id: "contattati", label: "Contattati" },
+  { id: "chiusi", label: "Vinti / Persi" },
   { id: "nuovi", label: "Nuovi" },
+  { id: "escalation", label: "Escalation" },
   { id: "archiviati", label: "Archiviati" },
 ];
 
 const EMPTY_STATES: Record<StatusFilter, string> = {
-  azione: "Niente da fare adesso — l'autopilot lavora da solo.",
+  azione: "Niente da fare adesso. Lo scout gira ogni mattina alle 6.",
   agenda: "Nessuna azione pianificata: fissa data e prossima azione dal dettaglio lead.",
   tutti: "Nessun lead in pipeline. Lo scout gira ogni mattina alle 6.",
   escalation: "Nessuna escalation aperta.",
-  risposti: "Nessuna risposta in attesa: il triage ha smistato tutto.",
+  risposti: "Nessuna risposta da gestire.",
   trattative: "Nessuna trattativa aperta.",
   chiusi: "Ancora nessun vinto o perso.",
-  da_approvare: "Nessun lead da approvare oggi — la coda è pulita.",
-  in_coda: "Nessun messaggio approvato in attesa di invio.",
+  da_contattare: "Nessun lead pronto da contattare: lo study li sta preparando.",
   demo: "Nessuna demo in corso.",
-  contattati: "Nessun lead contattato in attesa.",
+  contattati: "Nessun lead contattato in attesa di risposta.",
   nuovi: "Nessun lead nuovo: lo study li ha già processati tutti.",
   archiviati: "Archivio vuoto.",
 };
 
-// REGOLA: ogni lead DEVE matchare almeno un filtro oltre a "tutti"
-// (nessuno stato può essere invisibile). "in_coda" copre il buco
-// studiato+approved che prima non aveva una casa.
+// REGOLA: ogni lead DEVE matchare almeno un filtro oltre a "tutti".
 function matchesStatus(lead: AutopilotLead, f: StatusFilter): boolean {
   switch (f) {
     case "azione":
@@ -116,10 +95,8 @@ function matchesStatus(lead: AutopilotLead, f: StatusFilter): boolean {
       return (DEAL_FILTER_STAGES as readonly string[]).includes(lead.stage);
     case "chiusi":
       return lead.stage === "vinto" || lead.stage === "perso";
-    case "da_approvare":
-      return isPendingApproval(lead);
-    case "in_coda":
-      return isQueuedForSend(lead);
+    case "da_contattare":
+      return isReadyToContact(lead);
     case "demo":
       return lead.stage === "demo_richiesta" || lead.stage === "demo_inviata";
     case "contattati":
@@ -223,13 +200,6 @@ export default function AutopilotConsole() {
     [leads],
   );
 
-  // ETA invio per i lead approvati in attesa (solo UI, ricalcolata a
-  // ogni refresh/poll 30s).
-  const queuedLabels = useMemo(
-    () => queuedSendLabels(leads, stats?.kill_switch ?? false),
-    [leads, stats?.kill_switch],
-  );
-
   const counts = useMemo(() => {
     const c = {} as Record<StatusFilter, number>;
     for (const f of STATUS_FILTERS) {
@@ -245,8 +215,6 @@ export default function AutopilotConsole() {
         (!tierFilter || l.tier === tierFilter) &&
         (!categoryFilter || l.category === categoryFilter),
     );
-    // Agenda: ordinata per data della prossima azione (la mattina apri
-    // SPECTRE e leggi cosa fare oggi, in ordine).
     if (statusFilter === "agenda") {
       return [...filtered].sort(
         (a, b) =>
@@ -273,21 +241,39 @@ export default function AutopilotConsole() {
     }
   }
 
-  const approve = (leadId: string, message?: string) =>
-    patch("/api/autopilot/queue", { lead_id: leadId, action: "approve", message }, leadId);
-  const reject = (leadId: string) =>
-    patch("/api/autopilot/queue", { lead_id: leadId, action: "reject" }, leadId);
+  /** POST conversazione (log in/out, suggest, demo): ritorna il payload
+   *  al drawer (lead aggiornato + eventuale bozza suggerita). */
+  const conv = useCallback(
+    async (
+      leadId: string,
+      payload: Record<string, unknown>,
+    ): Promise<ConversationResult | null> => {
+      setBusyId(leadId);
+      try {
+        const res = await fetch("/api/autopilot/conversation", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lead_id: leadId, ...payload }),
+        });
+        const j = (await res.json()) as ApiResponse<ConversationResult>;
+        await refresh();
+        if (!j.success) {
+          window.alert(`Errore: ${j.error ?? "sconosciuto"}`);
+          return null;
+        }
+        return j.data ?? null;
+      } catch {
+        setError("Errore di rete durante l'azione conversazione.");
+        return null;
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [refresh],
+  );
+
   const archive = (leadId: string) =>
     patch("/api/autopilot/pipeline", { lead_id: leadId, action: "archive" }, leadId);
-  /** Link demo preparato FUORI da SPECTRE: incolla + approva = il
-   *  worker lo invia al prossimo tick. */
-  const approveDemoUrl = (leadId: string, demoUrl: string) =>
-    patch(
-      "/api/autopilot/pipeline",
-      { lead_id: leadId, action: "approve_demo_url", demo_url: demoUrl },
-      leadId,
-    );
-  /** Stati trattativa + prossima azione + note: tutto manuale. */
   const updateDealAction = (leadId: string, fields: Record<string, unknown>) =>
     patch(
       "/api/autopilot/pipeline",
@@ -295,20 +281,15 @@ export default function AutopilotConsole() {
       leadId,
     );
 
-  async function toggleKillSwitch() {
-    if (!stats) return;
-    const next = !stats.kill_switch;
-    if (
-      next &&
-      !window.confirm("Attivare il KILL SWITCH? Ferma outreach e bot su tutte le chat.")
-    ) {
-      return;
-    }
-    await patch("/api/autopilot/settings", { kill_switch: next }, "kill");
-  }
+  const logOutbound = (leadId: string, body: string) =>
+    conv(leadId, { action: "log_outbound", body });
+  const logInbound = (leadId: string, body: string) =>
+    conv(leadId, { action: "log_inbound", body });
+  const suggest = (leadId: string) => conv(leadId, { action: "suggest" });
+  const markDemoSent = (leadId: string, demoUrl?: string) =>
+    conv(leadId, { action: "mark_demo_sent", demo_url: demoUrl });
 
-  /** Run di Study on-demand: stessa logica del cron (lotto da 10),
-   *  dietro auth sessione. La UI disabilita il pulsante a run in corso. */
+  /** Run di Study on-demand: stessa logica del cron (lotto da 10). */
   async function studyNow() {
     setBusyId("study");
     try {
@@ -339,8 +320,7 @@ export default function AutopilotConsole() {
     }
   }
 
-  /** Import manuale dei lead Visor mai contattati: prima il conteggio
-   *  eleggibili, poi conferma e import in batch (stage "nuovo"). */
+  /** Import manuale dei lead Visor mai contattati. */
   async function importVisorLeads() {
     setBusyId("import");
     try {
@@ -360,7 +340,7 @@ export default function AutopilotConsole() {
       const sample = j.data.sample.join(", ");
       if (
         !window.confirm(
-          `${j.data.eligible} lead Visor eleggibili (es. ${sample}).\n\nImportarli in Autopilot? Lo study li processerà a lotti nei prossimi giorni, entro i cap giornalieri.`,
+          `${j.data.eligible} lead Visor eleggibili (es. ${sample}).\n\nImportarli in Autopilot? Lo study li preparerà a lotti nei prossimi giorni.`,
         )
       ) {
         return;
@@ -391,6 +371,15 @@ export default function AutopilotConsole() {
     setOpenLead(lead);
   }
 
+  const trattativeCount = stats
+    ? (stats.by_stage.da_chiamare ?? 0) +
+      (stats.by_stage.demo_richiesta ?? 0) +
+      (stats.by_stage.demo_inviata ?? 0) +
+      (stats.by_stage.richiesta_prezzo ?? 0) +
+      (stats.by_stage.in_trattativa ?? 0) +
+      (stats.by_stage.tiepido ?? 0)
+    : null;
+
   // ----- render -----------------------------------------------
 
   return (
@@ -401,7 +390,7 @@ export default function AutopilotConsole() {
         </p>
       )}
 
-      {/* topbar compatta: toggle vista + contatori + alert + kill switch */}
+      {/* topbar compatta: toggle vista + contatori + alert + azioni */}
       <GlassCard className="flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-2.5">
         <div className="flex overflow-hidden rounded-sm border border-border">
           {(
@@ -416,9 +405,7 @@ export default function AutopilotConsole() {
               onClick={() => setView(id)}
               className={cn(
                 "flex items-center gap-1.5 px-3 py-1.5 font-ui text-[11px] uppercase tracking-[0.1em] transition-colors",
-                view === id
-                  ? "bg-text text-surface"
-                  : "text-text2 hover:text-text",
+                view === id ? "bg-text text-surface" : "text-text2 hover:text-text",
               )}
             >
               <Icon className="h-3.5 w-3.5" /> {label}
@@ -427,36 +414,21 @@ export default function AutopilotConsole() {
         </div>
 
         <p className="font-ui text-xs text-text2">
-          Outreach oggi{" "}
+          Da contattare{" "}
           <b className="text-sm text-text">
-            {stats ? `${stats.today.new_contacts}/${stats.daily_cap}` : "—"}
+            {stats ? (stats.by_stage.studiato ?? 0) : "—"}
           </b>
         </p>
         <p className="hidden font-ui text-xs text-text2 sm:block">
-          Inviati <b className="text-sm text-text">{stats?.today.messages_sent ?? "—"}</b>
+          Contattati{" "}
+          <b className="text-sm text-text">
+            {stats ? (stats.by_stage.contattato ?? 0) : "—"}
+          </b>
         </p>
         <p className="hidden font-ui text-xs text-text2 md:block">
-          Trattative{" "}
-          <b className="text-sm text-text">
-            {stats
-              ? (stats.by_stage.da_chiamare ?? 0) +
-                (stats.by_stage.demo_richiesta ?? 0) +
-                (stats.by_stage.demo_inviata ?? 0) +
-                (stats.by_stage.richiesta_prezzo ?? 0) +
-                (stats.by_stage.in_trattativa ?? 0) +
-                (stats.by_stage.tiepido ?? 0)
-              : "—"}
-          </b>
+          Trattative <b className="text-sm text-text">{trattativeCount ?? "—"}</b>
           {" · "}Vinti{" "}
           <b className="text-sm text-success">{stats ? (stats.by_stage.vinto ?? 0) : "—"}</b>
-        </p>
-        <p
-          className={cn(
-            "font-ui text-[11px] uppercase tracking-[0.1em]",
-            stats?.warmup_active ? "text-ochre" : "text-success",
-          )}
-        >
-          {stats?.warmup_active ? "Warm-up" : "Regime"}
         </p>
 
         <div className="ml-auto flex items-center gap-2">
@@ -496,48 +468,8 @@ export default function AutopilotConsole() {
             <Bell className="h-3.5 w-3.5" />
             {alerts.length > 0 && alerts.length}
           </button>
-          <NeonButton
-            size="sm"
-            variant={stats?.kill_switch ? "green" : "magenta"}
-            filled={stats?.kill_switch ?? false}
-            onClick={toggleKillSwitch}
-          >
-            {stats?.kill_switch ? (
-              <>
-                <Play className="h-3.5 w-3.5" /> Riattiva
-              </>
-            ) : (
-              <>
-                <Pause className="h-3.5 w-3.5" /> Kill switch
-              </>
-            )}
-          </NeonButton>
         </div>
       </GlassCard>
-
-      {stats?.kill_switch && (
-        <p className="flex items-center gap-2 font-ui text-xs text-danger">
-          <AlertTriangle className="h-4 w-4" />
-          KILL SWITCH ATTIVO: nessun invio, bot fermo su tutte le chat.
-        </p>
-      )}
-
-      {stats && !stats.worker_online && (
-        <GlassCard className="border-danger/60 px-4 py-3">
-          <p className="flex items-center gap-2 font-ui text-sm text-danger">
-            <AlertTriangle className="h-4 w-4 shrink-0" />
-            <span>
-              <b>WORKER OFFLINE</b> — nessun heartbeat
-              {stats.worker_heartbeat
-                ? ` da ${Math.round((Date.now() - new Date(stats.worker_heartbeat).getTime()) / 60_000)} min`
-                : " ricevuto"}
-              : i messaggi approvati restano in coda. Sulla macchina del
-              worker lancia{" "}
-              <code className="rounded bg-surface2 px-1">worker\start-worker.ps1</code>.
-            </span>
-          </p>
-        </GlassCard>
-      )}
 
       {showAlerts && (
         <GlassCard className="p-4" glow="amber">
@@ -618,9 +550,7 @@ export default function AutopilotConsole() {
                   key={c}
                   label={c}
                   active={categoryFilter === c}
-                  onClick={() =>
-                    setCategoryFilter((cur) => (cur === c ? null : c))
-                  }
+                  onClick={() => setCategoryFilter((cur) => (cur === c ? null : c))}
                 />
               ))}
             </>
@@ -630,12 +560,10 @@ export default function AutopilotConsole() {
 
       {/* lista / kanban */}
       {view === "kanban" ? (
-        <AutopilotKanban leads={visible} queuedLabels={queuedLabels} onOpen={openDrawer} />
+        <AutopilotKanban leads={visible} onOpen={openDrawer} />
       ) : visible.length === 0 ? (
         <GlassCard className="px-6 py-10 text-center">
-          <p className="font-ui text-sm text-text2">
-            {EMPTY_STATES[statusFilter]}
-          </p>
+          <p className="font-ui text-sm text-text2">{EMPTY_STATES[statusFilter]}</p>
         </GlassCard>
       ) : (
         <GlassCard className="overflow-hidden">
@@ -644,11 +572,8 @@ export default function AutopilotConsole() {
               <AutopilotLeadRow
                 key={l.lead_id}
                 lead={l}
-                queuedLabel={queuedLabels.get(l.lead_id) ?? null}
                 busy={busyId === l.lead_id}
                 onOpen={openDrawer}
-                onApprove={(id) => approve(id)}
-                onReject={reject}
                 onArchive={archive}
               />
             ))}
@@ -661,11 +586,12 @@ export default function AutopilotConsole() {
         focus={drawerFocus}
         busy={busyId === openLead?.lead_id}
         onClose={() => setOpenLead(null)}
-        onApprove={approve}
-        onReject={reject}
         onArchive={archive}
-        onApproveDemoUrl={approveDemoUrl}
         onUpdateDeal={updateDealAction}
+        onLogOutbound={logOutbound}
+        onLogInbound={logInbound}
+        onSuggest={suggest}
+        onMarkDemoSent={markDemoSent}
       />
     </div>
   );

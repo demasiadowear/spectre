@@ -1,94 +1,86 @@
-# SPECTRE AUTOPILOT
+# SPECTRE AUTOPILOT — copilota manuale
 
-Pipeline autonoma: **lead → studio → approvazione messaggio → contatto WA →
-classificatore risposte → escalation a Puccio / archivio**. Estende il progetto
-SPECTRE esistente (stesso DB Turso, stack lock Gemini Flash, deploy Vercel).
+Pipeline assistita, **tutta dentro la web-app, zero automazione WhatsApp**:
+**lead → studio → primo messaggio (lo mandi tu) → risposta del cliente
+(la incolli tu) → triage + risposta suggerita → trattativa manuale**.
+
+Scout e Study restano automatici (cron Vercel). Tutto il contatto su
+WhatsApp lo fai **tu a mano** via `wa.me`: SPECTRE prepara, smista e
+suggerisce, ma non manda né legge messaggi da solo. Niente worker.
 
 ```
-┌────────────┐   ┌────────────┐   ┌──────────────┐   ┌──────────────────────┐
-│ STADIO 1   │   │ STADIO 1.5 │   │ STADIO 2     │   │ STADIO 3 (manuale)   │
-│ SCOUT      │──▶│ STUDY      │──▶│ WA OUTREACH  │──▶│ DEMO                 │
-│ cron Vercel│   │ cron Vercel│   │ worker (VPS) │   │ Puccio fuori SPECTRE │
-└────────────┘   └────────────┘   └──────────────┘   └──────────────────────┘
-   "nuovo"        "studiato"        "contattato"        "demo_richiesta"
-                  + coda approvaz.  + classificatore     stato manuale,
-                                    + escalation         link incollato
-                                    + archiviato         da Puccio
+┌────────────┐   ┌────────────┐   ┌──────────────────────────────────────────┐
+│ STADIO 1   │   │ STADIO 1.5 │   │ STADIO 2 — copilota manuale (web-app)     │
+│ SCOUT      │──▶│ STUDY      │──▶│ tu mandi/incolli da WhatsApp, SPECTRE      │
+│ cron Vercel│   │ cron Vercel│   │ smista (triage Gemini) e suggerisce        │
+└────────────┘   └────────────┘   └──────────────────────────────────────────┘
+   "nuovo"        "studiato"        "contattato" → risposto_manuale / da_chiamare
+                  (pronto da         / demo_richiesta / richiesta_prezzo / tiepido
+                   contattare)        / perso  (+ stati trattativa manuali)
 ```
 
 ## Componenti
 
 ### Stadio 1 — Scout (`/api/autopilot/scout`, cron giornaliero 6:00 lun-ven)
-- Google Places (New) Text Search: parrucchieri, ristoranti, lidi, centri
-  estetici, enoteche su Bari/Modugno/provincia (griglia ruotata, 5 query/run).
-- Filtro: rating ≥ 4.5, 30+ recensioni, **senza sito web**.
-- Tier: T1 ≥4.8/100+ rec · T2 ≥4.6/50+ · T3 ≥4.5/30+.
-- Dedup contro tutto il DB SPECTRE (place_id + telefono) → insert lead +
-  riga `autopilot_pipeline` stato **nuovo**.
+Google Places Text Search su categorie×località (Bari/Modugno/provincia,
+griglia ruotata, 5 query/run). Filtro rating ≥4.5, 30+ recensioni, **senza
+sito**. Tier scoring, dedup contro tutto il DB (place_id + telefono),
+insert lead + riga `autopilot_pipeline` stato **nuovo**.
 
 ### Stadio 1.5 — Study (`/api/autopilot/study`, cron 6:30 lun-ven)
-- Places Details: recensioni recenti (cosa amano i clienti).
-- Gap analysis per categoria (prenotazioni dirette vs commissioni,
-  ricerca locale, vetrina servizi/menu/prezzi).
-- Gemini Flash genera **lead brief (5 righe)** + **primo messaggio WA
-  unico** (dettaglio vero dell'attività, gap concreto, proposta senza
-  preventivo, tono pugliese-professionale, max 4 righe).
-- Warm-up (primi 14 gg): messaggio in coda **"da approvare"** in
-  dashboard; dopo: `auto`.
+Places Details (recensioni recenti) + gap analysis per categoria, poi
+Gemini Flash genera **lead brief (5 righe)** + **primo messaggio WA unico**
+(dettaglio vero dell'attività, gap concreto, proposta senza preventivo,
+tono pugliese-professionale). Stato → **studiato** = pronto da contattare.
+Niente coda di approvazione: il messaggio è subito modificabile e si manda
+a mano. I numeri fissi vengono archiviati prima (non sono su WhatsApp).
 
-### Stadio 2 — WA Outreach (worker, vedi `worker/README.md`)
-- whatsapp-web.js, sessione persistente sul numero WA Business AYROMEX.
-- Warm-up 10/giorno → poi 15-20/giorno; invio lun-sab 9-20 (solo domenica esclusa),
-  delay random 60-240s.
-- Classificatore risposte a 3 vie (logica nel worker):
-  - **Auto-reply WA Business** — euristiche (pattern noti, latenza <3s,
-    menu interattivi); nei casi dubbi, Gemini decide (dubbio = tratta come
-    umana). Un solo messaggio di sblocco (template `bypass_autoreply`),
-    poi il bot tace.
-  - **Risposta umana** — bot si ferma immediatamente, notifica WA a Puccio
-    (template `human_reply_notify`), lead → stato **risposto_manuale**.
-    Da quel momento tutto il resto lo fa Puccio.
-  - **Opt-out** — archivio gentile senza notifica.
-- Follow-up gg 3 e 7 solo per lead mai risposti da umano; archivio al gg 10.
-- Bot conversazionale legacy disponibile ma dietro flag `bot_conversational`
-  (default **OFF**).
-- Kill switch globale (dashboard) + auto-stop su pattern anomali.
+### Stadio 2 — Contatto manuale (dashboard `/autopilot`)
+Tutto dal drawer del lead, nessun automatismo:
 
-### Stadio 3 — Demo (manuale, fuori da SPECTRE)
-- Quando il lead ha chiesto la demo, il sistema aggiorna lo stato a
-  **demo_richiesta** e notifica Puccio. Nessuna build automatica.
-- Puccio prepara la demo esternamente e incolla il link (`demo_url`) nel
-  drawer del lead nella dashboard.
-- L'invio del link al cliente via WA parte solo dopo approvazione manuale
-  di Puccio (template `demo_ready`).
+1. **Primo messaggio** — il testo preparato da Study è editabile.
+   Bottone **"Apri in WhatsApp"** (`wa.me` col messaggio precompilato):
+   lo rivedi e lo invii a mano. Poi **"Segna come inviato"** → stato
+   **contattato**.
+2. **Risposta del cliente** — incolli nel box cosa ti ha scritto.
+   SPECTRE la salva come messaggio in entrata, la **TRIAGE Gemini** smista
+   lo stato (demo richiesta / da chiamare con data / richiesta prezzo /
+   tiepido / perso / da rispondere) e **prepara una bozza di risposta**.
+3. **Risposta suggerita** — bozza editabile. **"Apri in WhatsApp"** per
+   inviarla (rivedi o cambia), **"Segna come inviato"**, **"Rigenera"** per
+   una bozza diversa.
+4. **Demo** — la prepari tu fuori da SPECTRE, incolli il link, lo mandi a
+   mano su WhatsApp e segni **"demo inviata"**. SPECTRE non builda nulla.
+5. **Trattativa** — stato, prossima azione + data (agenda), note: tutto
+   manuale. La conversazione (inviati / ricevuti) resta salvata e leggibile
+   sul lead.
 
-## Worker
+Il triage usa soglie prudenti: "perso" solo se nettissimo, nel dubbio
+sempre "da rispondere". Mai un messaggio parte da solo verso il lead.
 
-Un solo processo: `worker/index.mjs` avviato via `start-worker.ps1`,
-watchdog con auto-restart. Il worker pubblica un heartbeat nella tabella
-`autopilot_settings` ogni ~60s. La dashboard `/autopilot` mostra il banner
-**WORKER OFFLINE** se il heartbeat supera i 3 minuti di silenzio.
+## Dashboard `/autopilot`
+Pipeline view (lista + kanban), filtri a chip (richiede azione / agenda /
+da contattare / da rispondere / trattative / demo / contattati / vinti-persi
+/ nuovi / archiviati), ordinamento "richiede azione" in cima, agenda
+ordinata per data, drawer di dettaglio col flusso sopra, notifiche.
 
-## Dashboard
-
-`/autopilot` in SPECTRE: pipeline view (nuovo / studiato / contattato /
-risposto_manuale / demo_richiesta / escalation / archiviato), contatore
-outreach giornaliero vs cap, coda messaggi da approvare (editabili),
-notifiche, kill switch, stato worker (ONLINE / OFFLINE).
+## API
+| Metodo | Endpoint | Funzione |
+|--------|----------|----------|
+| GET/PATCH | `/api/autopilot/pipeline` | Lista pipeline + stats · azioni (archivia, trattativa) |
+| POST | `/api/autopilot/conversation` | `log_outbound` · `log_inbound` (triage + suggerimento) · `suggest` · `mark_demo_sent` |
+| POST | `/api/autopilot/study` | Run study on-demand |
+| GET/POST | `/api/autopilot/import` | Import lead da Visor |
+| GET/PATCH | `/api/autopilot/alerts` | Notifiche |
+| GET/POST | `/api/autopilot/scout` | Scout (cron) |
 
 ## Setup
+1. **Schema** (estende il Turso esistente): `node scripts/setup-autopilot.mjs`
+2. **Env Vercel**: `CRON_SECRET` (oltre a Turso/Gemini/Places). Cron in `vercel.json`.
 
-1. **Schema** (estende il Turso esistente, non duplica):
-   ```bash
-   TURSO_DATABASE_URL=… TURSO_AUTH_TOKEN=… node scripts/setup-autopilot.mjs
-   ```
-2. **Env Vercel**: aggiungi `CRON_SECRET` (oltre alle chiavi già presenti
-   Turso/Gemini/Places). I cron sono in `vercel.json`.
-3. **Worker**: vedi `worker/README.md` (VPS/macchina sempre accesa).
-
-## Tabelle aggiunte
-
-`autopilot_pipeline` (stato per lead, FK su `leads`; include colonne
-`demo_url` e `demo_sent_at`), `wa_messages` (log completo conversazioni),
-`autopilot_settings` (kill switch, warm-up, cap, heartbeat worker),
-`autopilot_counters`, `autopilot_alerts`.
+## Tabelle
+`autopilot_pipeline` (stato per lead, FK su `leads`; `demo_url`,
+`demo_sent_at`, `next_action`, `next_action_at`, `lost_reason`),
+`wa_messages` (storico conversazione, in/out scritti a mano dall'operatore),
+`autopilot_alerts` (notifiche dashboard). Le tabelle worker
+(`autopilot_counters`, settings di warm-up/heartbeat) non sono più usate.

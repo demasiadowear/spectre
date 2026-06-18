@@ -8,7 +8,7 @@ import type { AutopilotLead, AutopilotStage } from "@/types/autopilot";
 
 export const STAGE_LABELS: Record<AutopilotStage, string> = {
   nuovo: "nuovo",
-  studiato: "da approvare",
+  studiato: "da contattare",
   contattato: "contattato",
   risposto_manuale: "da rispondere",
   da_chiamare: "da chiamare",
@@ -67,9 +67,10 @@ export function timeAgo(value: string | null): string {
   return `${Math.floor(hours / 24)}g fa`;
 }
 
-/** Per lo stadio "studiato" l'azione richiesta esiste solo se pending. */
-export function isPendingApproval(lead: AutopilotLead): boolean {
-  return lead.stage === "studiato" && lead.approval_status === "pending";
+/** Lo stadio "studiato" = lead pronto da contattare a mano (study ha
+ *  preparato brief + primo messaggio). Richiede l'azione di Puccio. */
+export function isReadyToContact(lead: AutopilotLead): boolean {
+  return lead.stage === "studiato";
 }
 
 // ----- Agenda (prossima azione manuale) ------------------------
@@ -107,89 +108,23 @@ export function nextActionLabel(lead: AutopilotLead): string {
   return `${d.toLocaleDateString("it-IT", { weekday: "short", day: "2-digit", month: "2-digit" })} ${time}`;
 }
 
-// ----- Stima invio (SOLO UI: i delay reali sono del worker) ---
-
-/** Replica di inSendWindow del worker: lun-sab, 9-20 Rome. */
-function inSendWindowRome(now = new Date()): boolean {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat("it-IT", {
-      timeZone: "Europe/Rome",
-      hour: "numeric",
-      weekday: "short",
-      hour12: false,
-    })
-      .formatToParts(now)
-      .map((p) => [p.type, p.value]),
-  );
-  if (parts.weekday === "dom") return false;
-  const hour = Number(parts.hour);
-  return hour >= 9 && hour < 20;
-}
-
-/** Label di stadio veritiera per la singola riga: lo stage "studiato"
- *  copre due stati diversi (da approvare vs approvato in coda invio)
- *  e il chip deve distinguerli — un approved etichettato "da
- *  approvare" è di fatto invisibile all'occhio. */
+/** Etichetta di stadio per chip e riga. */
 export function stageLabel(lead: AutopilotLead): string {
-  if (lead.stage === "studiato" && lead.approval_status !== "pending") {
-    return "in coda invio";
-  }
   return STAGE_LABELS[lead.stage];
-}
-
-/** Approvato (manuale o auto) in attesa che il worker lo invii. */
-export function isQueuedForSend(lead: AutopilotLead): boolean {
-  return (
-    lead.stage === "studiato" &&
-    (lead.approval_status === "approved" || lead.approval_status === "auto") &&
-    lead.wa_first_message !== ""
-  );
-}
-
-/**
- * Label "in coda" con ETA per ogni lead approvato, nello stesso ordine
- * del worker (tier ASC, approved_at ASC). Stima: ~2,5 min a invio
- * (delay random 60-240s), solo dentro le finestre. Il cap giornaliero
- * può allungarla: per questo è un "~".
- */
-export function queuedSendLabels(
-  leads: AutopilotLead[],
-  killSwitch: boolean,
-): Map<string, string> {
-  const queue = leads.filter(isQueuedForSend).sort((a, b) => {
-    if (a.tier !== b.tier) return a.tier < b.tier ? -1 : 1;
-    return (
-      (parseDbDate(a.approved_at)?.getTime() ?? 0) -
-      (parseDbDate(b.approved_at)?.getTime() ?? 0)
-    );
-  });
-  const inWindow = inSendWindowRome();
-  return new Map(
-    queue.map((l, i) => {
-      let label: string;
-      if (killSwitch) {
-        label = "in coda · invio fermo (kill switch attivo)";
-      } else if (!inWindow) {
-        label = "in coda · invio alla prossima finestra (lun-sab 9-20)";
-      } else {
-        label = `in coda · invio previsto entro ~${Math.max(3, Math.ceil((i + 1) * 2.5))} min`;
-      }
-      return [l.lead_id, label];
-    }),
-  );
 }
 
 /**
  * Ordinamento "richiede azione" in cima:
- * escalation (0) > demo_richiesta (1) > da approvare (2) > resto (3).
+ * scadenza agenda / escalation (0) > risposte e demo da fare (1) >
+ * lead da contattare (2) > resto (3).
  */
 export function actionPriority(lead: AutopilotLead): number {
   if (nextActionDue(lead)) return 0; // appuntamento di oggi / scaduto: prima di tutto
   if (lead.stage === "escalation") return 0;
-  if (lead.stage === "risposto_manuale") return 1; // c'è un umano in attesa
+  if (lead.stage === "risposto_manuale") return 1; // c'è una risposta da gestire
   if (lead.stage === "richiesta_prezzo") return 1; // vuole il prezzo: rispondi
   if (lead.stage === "demo_richiesta") return 1; // demo da fare
-  if (isPendingApproval(lead)) return 2;
+  if (isReadyToContact(lead)) return 2; // primo messaggio da mandare a mano
   return 3;
 }
 
@@ -205,12 +140,8 @@ export function sortByAction(leads: AutopilotLead[]): AutopilotLead[] {
   });
 }
 
-/** Riga 2 del lead: ultima azione + quanto tempo fa. `queuedLabel`
- *  (da queuedSendLabels) sostituisce il generico "in coda di invio". */
-export function lastAction(
-  lead: AutopilotLead,
-  queuedLabel?: string | null,
-): string {
+/** Riga 2 del lead: ultima azione + quanto tempo fa. */
+export function lastAction(lead: AutopilotLead): string {
   // Prossima azione pianificata: vince su tutto, è quello che Puccio
   // deve fare (es. "chiamare lunedì 9:00 · oggi 09:00").
   if (lead.next_action_at || lead.next_action) {
@@ -225,7 +156,7 @@ export function lastAction(
       return `da chiamare: fissa data/ora nel dettaglio · ${timeAgo(lead.updated_at)}`;
     case "demo_richiesta":
       if (lead.demo_url)
-        return `demo approvata, invio in coda · ${timeAgo(lead.updated_at)}`;
+        return `demo pronta: mandala su WhatsApp dal dettaglio · ${timeAgo(lead.updated_at)}`;
       return `demo da fare: preparala e incolla il link nel dettaglio · ${timeAgo(lead.updated_at)}`;
     case "demo_inviata":
       return `demo inviata, in attesa di risposta · ${timeAgo(lead.demo_sent_at ?? lead.updated_at)}`;
@@ -240,19 +171,11 @@ export function lastAction(
     case "perso":
       return `perso${lead.lost_reason ? `: ${lead.lost_reason}` : ""} · ${timeAgo(lead.updated_at)}`;
     case "studiato":
-      return lead.approval_status === "pending"
-        ? `messaggio da approvare · studiato ${timeAgo(lead.updated_at)}`
-        : `${queuedLabel ?? "in coda di invio"} · approvato ${timeAgo(lead.approved_at ?? lead.updated_at)}`;
+      return `da contattare: rivedi e manda il primo messaggio · studiato ${timeAgo(lead.updated_at)}`;
     case "risposto_manuale":
-      return `ha risposto, bot muto: chat in mano tua · ${timeAgo(lead.updated_at)}`;
+      return `ha risposto: rispondi tu, incolla la risposta nel dettaglio · ${timeAgo(lead.updated_at)}`;
     case "contattato":
-      if (lead.followup2_at)
-        return `follow-up 2 inviato · ${timeAgo(lead.followup2_at)}`;
-      if (lead.followup1_at)
-        return `follow-up 1 inviato · ${timeAgo(lead.followup1_at)}`;
-      if (lead.bypass_sent_at)
-        return `auto-reply scavalcato ${timeAgo(lead.bypass_sent_at)} · in attesa di umano`;
-      return `contattato ${timeAgo(lead.contacted_at)} · in attesa di risposta`;
+      return `contattato ${timeAgo(lead.contacted_at)} · incolla la risposta quando arriva`;
     case "nuovo":
       return `trovato ${timeAgo(lead.created_at)} · study in coda`;
     case "archiviato":

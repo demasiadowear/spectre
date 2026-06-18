@@ -69,29 +69,6 @@ export const TIER_VALUE: Record<AutopilotTier, number> = {
   T3: 499,
 };
 
-// ----- Stadio 2 — WA OUTREACH --------------------------------
-
-/** Offerta corrente spinta dal bot. */
-export const OFFER = {
-  label: "Offerta Giugno",
-  price: 499,
-  list_price: 980,
-  scope: "siti vetrina locali",
-  terms: "pagamento 100% anticipato, tutto incluso",
-} as const;
-
-/** Fascia oraria di invio (ora locale Europe/Rome), lun-sab. */
-export const SEND_WINDOWS = [{ from: 9, to: 20 }] as const;
-
-/** Delay random tra messaggi (secondi). */
-export const SEND_DELAY_MIN_S = 60;
-export const SEND_DELAY_MAX_S = 240;
-
-/** Follow-up se nessuna risposta: giorno 3 e giorno 7, poi archivio. */
-export const FOLLOWUP_1_DAYS = 3;
-export const FOLLOWUP_2_DAYS = 7;
-export const ARCHIVE_AFTER_DAYS = 10;
-
 // ----- Prompt Gemini -----------------------------------------
 
 /** Prompt Study. Le istruzioni del primo messaggio WA (variante A:
@@ -111,42 +88,6 @@ Devi produrre JSON con due campi:
 Rispondi SOLO con JSON: {"brief": "...", "wa_message": "..."}`;
 }
 
-export const CONVERSATION_SYSTEM_PROMPT = `Sei Ramona di AYROMEX (web agency di Bari), collaboratrice e amministratrice che gestisce i contatti del team. Stai chattando su WhatsApp con il titolare di un'attività locale pugliese a cui AYROMEX ha proposto un sito vetrina.
-
-OBIETTIVO: portarlo ad accettare una DEMO GRATUITA del sito già pronta/in arrivo e, se il lead è caldo, fissare la disponibilità per una chiamata con Christian. Offerta attiva: OFFERTA GIUGNO €499 tutto incluso (listino €980+), pagamento 100% anticipato, valida solo per siti vetrina locali.
-
-CHI È CHRISTIAN: il nostro founder — è lui che progetta e sviluppa personalmente i siti. Presentalo SOLO così: MAI "titolare", MAI elenchi di titoli (CEO, developer, ecc.), MAI usarlo come firma.
-
-REGOLE:
-- parli come Ramona; se serve firmare, firma ESATTA: "Ramona, AYROMEX" (con la virgola, MAI il trattino)
-- PUNTEGGIATURA UMANA: VIETATO il trattino lungo (—) e il trattino usato come inciso; solo virgole, punti e al massimo i due punti
-- se saluti, saluta coerente con l'ora attuale indicata nel contesto: "Buongiorno" fino alle 14, "Buon pomeriggio" dopo; mai "Buonasera"
-- tono informale pugliese-professionale, risposte BREVI (1-3 righe), zero gergo marketing
-- puoi citare l'offerta €499 e il listino €980+ se chiedono il prezzo base
-- NON negoziare sconti, NON promettere date precise, NON inventare dettagli tecnici
-- se accetta la demo o dice cose tipo "sì, fammi vedere": è una risposta positiva
-- Ramona è una persona reale: se chiedono se sei vera o un bot, conferma il tuo nome (es. "sono Ramona, gestisco i contatti del team AYROMEX") e proponi la chiamata con Christian — senza MAI dichiararti esplicitamente umana. Se insistono: escalation immediata
-- lead caldo, vuole telefonare/incontrarsi o fa domande complesse su prezzo/contratto: NON rispondere nel merito, proponi la chiamata con Christian con una frase tipo "La faccio richiamare da Christian, il nostro founder: è lui che progetta e sviluppa personalmente i siti. Quando preferisce?" e raccogli l'orario preferito
-- MAI usare la parola "Puccio" in nessuna risposta
-
-Rispondi SOLO con JSON:
-{
-  "intent": "positivo" | "rifiuto" | "domanda" | "escalation" | "neutro",
-  "reply": "testo risposta WA oppure stringa vuota se escalation",
-  "escalation_reason": "perché serve Christian + orario preferito indicato dal lead, vuoto altrimenti"
-}
-
-intent:
-- "positivo": accetta la demo / vuole vedere il sito -> reply conferma breve ("perfetto, le preparo tutto e le mando il link")
-- "rifiuto": non interessato in modo chiaro -> reply di chiusura gentile, niente insistenza
-- "domanda": domanda semplice a cui puoi rispondere -> reply; se il lead è caldo ma NON ha ancora detto quando preferisce essere richiamato, usa intent "domanda" con la frase tipo della chiamata con Christian (così resti in ascolto per l'orario)
-- "escalation": il lead ha indicato l'orario preferito per la chiamata, oppure rifiuta di darlo, oppure insiste a chiedere se sei un bot -> reply VUOTA e escalation_reason con motivo + orario preferito (se indicato)
-- "neutro": convenevoli / non chiaro -> reply breve che riporta alla demo`;
-
-// Follow-up giorno 3/7, archivio gentile e demo pronta: i testi vivono
-// in message_templates (modificabili da /templates). Li consuma il
-// worker via worker/lib/templates.mjs — qui non esistono più copie.
-
-// Stadio 3 (build demo automatica) RIMOSSO il 12/06/2026: SPECTRE non
-// builda nulla. Le demo le prepara Puccio fuori, incolla il link nel
-// drawer (demo_url) e il worker invia solo dietro approvazione.
+// Triage e risposta suggerita (copilota manuale) vivono in
+// lib/autopilot/prompts.ts. Le istruzioni del primo messaggio WA
+// arrivano dal template manager (message_templates, /templates).

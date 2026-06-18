@@ -1,29 +1,19 @@
 "use client";
 
-import { Archive, Check, MessageSquare, Search, X } from "lucide-react";
+import { Archive, Check, MessageSquare, Search } from "lucide-react";
 import { googleSearchHref } from "@/lib/pitch";
 import { cn } from "@/lib/utils";
 import type { AutopilotLead } from "@/types/autopilot";
-import {
-  STAGE_CHIP,
-  TIER_BADGE,
-  isPendingApproval,
-  lastAction,
-  stageLabel,
-} from "./format";
+import { STAGE_CHIP, TIER_BADGE, lastAction, stageLabel } from "./format";
 
 export interface RowActions {
   onOpen: (lead: AutopilotLead, tab?: "chat") => void;
-  onApprove: (leadId: string) => void;
-  onReject: (leadId: string) => void;
   onArchive: (leadId: string) => void;
 }
 
 interface Props extends RowActions {
   lead: AutopilotLead;
   busy: boolean;
-  /** ETA invio per i lead approvati in coda (da queuedSendLabels). */
-  queuedLabel?: string | null;
 }
 
 // ============================================================
@@ -69,14 +59,9 @@ function QuickAction({
 export default function AutopilotLeadRow({
   lead,
   busy,
-  queuedLabel,
   onOpen,
-  onApprove,
-  onReject,
   onArchive,
 }: Props) {
-  const pending = isPendingApproval(lead);
-
   return (
     <li
       onClick={() => onOpen(lead)}
@@ -97,21 +82,13 @@ export default function AutopilotLeadRow({
           <span className="ml-1.5 font-normal text-text2">· {lead.category}</span>
         </p>
         <p className="truncate font-ui text-xs text-text2">
-          {lastAction(lead, queuedLabel)}
+          {lastAction(lead)}
         </p>
       </div>
 
       {/* azioni rapide inline */}
       <div className="flex shrink-0 gap-1.5 opacity-100 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
-        {pending && (
-          <>
-            <QuickAction label="Approva" icon={Check} tone="ok" disabled={busy} onClick={() => onApprove(lead.lead_id)} />
-            <QuickAction label="Scarta" icon={X} tone="no" disabled={busy} onClick={() => onReject(lead.lead_id)} />
-          </>
-        )}
-        {lead.stage === "escalation" && (
-          <QuickAction label="Apri chat" icon={MessageSquare} onClick={() => onOpen(lead, "chat")} />
-        )}
+        <QuickAction label="Apri" icon={MessageSquare} onClick={() => onOpen(lead, "chat")} />
         <QuickAction
           label="Cerca"
           icon={Search}
@@ -123,7 +100,7 @@ export default function AutopilotLeadRow({
             )
           }
         />
-        {lead.stage !== "archiviato" && !pending && (
+        {lead.stage !== "archiviato" && (
           <QuickAction label="Archivia" icon={Archive} tone="no" disabled={busy} onClick={() => onArchive(lead.lead_id)} />
         )}
       </div>

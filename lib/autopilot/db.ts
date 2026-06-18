@@ -2,9 +2,7 @@ import { turso } from "@/lib/turso";
 import type {
   ApprovalStatus,
   AutopilotAlert,
-  AutopilotCounters,
   AutopilotLead,
-  AutopilotSettings,
   AutopilotStage,
   AutopilotStats,
   AutopilotStudy,
@@ -83,64 +81,6 @@ const PIPELINE_SELECT = `
   SELECT p.*, l.name, l.company, l.phone, l.meta, l.notes
   FROM autopilot_pipeline p
   JOIN leads l ON l.id = p.lead_id`;
-
-// ----- Settings ----------------------------------------------
-
-export async function getSettings(): Promise<AutopilotSettings> {
-  const defaults: AutopilotSettings = {
-    kill_switch: false,
-    warmup_started_at: null,
-    warmup_daily_cap: 10,
-    steady_daily_cap: 15,
-    warmup_days: 14,
-    bot_conversational: false,
-    worker_heartbeat: null,
-  };
-  if (!turso) return defaults;
-  const res = await turso.execute("SELECT key, value FROM autopilot_settings");
-  const map = new Map(res.rows.map((r) => [str(r.key), str(r.value)]));
-  return {
-    kill_switch: map.get("kill_switch") === "1",
-    warmup_started_at: map.get("warmup_started_at") || null,
-    warmup_daily_cap: Number(map.get("warmup_daily_cap")) || defaults.warmup_daily_cap,
-    steady_daily_cap: Number(map.get("steady_daily_cap")) || defaults.steady_daily_cap,
-    warmup_days: Number(map.get("warmup_days")) || defaults.warmup_days,
-    bot_conversational: map.get("bot_conversational") === "1",
-    worker_heartbeat: map.get("worker_heartbeat") || null,
-  };
-}
-
-/** Worker considerato vivo se l'heartbeat ha meno di 3 minuti
- *  (il loop lo scrive ogni ~60s; 3x = margine per lag di rete). */
-export const WORKER_STALE_MS = 3 * 60 * 1000;
-
-export function isWorkerOnline(settings: AutopilotSettings): boolean {
-  if (!settings.worker_heartbeat) return false;
-  const t = new Date(settings.worker_heartbeat).getTime();
-  return Number.isFinite(t) && Date.now() - t < WORKER_STALE_MS;
-}
-
-export async function setSetting(key: string, value: string): Promise<void> {
-  if (!turso) return;
-  await turso.execute({
-    sql: `INSERT INTO autopilot_settings (key, value) VALUES (?, ?)
-          ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-    args: [key, value],
-  });
-}
-
-/** Warm-up attivo: primi `warmup_days` giorni dal primo invio. */
-export function isWarmupActive(settings: AutopilotSettings): boolean {
-  if (!settings.warmup_started_at) return true; // mai partiti: prudenza
-  const elapsed = Date.now() - new Date(settings.warmup_started_at).getTime();
-  return elapsed < settings.warmup_days * 24 * 60 * 60 * 1000;
-}
-
-export function dailyCap(settings: AutopilotSettings): number {
-  return isWarmupActive(settings)
-    ? settings.warmup_daily_cap
-    : settings.steady_daily_cap;
-}
 
 // ----- Pipeline ----------------------------------------------
 
@@ -223,6 +163,31 @@ export function normalizePhone(phone: string): string {
   return digits.startsWith("39") ? digits.slice(2) : digits;
 }
 
+/** Colonne aggiornabili: whitelist runtime. I nomi finiscono concatenati
+ *  nella SQL (libSQL parametrizza i valori, non gli identificatori), quindi
+ *  qualunque chiave fuori da qui viene scartata — niente SQL injection
+ *  latente se la firma cresce o viene aggirata con un cast. */
+const UPDATABLE_PIPELINE_FIELDS = new Set([
+  "stage",
+  "place_id",
+  "brief",
+  "study_json",
+  "wa_first_message",
+  "approval_status",
+  "approved_at",
+  "contacted_at",
+  "followup1_at",
+  "followup2_at",
+  "escalated_at",
+  "escalation_reason",
+  "archived_reason",
+  "bot_paused",
+  "demo_url",
+  "next_action",
+  "next_action_at",
+  "lost_reason",
+]);
+
 export async function updatePipeline(
   leadId: string,
   fields: Partial<{
@@ -247,7 +212,9 @@ export async function updatePipeline(
   }>,
 ): Promise<void> {
   if (!turso) return;
-  const entries = Object.entries(fields);
+  const entries = Object.entries(fields).filter(([k]) =>
+    UPDATABLE_PIPELINE_FIELDS.has(k),
+  );
   if (entries.length === 0) return;
   const setClause = entries.map(([k]) => `${k} = ?`).join(", ");
   await turso.execute({
@@ -312,40 +279,6 @@ export async function updateDeal(leadId: string, upd: DealUpdate): Promise<void>
   }
 }
 
-// ----- Coda approvazioni -------------------------------------
-
-export async function getApprovalQueue(): Promise<AutopilotLead[]> {
-  if (!turso) return [];
-  const res = await turso.execute(
-    `${PIPELINE_SELECT}
-     WHERE p.stage = 'studiato' AND p.approval_status = 'pending'
-     ORDER BY p.tier ASC, p.updated_at ASC`,
-  );
-  return res.rows.map((r) => rowToAutopilotLead(r as Row));
-}
-
-export async function approveMessage(
-  leadId: string,
-  editedMessage?: string,
-): Promise<void> {
-  const fields: Parameters<typeof updatePipeline>[1] = {
-    approval_status: "approved",
-    approved_at: new Date().toISOString(),
-  };
-  if (editedMessage && editedMessage.trim()) {
-    fields.wa_first_message = editedMessage.trim();
-  }
-  await updatePipeline(leadId, fields);
-}
-
-export async function rejectMessage(leadId: string): Promise<void> {
-  await updatePipeline(leadId, {
-    approval_status: "rejected",
-    stage: "archiviato",
-    archived_reason: "messaggio rifiutato in review",
-  });
-}
-
 /** Archivio manuale dalla dashboard (qualsiasi stadio). */
 export async function archiveLead(leadId: string): Promise<void> {
   await updatePipeline(leadId, {
@@ -375,29 +308,75 @@ export async function getWaMessages(leadId: string): Promise<WaMessage[]> {
   }));
 }
 
-// ----- Demo manuale ------------------------------------------
-// SPECTRE non builda demo. Puccio la prepara fuori, segna il lead
-// come "demo richiesta", incolla il link e approva: il worker invia.
-
-/** Il lead ha chiesto la demo: stato che richiede azione di Puccio. */
-export async function markDemoRequested(leadId: string): Promise<void> {
-  await updatePipeline(leadId, { stage: "demo_richiesta" });
+/** Registra un messaggio in chat (copilota manuale: Puccio invia/riceve
+ *  su WhatsApp, qui si tiene solo lo storico). `direction` "out" = nostro,
+ *  "in" = del cliente. Nessun wa_id reale: lo scrive l'operatore. */
+export async function logWaMessage(msg: {
+  leadId: string;
+  direction: WaMessage["direction"];
+  body: string;
+  aiGenerated?: boolean;
+  status?: WaMessage["status"];
+}): Promise<void> {
+  if (!turso) return;
+  await turso.execute({
+    sql: `INSERT INTO wa_messages (id, lead_id, direction, body, status, wa_id, ai_generated)
+          VALUES (?, ?, ?, ?, ?, '', ?)`,
+    args: [
+      `wa-${crypto.randomUUID()}`,
+      msg.leadId,
+      msg.direction,
+      msg.body,
+      msg.status ?? (msg.direction === "out" ? "sent" : "delivered"),
+      msg.aiGenerated ? 1 : 0,
+    ],
+  });
 }
 
-/** Incolla + approva il link demo: il worker lo invia al prossimo
- *  tick (demo_sent_at vuoto = in coda invio). */
-export async function approveDemoUrl(
-  leadId: string,
-  demoUrl: string,
-): Promise<void> {
+/** Allinea lo status del CRM storico (leads.status, funnel Visor). */
+async function setLeadStatus(leadId: string, status: string): Promise<void> {
+  if (!turso) return;
+  await turso.execute({
+    sql: "UPDATE leads SET status = ?, updated_at = datetime('now') WHERE id = ?",
+    args: [status, leadId],
+  });
+}
+
+/** Primo contatto inviato a mano: la pipeline passa a "contattato".
+ *  Idempotente: il guard `contacted_at IS NULL` non sovrascrive il
+ *  timestamp di un contatto già segnato. */
+export async function markContacted(leadId: string): Promise<void> {
   if (!turso) return;
   await turso.execute({
     sql: `UPDATE autopilot_pipeline
-          SET demo_url = ?, demo_sent_at = NULL, stage = 'demo_richiesta',
-              updated_at = datetime('now')
-          WHERE lead_id = ?`,
-    args: [demoUrl, leadId],
+          SET stage = 'contattato', contacted_at = ?, updated_at = datetime('now')
+          WHERE lead_id = ? AND contacted_at IS NULL`,
+    args: [new Date().toISOString(), leadId],
   });
+  await setLeadStatus(leadId, "step1_sent");
+}
+
+/** Demo inviata a mano (link incollato + mandato su WhatsApp da Puccio). */
+export async function markDemoSent(leadId: string, demoUrl?: string): Promise<void> {
+  if (!turso) return;
+  if (demoUrl) {
+    await turso.execute({
+      sql: `UPDATE autopilot_pipeline
+            SET demo_url = ?, demo_sent_at = datetime('now'), stage = 'demo_inviata',
+                updated_at = datetime('now')
+            WHERE lead_id = ?`,
+      args: [demoUrl, leadId],
+    });
+  } else {
+    await turso.execute({
+      sql: `UPDATE autopilot_pipeline
+            SET demo_sent_at = datetime('now'), stage = 'demo_inviata',
+                updated_at = datetime('now')
+            WHERE lead_id = ?`,
+      args: [leadId],
+    });
+  }
+  await setLeadStatus(leadId, "preview_sent");
 }
 
 // ----- Alerts ------------------------------------------------
@@ -435,35 +414,12 @@ export async function markAlertsRead(): Promise<void> {
   await turso.execute("UPDATE autopilot_alerts SET read = 1 WHERE read = 0");
 }
 
-// ----- Counters / stats --------------------------------------
-
-/** Giorno corrente YYYY-MM-DD in Europe/Rome (i cap sono "per giornata italiana"). */
-export function romeDay(date = new Date()): string {
-  return date.toLocaleDateString("sv-SE", { timeZone: "Europe/Rome" });
-}
-
-export async function getTodayCounters(): Promise<AutopilotCounters> {
-  const day = romeDay();
-  if (!turso) return { day, new_contacts: 0, messages_sent: 0 };
-  const res = await turso.execute({
-    sql: "SELECT * FROM autopilot_counters WHERE day = ? LIMIT 1",
-    args: [day],
-  });
-  const r = res.rows[0] as Row | undefined;
-  return {
-    day,
-    new_contacts: r ? num(r.new_contacts) : 0,
-    messages_sent: r ? num(r.messages_sent) : 0,
-  };
-}
+// ----- Stats -------------------------------------------------
 
 export async function getStats(): Promise<AutopilotStats> {
-  const settings = await getSettings();
-  const today = await getTodayCounters();
   const by_stage = Object.fromEntries(
     AUTOPILOT_STAGES.map((s) => [s, 0]),
   ) as Record<AutopilotStage, number>;
-  let pending = 0;
   let unread = 0;
   if (turso) {
     const stages = await turso.execute(
@@ -473,24 +429,10 @@ export async function getStats(): Promise<AutopilotStats> {
       const stage = str(r.stage) as AutopilotStage;
       if (stage in by_stage) by_stage[stage] = num(r.n);
     }
-    const p = await turso.execute(
-      "SELECT COUNT(*) AS n FROM autopilot_pipeline WHERE stage = 'studiato' AND approval_status = 'pending'",
-    );
-    pending = num((p.rows[0] as Row).n);
     const a = await turso.execute(
       "SELECT COUNT(*) AS n FROM autopilot_alerts WHERE read = 0",
     );
     unread = num((a.rows[0] as Row).n);
   }
-  return {
-    by_stage,
-    today,
-    daily_cap: dailyCap(settings),
-    warmup_active: isWarmupActive(settings),
-    pending_approvals: pending,
-    unread_alerts: unread,
-    kill_switch: settings.kill_switch,
-    worker_online: isWorkerOnline(settings),
-    worker_heartbeat: settings.worker_heartbeat,
-  };
+  return { by_stage, unread_alerts: unread };
 }

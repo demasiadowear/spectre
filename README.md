@@ -75,7 +75,7 @@ Tutte le risposte usano l'envelope `{ success, data?, error?, meta? }`.
 - [x] PHASE 4 — HAND (wizard 3 step + proposta Claude + export PDF)
 - [x] PHASE 5 — WHISPER (shadow mode + transcript live + contro-obiezioni) · ORACLE (simulatore + predizione animata) · MIND (force graph + scan rete)
 - [x] PHASE 6 — Auth single-tenant + transizioni rotte + error/404 + build verde
-- [x] PHASE 7 — AUTOPILOT (scout + study + WA outreach + classificatore 3 vie + pipeline view)
+- [x] PHASE 7 — AUTOPILOT copilota manuale (scout + study automatici · contatto WhatsApp a mano via wa.me · triage Gemini + risposta suggerita · pipeline view). Vedi [AUTOPILOT.md](AUTOPILOT.md).
 
 **Build:** `npm run build` → TypeScript strict, zero errori.
 

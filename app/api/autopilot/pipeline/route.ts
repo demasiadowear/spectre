@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
 import {
-  approveDemoUrl,
   archiveLead,
   getPipeline,
   getStats,
   getWaMessages,
-  markDemoRequested,
   updateDeal,
 } from "@/lib/autopilot/db";
 import { DEAL_STAGES } from "@/types/autopilot";
@@ -53,9 +51,8 @@ export async function GET(req: Request) {
   }
 }
 
-/** Azioni rapide sulla pipeline: archivia, segna demo richiesta,
- *  approva il link demo (incollato a mano da Puccio: SPECTRE non
- *  builda nulla, il worker invia solo dietro questa approvazione). */
+/** Azioni rapide sulla pipeline: archivia, aggiorna stato trattativa.
+ *  Il contatto WhatsApp è manuale (vedi /api/autopilot/conversation). */
 export async function PATCH(req: Request) {
   let body: Record<string, unknown>;
   try {
@@ -79,8 +76,6 @@ export async function PATCH(req: Request) {
   try {
     if (action === "archive") {
       await archiveLead(leadId);
-    } else if (action === "demo_requested") {
-      await markDemoRequested(leadId);
     } else if (action === "update_deal") {
       // Stati trattativa: SOLO manuali, mai automatismi verso il lead.
       const stage =
@@ -106,21 +101,11 @@ export async function PATCH(req: Request) {
           typeof body.lost_reason === "string" ? body.lost_reason : undefined,
         notes: typeof body.notes === "string" ? body.notes : undefined,
       });
-    } else if (action === "approve_demo_url") {
-      const demoUrl = typeof body.demo_url === "string" ? body.demo_url.trim() : "";
-      if (!/^https?:\/\/\S+$/.test(demoUrl)) {
-        return NextResponse.json<ApiResponse<never>>(
-          { success: false, error: "demo_url non valido: serve un link http(s)." },
-          { status: 400 },
-        );
-      }
-      await approveDemoUrl(leadId, demoUrl);
     } else {
       return NextResponse.json<ApiResponse<never>>(
         {
           success: false,
-          error:
-            "action deve essere archive | demo_requested | update_deal | approve_demo_url.",
+          error: "action deve essere archive | update_deal.",
         },
         { status: 400 },
       );

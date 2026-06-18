@@ -41,7 +41,8 @@ export const DEAL_STAGES: AutopilotStage[] = [
 /** Tier scoring: T1 >=4.8/100+ rec, T2 >=4.6/50+, T3 >=4.5/30+. */
 export type AutopilotTier = "T1" | "T2" | "T3";
 
-/** Stato approvazione del primo messaggio WA (warm-up: review manuale). */
+/** Stato del primo messaggio WA. Nel copilota manuale è sempre "auto"
+ *  (pronto da contattare); gli altri valori restano per righe storiche. */
 export type ApprovalStatus = "pending" | "approved" | "rejected" | "auto";
 
 export type WaDirection = "in" | "out";
@@ -72,7 +73,7 @@ export interface AutopilotStudy {
   gaps: string[];
 }
 
-/** Riga pipeline joinata con il lead (vista dashboard + worker). */
+/** Riga pipeline joinata con il lead (vista dashboard). */
 export interface AutopilotLead {
   lead_id: string;
   stage: AutopilotStage;
@@ -95,15 +96,14 @@ export interface AutopilotLead {
   bot_paused: boolean;
   /** ISO dell'unico messaggio di sblocco auto-reply (max 1 per lead). */
   bypass_sent_at: string | null;
-  /** Link demo preparato da Puccio FUORI da SPECTRE e incollato in
-   *  dashboard. Il worker lo invia (template demo_ready) e marca
-   *  demo_sent_at: SPECTRE non builda nulla. */
+  /** Link demo preparato da Puccio FUORI da SPECTRE, incollato in
+   *  dashboard e mandato a mano su WhatsApp. SPECTRE non builda nulla. */
   demo_url: string;
   demo_sent_at: string | null;
   /** Prossima azione manuale di Puccio (es. "chiamare lunedì 9:00"). */
   next_action: string;
   /** Quando va fatta (ISO locale da datetime-local): alimenta la vista
-   *  Agenda e il promemoria WA mattutino del worker. */
+   *  Agenda della dashboard. */
   next_action_at: string | null;
   /** Motivo del perso (prezzo, non interessato, …). */
   lost_reason: string;
@@ -140,42 +140,9 @@ export interface AutopilotAlert {
   created_at: string;
 }
 
-/** Coppia chiave/valore di autopilot_settings, già tipizzata. */
-export interface AutopilotSettings {
-  /** "1" = tutto fermo: niente invii, bot muto. */
-  kill_switch: boolean;
-  /** ISO della prima giornata di outreach (fa partire il warm-up). */
-  warmup_started_at: string | null;
-  /** Cap contatti nuovi/giorno in warm-up e a regime. */
-  warmup_daily_cap: number;
-  steady_daily_cap: number;
-  /** Giorni di warm-up (approvazione manuale + cap ridotto). */
-  warmup_days: number;
-  /** "1" = bot conversazionale legacy attivo; default OFF: il bot
-   *  classifica soltanto (auto-reply / umana / opt-out) e tace. */
-  bot_conversational: boolean;
-  /** ISO dell'ultimo heartbeat del worker (ogni ~60s quando vivo). */
-  worker_heartbeat: string | null;
-}
-
-export interface AutopilotCounters {
-  day: string; // YYYY-MM-DD Europe/Rome
-  new_contacts: number;
-  messages_sent: number;
-}
-
 export interface AutopilotStats {
   by_stage: Record<AutopilotStage, number>;
-  today: AutopilotCounters;
-  daily_cap: number;
-  warmup_active: boolean;
-  pending_approvals: number;
   unread_alerts: number;
-  kill_switch: boolean;
-  /** false = heartbeat assente o più vecchio di 3 minuti: il worker
-   *  non sta girando, gli approvati restano in coda. */
-  worker_online: boolean;
-  worker_heartbeat: string | null;
 }
 
 /** Output Gemini per lo Stadio 1.5 (brief + primo messaggio). */
