@@ -130,6 +130,7 @@ export default function AutopilotConsole() {
   const [view, setView] = useState<ViewMode>("list");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("azione");
   const [sortMode, setSortMode] = useState<"azione" | "qualita">("azione");
+  const [waOnly, setWaOnly] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [showAlerts, setShowAlerts] = useState(false);
 
@@ -188,7 +189,8 @@ export default function AutopilotConsole() {
     const filtered = leads.filter(
       (l) =>
         matchesStatus(l, statusFilter) &&
-        (!categoryFilter || l.category === categoryFilter),
+        (!categoryFilter || l.category === categoryFilter) &&
+        (!waOnly || l.phone_type === "mobile"),
     );
     if (statusFilter === "agenda") {
       return [...filtered].sort(
@@ -198,7 +200,7 @@ export default function AutopilotConsole() {
       );
     }
     return sortMode === "qualita" ? sortByQuality(filtered) : sortByAction(filtered);
-  }, [leads, statusFilter, categoryFilter, sortMode]);
+  }, [leads, statusFilter, categoryFilter, sortMode, waOnly]);
 
   // ----- azioni -----------------------------------------------
 
@@ -276,17 +278,19 @@ export default function AutopilotConsole() {
         incomplete: number;
         failed: number;
         archived: number;
+        fisso: number;
       }>;
       if (!j.success) {
         window.alert(`Errore study: ${j.error ?? "sconosciuto"}`);
         return;
       }
       const d = j.data;
-      if (d && d.studied + d.incomplete + d.failed + (d.archived ?? 0) === 0) {
-        window.alert("Nessun lead nuovo da studiare.");
-      } else if (d && (d.failed > 0 || d.incomplete > 0 || (d.archived ?? 0) > 0)) {
+      const tot = d ? d.studied + d.incomplete + d.failed + (d.archived ?? 0) + (d.fisso ?? 0) : 0;
+      if (d && tot === 0) {
+        window.alert("Nessun lead nuovo da preparare.");
+      } else if (d && (d.failed > 0 || d.incomplete > 0 || (d.archived ?? 0) > 0 || (d.fisso ?? 0) > 0)) {
         window.alert(
-          `Study: ${d.studied} ok, ${d.archived ?? 0} archiviati (fisso), ${d.incomplete} da completare, ${d.failed} falliti (ritenta o aspetta il cron).`,
+          `Study: ${d.studied} pronti, ${d.fisso ?? 0} fissi (da chiamare), ${d.archived ?? 0} archiviati, ${d.incomplete} da completare, ${d.failed} falliti.`,
         );
       }
       await refresh();
@@ -511,6 +515,11 @@ export default function AutopilotConsole() {
             label="Qualità ⭐"
             active={sortMode === "qualita"}
             onClick={() => setSortMode("qualita")}
+          />
+          <Chip
+            label="📱 Solo WhatsApp"
+            active={waOnly}
+            onClick={() => setWaOnly((v) => !v)}
           />
           {categories.length > 0 && (
             <>

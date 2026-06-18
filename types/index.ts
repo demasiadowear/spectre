@@ -40,6 +40,10 @@ export interface LeadMeta {
   /** Geo coordinates for the territory map (from Places or geocoding). */
   lat?: number;
   lng?: number;
+  /** Prezzo manuale deciso da Puccio (€). Niente prezzo automatico. */
+  price?: number;
+  /** Tipo numero: "mobile" = WhatsApp-abile, "fisso" = solo chiamata. */
+  phone_type?: "mobile" | "fisso" | "";
   // Funnel timestamps (ISO) — set when the lead enters each stage.
   step1_at?: string;
   replied_at?: string;

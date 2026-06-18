@@ -108,6 +108,8 @@ export interface AutopilotLead {
   rating: number;
   reviews: number;
   address: string;
+  /** Tipo numero: "mobile" = WhatsApp-abile, "fisso" = solo chiamata. */
+  phone_type: "mobile" | "fisso" | "";
   /** Coordinate per la vista Mappa (da leads.meta.lat/lng). */
   lat: number | null;
   lng: number | null;

@@ -113,7 +113,25 @@ export default function AutopilotLeadRow({
         )}
       </div>
 
-      {/* 2. prezzo manuale (se impostato) + qualità (stelle Google) */}
+      {/* 2. tipo numero (mobile/fisso) + prezzo + qualità */}
+      {lead.phone_type === "fisso" && (
+        <span
+          className="shrink-0 font-ui text-[12px] text-ochre"
+          title="Numero fisso: niente WhatsApp"
+          aria-label="numero fisso"
+        >
+          ☎
+        </span>
+      )}
+      {lead.phone_type === "mobile" && (
+        <span
+          className="hidden shrink-0 font-ui text-[12px] sm:inline"
+          title="Mobile: WhatsApp-abile"
+          aria-label="mobile"
+        >
+          📱
+        </span>
+      )}
       {priceLabel(lead) && (
         <span className="shrink-0 rounded-sm border border-accent/50 px-1.5 py-0.5 font-ui text-[10px] font-bold text-accent">
           {priceLabel(lead)}

@@ -11,9 +11,37 @@ import type { Lead, LeadStatus } from "@/types";
 
 /** Italian mobile (has WhatsApp): starts with 3, 9-10 digits. */
 export function isMobilePhone(raw: string): boolean {
-  if (!raw) return false;
-  const clean = raw.replace(/\s+/g, "").replace(/^\+/, "");
-  return /^3\d{8,9}$/.test(clean) || /^393\d{8,9}$/.test(clean);
+  return classifyPhone(raw) === "mobile";
+}
+
+export type PhoneType = "mobile" | "fisso" | "";
+
+/**
+ * Classifica un numero italiano. Normalizza prima (toglie spazi, +39,
+ * 0039) per ricavare il numero nazionale, poi:
+ *  - inizia per 3  -> "mobile" (WhatsApp-abile)
+ *  - inizia per 0  -> "fisso"  (niente WhatsApp, solo chiamata)
+ *  - altrimenti    -> "" (non determinabile / vuoto)
+ */
+export function classifyPhone(raw: string): PhoneType {
+  if (!raw) return "";
+  let d = raw.replace(/\D/g, "");
+  if (!d) return "";
+  if (d.startsWith("0039")) d = d.slice(4);
+  // prefisso internazionale 39 solo se resta un nazionale plausibile
+  // (evita di tagliare un mobile nazionale 393… di 10 cifre).
+  else if (d.startsWith("39") && d.length >= 11) d = d.slice(2);
+  if (d.startsWith("3")) return "mobile";
+  if (d.startsWith("0")) return "fisso";
+  return "";
+}
+
+/** Da una lista di numeri sceglie il migliore per WhatsApp: il primo
+ *  mobile se c'è, altrimenti il primo non vuoto (regola "preferisci il
+ *  mobile" quando Places ne fornisce più d'uno). */
+export function preferMobile(phones: (string | undefined | null)[]): string {
+  const clean = phones.map((p) => (p ?? "").trim()).filter(Boolean);
+  return clean.find((p) => classifyPhone(p) === "mobile") ?? clean[0] ?? "";
 }
 
 /** Normalize to wa.me form: digits only, leading 39. */

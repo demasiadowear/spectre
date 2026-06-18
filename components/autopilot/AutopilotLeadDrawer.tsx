@@ -86,6 +86,50 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+/** Bottone "Apri in WhatsApp" — attivo solo se mobile. Per i fissi è
+ *  disabilitato (tooltip) e accanto compare "Chiama" (tel:). */
+function WaActions({
+  href,
+  enabled,
+  isMobile,
+  telHref,
+}: {
+  href: string;
+  /** testo presente / link valido (a parte il tipo numero). */
+  enabled: boolean;
+  isMobile: boolean;
+  telHref: string | null;
+}) {
+  const active = enabled && isMobile;
+  return (
+    <>
+      <a
+        href={active ? href : "#"}
+        target="_blank"
+        rel="noreferrer"
+        title={isMobile ? undefined : "numero fisso, niente WA"}
+        aria-disabled={!active}
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-sm border px-3 py-1.5 font-ui text-xs font-semibold",
+          active
+            ? "border-success/50 bg-success/10 text-success hover:bg-success/20"
+            : "pointer-events-none border-border text-text2 opacity-40",
+        )}
+      >
+        <Send className="h-3.5 w-3.5" /> Apri in WhatsApp
+      </a>
+      {!isMobile && telHref && (
+        <a
+          href={telHref}
+          className="inline-flex items-center gap-1.5 rounded-sm border border-accent/50 bg-accent/10 px-3 py-1.5 font-ui text-xs font-semibold text-accent hover:bg-accent/20"
+        >
+          <Phone className="h-3.5 w-3.5" /> Chiama
+        </a>
+      )}
+    </>
+  );
+}
+
 export default function AutopilotLeadDrawer({
   lead,
   focus,
@@ -197,6 +241,8 @@ export default function AutopilotLeadDrawer({
   if (!lead) return null;
 
   const phone = lead.phone;
+  const isMobile = lead.phone_type === "mobile";
+  const telHref = phone ? `tel:${phone.replace(/\s+/g, "")}` : null;
   const lastInbound =
     messages.length > 0 && messages[messages.length - 1].direction === "in";
   const notContacted = lead.stage === "da_contattare";
@@ -323,13 +369,24 @@ export default function AutopilotLeadDrawer({
                 </span>
                 {phone && (
                   <a
-                    href={waHref(phone) ?? `tel:${phone}`}
-                    target="_blank"
-                    rel="noreferrer"
+                    href={telHref ?? "#"}
                     className="inline-flex items-center gap-1 font-ui text-xs text-accent hover:underline"
                   >
                     <Phone className="h-3 w-3" /> {phone}
                   </a>
+                )}
+                {lead.phone_type === "mobile" && (
+                  <span className="inline-flex items-center gap-0.5 rounded-sm border border-success/40 px-1.5 py-0.5 font-ui text-[10px] text-success">
+                    📱 mobile
+                  </span>
+                )}
+                {lead.phone_type === "fisso" && (
+                  <span
+                    className="inline-flex items-center gap-0.5 rounded-sm border border-ochre/50 px-1.5 py-0.5 font-ui text-[10px] text-ochre"
+                    title="Numero fisso: niente WhatsApp, solo chiamata"
+                  >
+                    ☎ fisso
+                  </span>
                 )}
                 <a
                   href={googleSearchHref(lead.company, lead.city)}
@@ -388,19 +445,12 @@ export default function AutopilotLeadDrawer({
                   className="w-full rounded-sm border border-border bg-bg p-2 font-ui text-sm text-text focus:border-accent focus:outline-none"
                 />
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <a
+                  <WaActions
                     href={waHref(phone, firstDraft) ?? "#"}
-                    target="_blank"
-                    rel="noreferrer"
-                    className={cn(
-                      "inline-flex items-center gap-1.5 rounded-sm border px-3 py-1.5 font-ui text-xs font-semibold",
-                      phone
-                        ? "border-success/50 bg-success/10 text-success hover:bg-success/20"
-                        : "pointer-events-none border-border text-text2 opacity-40",
-                    )}
-                  >
-                    <Send className="h-3.5 w-3.5" /> Apri in WhatsApp
-                  </a>
+                    enabled={Boolean(phone) && Boolean(firstDraft.trim())}
+                    isMobile={isMobile}
+                    telHref={telHref}
+                  />
                   <NeonButton
                     size="sm"
                     variant="cyan"
@@ -461,19 +511,12 @@ export default function AutopilotLeadDrawer({
                   className="w-full rounded-sm border border-border bg-bg p-2 font-ui text-sm text-text focus:border-accent focus:outline-none"
                 />
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <a
+                  <WaActions
                     href={waHref(phone, suggestDraft) ?? "#"}
-                    target="_blank"
-                    rel="noreferrer"
-                    className={cn(
-                      "inline-flex items-center gap-1.5 rounded-sm border px-3 py-1.5 font-ui text-xs font-semibold",
-                      suggestDraft.trim() && phone
-                        ? "border-success/50 bg-success/10 text-success hover:bg-success/20"
-                        : "pointer-events-none border-border text-text2 opacity-40",
-                    )}
-                  >
-                    <Send className="h-3.5 w-3.5" /> Apri in WhatsApp
-                  </a>
+                    enabled={Boolean(phone) && Boolean(suggestDraft.trim())}
+                    isMobile={isMobile}
+                    telHref={telHref}
+                  />
                   <NeonButton
                     size="sm"
                     variant="cyan"
@@ -634,7 +677,7 @@ export default function AutopilotLeadDrawer({
                       className="w-full rounded-sm border border-border bg-bg p-2 font-ui text-sm text-text focus:border-accent focus:outline-none"
                     />
                     <div className="mt-2 flex flex-wrap gap-2">
-                      <a
+                      <WaActions
                         href={
                           waHref(
                             phone,
@@ -643,17 +686,10 @@ export default function AutopilotLeadDrawer({
                               : "",
                           ) ?? "#"
                         }
-                        target="_blank"
-                        rel="noreferrer"
-                        className={cn(
-                          "inline-flex items-center gap-1.5 rounded-sm border px-3 py-1.5 font-ui text-xs font-semibold",
-                          /^https?:\/\/\S+$/.test(demoDraft.trim()) && phone
-                            ? "border-success/50 bg-success/10 text-success hover:bg-success/20"
-                            : "pointer-events-none border-border text-text2 opacity-40",
-                        )}
-                      >
-                        <Send className="h-3.5 w-3.5" /> Apri in WhatsApp
-                      </a>
+                        enabled={/^https?:\/\/\S+$/.test(demoDraft.trim()) && Boolean(phone)}
+                        isMobile={isMobile}
+                        telHref={telHref}
+                      />
                       <NeonButton
                         size="sm"
                         variant="cyan"

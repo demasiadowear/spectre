@@ -1,5 +1,6 @@
 import { searchGooglePlaces } from "@/lib/hunter/google-places";
 import { createLead } from "@/lib/data";
+import { classifyPhone } from "@/lib/pitch";
 import { isTursoConnected } from "@/lib/turso";
 import type { RawLead } from "@/types/hunter";
 import {
@@ -107,6 +108,7 @@ export async function runScout(): Promise<ScoutResult> {
           category,
           lat: r.lat,
           lng: r.lng,
+          phone_type: classifyPhone(r.phone),
         },
       });
 

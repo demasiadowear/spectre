@@ -1,4 +1,5 @@
 import { turso } from "@/lib/turso";
+import { classifyPhone } from "@/lib/pitch";
 import type {
   ApprovalStatus,
   AutopilotAlert,
@@ -75,6 +76,12 @@ function rowToAutopilotLead(r: Row): AutopilotLead {
     address: str(meta.address),
     lat: typeof meta.lat === "number" ? meta.lat : null,
     lng: typeof meta.lng === "number" ? meta.lng : null,
+    // Tipo salvato (scout/study/retroattivo); fallback al volo se assente,
+    // così il badge è corretto anche su righe non ancora classificate.
+    phone_type:
+      meta.phone_type === "mobile" || meta.phone_type === "fisso"
+        ? meta.phone_type
+        : classifyPhone(str(r.phone)),
   };
 }
 

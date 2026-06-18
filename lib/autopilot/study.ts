@@ -120,25 +120,30 @@ async function resolvePlace(
   };
 }
 
-export type StudyOutcome = "studied" | "incomplete" | "failed" | "archived";
+export type StudyOutcome = "studied" | "incomplete" | "failed" | "archived" | "fisso";
+
+/** Salva il tipo numero su leads.meta.phone_type (merge, no overwrite). */
+async function savePhoneType(leadId: string, type: "mobile" | "fisso"): Promise<void> {
+  const visorLead = await getLeadById(leadId);
+  if (visorLead) {
+    await updateLead(leadId, { meta: { ...visorLead.meta, phone_type: type } });
+  }
+}
 
 export async function studyLead(lead: AutopilotLead): Promise<StudyOutcome> {
-  // ----- Pre-check telefono: solo mobili in coda -------------------
-  // I fissi (080, 06, 02, …) non sono su WhatsApp: archivio subito,
-  // PRIMA di spendere Places/Gemini (stessa logica del fix LID nel
-  // worker, ma anticipata qui). Alert skipped_number per la review.
+  // ----- Pre-check telefono ---------------------------------------
+  // I fissi (080, 06, 02, …) non sono su WhatsApp: NON si studiano
+  // (niente messaggio WA) ma restano in pipeline come "da chiamare".
+  // Si marca phone_type=fisso così non rientrano più nella coda study.
   if (!isMobilePhone(lead.phone)) {
-    await updatePipeline(lead.lead_id, {
-      stage: "archiviato",
-      archived_reason: "numero fisso: non raggiungibile su WhatsApp",
-    });
-    await addAlert(
-      "skipped_number",
-      `numero fisso, non raggiungibile su WA: ${lead.company} (${lead.phone || "mancante"})`,
-      lead.lead_id,
-    );
-    return "archived";
+    await savePhoneType(lead.lead_id, "fisso");
+    if (!lead.next_action) {
+      await updatePipeline(lead.lead_id, { next_action: "numero fisso: chiama" });
+    }
+    return "fisso";
   }
+  // Mobile: marca il tipo e procede con brief + messaggio WA.
+  await savePhoneType(lead.lead_id, "mobile");
 
   // ----- Dati Places mancanti (import da Visor): risolvi prima ------
   if (!lead.place_id || lead.rating <= 0) {
@@ -243,13 +248,15 @@ export interface StudyResult {
   studied: number;
   incomplete: number;
   failed: number;
-  /** Archiviati dal pre-check telefono (fissi: niente WhatsApp). */
+  /** Archiviati (es. duplicati). */
   archived: number;
+  /** Numeri fissi: marcati phone_type=fisso, restano in pipeline (chiama). */
+  fisso: number;
 }
 
 /** Prepara fino a `limit` lead "da contattare" ancora senza primo
  *  messaggio (quelli che lo Scout ha appena trovato), saltando quelli
- *  già marcati "da completare". */
+ *  già marcati "da completare" e i numeri fissi già classificati. */
 export async function runStudy(limit = 10): Promise<StudyResult> {
   if (!isTursoConnected() || !turso) {
     throw new Error("Turso non configurato: lo study richiede il DB.");
@@ -260,11 +267,12 @@ export async function runStudy(limit = 10): Promise<StudyResult> {
           WHERE p.stage = 'da_contattare'
             AND (p.wa_first_message IS NULL OR p.wa_first_message = '')
             AND (p.brief IS NULL OR p.brief NOT LIKE '${INCOMPLETE_BRIEF_PREFIX}%')
+            AND (l.meta IS NULL OR l.meta NOT LIKE '%"phone_type":"fisso"%')
           ORDER BY p.created_at ASC LIMIT ?`,
     args: [limit],
   });
 
-  const result: StudyResult = { studied: 0, incomplete: 0, failed: 0, archived: 0 };
+  const result: StudyResult = { studied: 0, incomplete: 0, failed: 0, archived: 0, fisso: 0 };
   for (const row of res.rows) {
     const lead = await getPipelineLead(String(row.lead_id));
     if (!lead) continue;
