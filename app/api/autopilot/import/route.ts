@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import {
-  eligibleVisorLeads,
+  classifyVisorLeads,
   importFromVisor,
   type VisorImportResult,
 } from "@/lib/autopilot/import";
@@ -8,19 +8,29 @@ import type { ApiResponse } from "@/types";
 
 // Import manuale Visor -> Autopilot, dalla dashboard (protetta dal
 // middleware sessione come le altre rotte /api/autopilot/*).
-// GET = conteggio eleggibili (preview), POST = import in batch.
+// GET = conteggio eleggibili (preview) + motivi di scarto, POST = import.
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const eligible = await eligibleVisorLeads();
+    const { eligible, skipped_fisso, skipped_duplicate, skipped_callback } =
+      await classifyVisorLeads();
     return NextResponse.json<
-      ApiResponse<{ eligible: number; sample: string[] }>
+      ApiResponse<{
+        eligible: number;
+        sample: string[];
+        skipped_fisso: number;
+        skipped_duplicate: number;
+        skipped_callback: number;
+      }>
     >({
       success: true,
       data: {
         eligible: eligible.length,
         sample: eligible.slice(0, 5).map((l) => l.company || l.name),
+        skipped_fisso,
+        skipped_duplicate,
+        skipped_callback,
       },
     });
   } catch (err) {

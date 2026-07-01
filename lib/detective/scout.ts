@@ -1,6 +1,6 @@
 import { searchGooglePlaces } from "@/lib/hunter/google-places";
 import { isTursoConnected } from "@/lib/turso";
-import { buildDedupIndex, insertCase, isDuplicate } from "./db";
+import { buildDedupIndex, insertCase, isDuplicate, normalizePhone } from "./db";
 import {
   AUDIT_LIMIT_MAX,
   AUDIT_LIMIT_MIN,
@@ -99,6 +99,12 @@ export async function runAuditScout(
 
         index.placeIds.add(r.id);
         index.names.add(r.name.toLowerCase().trim());
+        // Senza questo, due schede Google diverse (place_id/nome
+        // diversi) con LO STESSO telefono nella stessa run passavano
+        // entrambe: isDuplicate controllava l'indice pre-esistente ma
+        // non veniva mai aggiornato con i telefoni appena inseriti.
+        const phone = normalizePhone(r.phone);
+        if (phone) index.phones.add(phone);
         result.inserted++;
       }
     }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
 import type { AutopilotLead } from "@/types/autopilot";
 import { AUTOPILOT_STAGES } from "@/lib/autopilot/constants";
@@ -17,28 +17,60 @@ interface Props {
 // ============================================================
 export default function PipelineMap({ leads, onOpen }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<import("leaflet").Map | null>(null);
+  const markersRef = useRef<import("leaflet").CircleMarker[]>([]);
+  const firstFitDone = useRef(false);
   const openRef = useRef(onOpen);
   openRef.current = onOpen;
+  const [mapReady, setMapReady] = useState(false);
 
   const geoLeads = useMemo(
     () => leads.filter((l) => l.lat != null && l.lng != null),
     [leads],
   );
 
+  // Crea la mappa UNA SOLA VOLTA al mount (deps [] — non su geoLeads).
+  // Prima l'effetto dipendeva da geoLeads: essendo un nuovo array ad
+  // ogni poll (30s) anche a parità di dati, l'intera mappa Leaflet
+  // veniva distrutta e ricreata ogni volta, "lampeggiando" e buttando
+  // via il pan/zoom fatto dall'utente.
   useEffect(() => {
-    let map: import("leaflet").Map | null = null;
     let cancelled = false;
     (async () => {
       const L = (await import("leaflet")).default;
-      if (cancelled || !containerRef.current || map) return;
-      map = L.map(containerRef.current, {
+      if (cancelled || !containerRef.current || mapRef.current) return;
+      const map = L.map(containerRef.current, {
         zoomControl: true,
         attributionControl: false,
       }).setView([41.117, 16.871], 11);
-
       L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
         maxZoom: 19,
       }).addTo(map);
+      mapRef.current = map;
+      if (!cancelled) setMapReady(true);
+    })();
+
+    return () => {
+      cancelled = true;
+      mapRef.current?.remove();
+      mapRef.current = null;
+      setMapReady(false);
+    };
+  }, []);
+
+  // Ridisegna solo i marker quando cambiano i lead geolocalizzati.
+  // `fitBounds` scatta solo la prima volta: sui poll successivi i
+  // marker si aggiornano senza spostare la vista dell'utente.
+  useEffect(() => {
+    if (!mapReady) return;
+    let cancelled = false;
+    (async () => {
+      const L = (await import("leaflet")).default;
+      const map = mapRef.current;
+      if (cancelled || !map) return;
+
+      for (const m of markersRef.current) m.remove();
+      markersRef.current = [];
 
       const pts: [number, number][] = [];
       for (const lead of geoLeads) {
@@ -54,16 +86,19 @@ export default function PipelineMap({ leads, onOpen }: Props) {
         }).addTo(map);
         marker.bindTooltip(lead.company, { direction: "top", offset: [0, -6] });
         marker.on("click", () => openRef.current(lead));
+        markersRef.current.push(marker);
         pts.push([lat, lng]);
       }
-      if (pts.length) map.fitBounds(pts, { padding: [40, 40], maxZoom: 14 });
+      if (pts.length && !firstFitDone.current) {
+        map.fitBounds(pts, { padding: [40, 40], maxZoom: 14 });
+        firstFitDone.current = true;
+      }
     })();
 
     return () => {
       cancelled = true;
-      if (map) map.remove();
     };
-  }, [geoLeads]);
+  }, [mapReady, geoLeads]);
 
   return (
     <div className="relative overflow-hidden rounded-sm border border-border">

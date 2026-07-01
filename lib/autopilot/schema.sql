@@ -1,17 +1,25 @@
 -- ============================================================
--- AYRO SPECTRE — Autopilot schema extension (Turso / libSQL)
+-- AYRO SPECTRE — Pipeline schema extension (Turso / libSQL)
 -- Estende il DB SPECTRE esistente: le righe puntano a leads(id),
 -- nessuna duplicazione dei dati anagrafici.
 -- Apply with:  node scripts/setup-autopilot.mjs
+--
+-- Stato corrente (post migrazione Pipeline v2, vedi
+-- scripts/migrate-pipeline-v2.mjs): questo file è la fonte
+-- canonica per un DB da zero, allineata al codice — non serve
+-- rieseguire le migrazioni one-off precedenti (setup-deals.mjs,
+-- setup-classifier.mjs, setup-remove-builds.mjs) su un DB nuovo,
+-- le colonne che introducevano sono già qui.
 -- ============================================================
 
--- Stato pipeline Autopilot per lead. stage:
---   nuovo -> studiato -> contattato -> risposto_manuale
---   -> demo_richiesta (manuale) -> escalation / archiviato
+-- Macchina a stati unica della Pipeline:
+--   da_contattare -> contattato -> ha_risposto -> in_trattativa
+--   -> vinto / perso   (+ archiviato come bidone laterale)
+-- Il dettaglio fine (demo da fare, richiamo, prezzo) vive in next_action.
 create table if not exists autopilot_pipeline (
   lead_id           text primary key references leads(id) on delete cascade,
-  stage             text not null default 'nuovo',
-  tier              text not null default 'T3',      -- T1/T2/T3
+  stage             text not null default 'da_contattare',
+  tier              text not null default 'T3',      -- T1/T2/T3 (storico)
   place_id          text unique,                     -- Google Places id (dedup)
   category          text default '',                 -- parrucchiere/ristorante/lido/…
   city              text default '',
@@ -30,6 +38,9 @@ create table if not exists autopilot_pipeline (
   bypass_sent_at    text,                            -- sblocco auto-reply (max 1)
   demo_url          text,                            -- link demo incollato da Puccio
   demo_sent_at      text,                            -- inviato al lead dal worker
+  next_action       text,                            -- dettaglio libero (demo/richiamo/prezzo…)
+  next_action_at    text,                            -- promemoria agenda (ISO)
+  lost_reason       text,                            -- motivo se stage = 'perso'
   created_at        text default (datetime('now')),
   updated_at        text default (datetime('now'))
 );
@@ -50,19 +61,6 @@ create table if not exists wa_messages (
 -- Le demo le prepara Puccio fuori; demo_url/demo_sent_at vivono sulla
 -- pipeline e il worker invia il link solo dietro approvazione.
 
--- Configurazione runtime (kill switch, warm-up, cap giornalieri).
-create table if not exists autopilot_settings (
-  key   text primary key,
-  value text default ''
-);
-
--- Contatori giornalieri (day = YYYY-MM-DD Europe/Rome).
-create table if not exists autopilot_counters (
-  day           text primary key,
-  new_contacts  integer default 0,
-  messages_sent integer default 0
-);
-
 -- Notifiche per Puccio (escalation, demo pronte, anomalie).
 create table if not exists autopilot_alerts (
   id         text primary key,
@@ -77,12 +75,3 @@ create index if not exists idx_ap_pipeline_stage on autopilot_pipeline(stage);
 create index if not exists idx_ap_wa_lead on wa_messages(lead_id);
 create index if not exists idx_ap_wa_created on wa_messages(created_at);
 create index if not exists idx_ap_alerts_read on autopilot_alerts(read);
-
--- Default settings (insert or ignore: non sovrascrive valori esistenti).
-insert or ignore into autopilot_settings (key, value) values
-  ('kill_switch', '0'),
-  ('warmup_started_at', ''),
-  ('warmup_daily_cap', '10'),
-  ('steady_daily_cap', '15'),
-  ('warmup_days', '14'),
-  ('bot_conversational', '0');

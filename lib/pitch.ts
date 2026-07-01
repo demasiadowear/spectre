@@ -28,9 +28,20 @@ export function classifyPhone(raw: string): PhoneType {
   let d = raw.replace(/\D/g, "");
   if (!d) return "";
   if (d.startsWith("0039")) d = d.slice(4);
-  // prefisso internazionale 39 solo se resta un nazionale plausibile
-  // (evita di tagliare un mobile nazionale 393… di 10 cifre).
-  else if (d.startsWith("39") && d.length >= 11) d = d.slice(2);
+  else if (d.startsWith("39")) {
+    const stripped = d.slice(2);
+    // Il fisso, una volta tolto il prefisso, comincia SEMPRE per 0:
+    // nessuna ambiguità, si accetta a qualsiasi lunghezza. Prima si
+    // toglieva "39" solo se restavano >=11 cifre, il che lasciava
+    // intatti (e quindi classificati "mobile") i fissi il cui
+    // nazionale è corto (es. "+39 02 456789" -> 10 cifre totali).
+    if (stripped.startsWith("0")) d = stripped;
+    // Mobile: il nazionale è sempre di 9-10 cifre. Si accetta lo strip
+    // solo in quel range — altrimenti "39" potrebbe essere l'inizio
+    // del numero nazionale stesso (prefisso mobile "393…") e tagliarlo
+    // produrrebbe un numero sbagliato.
+    else if (stripped.length >= 9 && stripped.length <= 10) d = stripped;
+  }
   if (d.startsWith("3")) return "mobile";
   if (d.startsWith("0")) return "fisso";
   return "";
@@ -47,7 +58,10 @@ export function preferMobile(phones: (string | undefined | null)[]): string {
 /** Normalize to wa.me form: digits only, leading 39. */
 export function normalizePhone(raw: string): string {
   if (!raw) return "";
-  const clean = raw.replace(/[^\d+]/g, "").replace(/^\+/, "");
+  let clean = raw.replace(/[^\d+]/g, "").replace(/^\+/, "");
+  // "0039…" va tolto PRIMA del check "39": altrimenti restava con lo
+  // 0039 davanti e si otteneva "39" + "0039340…" (link wa.me rotto).
+  if (clean.startsWith("0039")) clean = clean.slice(4);
   if (clean.startsWith("39")) return clean;
   return `39${clean}`;
 }

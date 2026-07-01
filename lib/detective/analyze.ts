@@ -2,6 +2,7 @@ import { geminiJSON } from "@/lib/gemini";
 import type {
   DetectiveAnalysis,
   DetectiveCase,
+  DetectiveFact,
   DetectiveLoss,
   DetectiveRawData,
   DetectiveScores,
@@ -65,6 +66,24 @@ interface GeminiAnalyzeOut {
 const clamp = (n: unknown, lo: number, hi: number): number =>
   Math.min(hi, Math.max(lo, Math.round(Number(n) || 0)));
 
+/**
+ * L'anti-hallucination su fact_ids valida solo che la perdita citi un
+ * fatto vero — ma il testo di "evidence" resta prosa libera di Gemini,
+ * che può citare un fact_id reale e scrivere un'evidenza inventata
+ * accanto (es. "12 recensioni negative" mai raccolte). Qui si verifica
+ * che ogni NUMERO presente nell'evidenza compaia anche nel testo dei
+ * fatti citati: se un numero non è ancorato a un fatto, l'evidenza non
+ * è verificabile e la perdita va scartata (stesso principio dei
+ * fact_ids, esteso al contenuto).
+ */
+function evidenceGroundedInFacts(evidence: string, cited: DetectiveFact[]): boolean {
+  const evidenceNumbers = evidence.match(/\d+([.,]\d+)?/g) ?? [];
+  if (evidenceNumbers.length === 0) return true;
+  const factsText = cited.map((f) => f.text).join(" ");
+  const factNumbers = new Set(factsText.match(/\d+([.,]\d+)?/g) ?? []);
+  return evidenceNumbers.every((n) => factNumbers.has(n));
+}
+
 function buildWaMessage(c: DetectiveCase, hook: string, reportUrl: string): string {
   return (
     `Buongiorno! Ho fatto un'analisi gratuita di ${c.business_name} basata solo su dati pubblici (sito + Google). ` +
@@ -117,6 +136,11 @@ export async function analyzeCase(
     const factIds = (l.fact_ids ?? []).filter((id) => validFactIds.has(id));
     // Senza almeno un fatto reale la perdita non si scrive.
     if (factIds.length === 0 || !l.title || !l.evidence) continue;
+
+    // I numeri nell'evidenza devono comparire nei fatti citati:
+    // un fact_id valido non basta se il testo intorno è inventato.
+    const citedFacts = raw.facts.filter((f) => factIds.includes(f.id));
+    if (!evidenceGroundedInFacts(l.evidence, citedFacts)) continue;
 
     const automation = catalog.get((l.automation_name ?? "").toLowerCase());
     if (!automation) continue; // fuori catalogo: scartata

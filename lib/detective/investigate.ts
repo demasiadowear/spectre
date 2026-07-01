@@ -23,6 +23,37 @@ const FETCH_TIMEOUT_MS = 15_000;
 const UA =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
 
+// Primo segmento di path da scartare perché non è un profilo/pagina ma
+// un pulsante di condivisione del tema o un link a un post/reel/widget.
+const IG_SKIP = /^(p|reel|tv|stories|explore|accounts|share|embed)$/i;
+const FB_SKIP =
+  /^(sharer|share|dialog|plugins|tr|login|policy|privacy|help|watch|photo|events)(\.php)?$/i;
+
+/** Primo URL profilo/pagina "genuino" trovato nell'HTML — salta share
+ *  button e link a post/widget che matchano il solo dominio. */
+function firstProfileUrl(
+  html: string,
+  host: string,
+  skip: RegExp,
+): string | undefined {
+  const re = new RegExp(
+    `https?://(?:www\\.)?${host}/([A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+){0,2})`,
+    "gi",
+  );
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    const path = m[1];
+    const firstSeg = path.split("/")[0];
+    if (skip.test(firstSeg)) continue;
+    // "pages/Nome/12345" (formato FB legacy): tieni tutto il path.
+    // Per il resto tieni solo il primo segmento — evita di agganciare
+    // sotto-pagine ("/about", "/posts") come fossero il profilo.
+    const keep = /^(pages|pg)$/i.test(firstSeg) ? path : firstSeg;
+    return `https://${host}/${keep}`;
+  }
+  return undefined;
+}
+
 const BOOKING_PROVIDERS: { pattern: RegExp; name: string }[] = [
   { pattern: /treatwell\.[a-z.]+/i, name: "Treatwell" },
   { pattern: /fresha\.com/i, name: "Fresha" },
@@ -32,14 +63,21 @@ const BOOKING_PROVIDERS: { pattern: RegExp; name: string }[] = [
   { pattern: /(prenota|booking|appuntament)/i, name: "modulo interno" },
 ];
 
-async function fetchWithTimeout(url: string): Promise<Response> {
+async function fetchWithTimeout(
+  url: string,
+  init?: { headers?: Record<string, string> },
+): Promise<Response> {
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
     return await fetch(url, {
       cache: "no-store",
       redirect: "follow",
-      headers: { "User-Agent": UA, "Accept-Language": "it" },
+      headers: {
+        "User-Agent": UA,
+        "Accept-Language": "it",
+        ...init?.headers,
+      },
       signal: controller.signal,
     });
   } finally {
@@ -95,12 +133,8 @@ export async function auditWebsite(url: string): Promise<WebsiteAudit> {
     }
   }
 
-  audit.instagram_url = html.match(
-    /https?:\/\/(?:www\.)?instagram\.com\/[A-Za-z0-9_.]+/i,
-  )?.[0];
-  audit.facebook_url = html.match(
-    /https?:\/\/(?:www\.)?facebook\.com\/[A-Za-z0-9_.\-/]+/i,
-  )?.[0];
+  audit.instagram_url = firstProfileUrl(html, "instagram.com", IG_SKIP);
+  audit.facebook_url = firstProfileUrl(html, "facebook.com", FB_SKIP);
 
   // Lighthouse vero non gira in serverless: PageSpeed Insights API se
   // la chiave Google la copre, altrimenti si resta su tempi/peso reali.
@@ -144,13 +178,19 @@ export async function auditGbp(placeId: string): Promise<GbpAudit> {
   if (!GOOGLE_PLACES_API_KEY || !placeId) return audit;
 
   try {
-    const res = await fetch(`${DETAILS_URL}/${encodeURIComponent(placeId)}`, {
-      cache: "no-store",
-      headers: {
-        "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY,
-        "X-Goog-FieldMask": "rating,userRatingCount,googleMapsUri,reviews",
+    // fetchWithTimeout (15s): a differenza delle altre fonti, questa
+    // chiamata non aveva timeout — una Places Details lenta poteva
+    // restare appesa fino al maxDuration della route, bloccando
+    // l'intera indagine (e il batch dietro di essa).
+    const res = await fetchWithTimeout(
+      `${DETAILS_URL}/${encodeURIComponent(placeId)}`,
+      {
+        headers: {
+          "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY,
+          "X-Goog-FieldMask": "rating,userRatingCount,googleMapsUri,reviews",
+        },
       },
-    });
+    );
     if (!res.ok) {
       console.error("[detective] Places Details HTTP", res.status);
       return audit;
@@ -188,10 +228,23 @@ async function auditInstagram(url: string): Promise<SocialAudit["instagram"]> {
     const og = html.match(
       /property=["']og:description["'][^>]+content=["']([^"']+)["']/i,
     )?.[1];
-    const followers = og?.match(/([\d.,]+)\s*follower/i)?.[1];
-    const posts = og?.match(/([\d.,]+)\s*post/i)?.[1];
-    const toNum = (s?: string) =>
-      s ? Number(s.replace(/[.,]/g, "")) || undefined : undefined;
+    const followers = og?.match(/([\d.,]+\s*[kKmM]?)\s*follower/i)?.[1];
+    const posts = og?.match(/([\d.,]+\s*[kKmM]?)\s*post/i)?.[1];
+    // "12.4K" andava letto come 12400, non 124: senza gestire il
+    // suffisso K/M il punto veniva trattato come separatore delle
+    // migliaia da rimuovere invece che come decimale.
+    const toNum = (s?: string): number | undefined => {
+      if (!s) return undefined;
+      const m = s.trim().match(/^([\d.,]+)\s*([kKmM])?$/);
+      if (!m) return undefined;
+      const suffix = m[2]?.toUpperCase();
+      const base = suffix
+        ? Number(m[1].replace(",", "."))
+        : Number(m[1].replace(/[.,]/g, ""));
+      if (!Number.isFinite(base)) return undefined;
+      const mult = suffix === "K" ? 1_000 : suffix === "M" ? 1_000_000 : 1;
+      return Math.round(base * mult);
+    };
     result.followers = toNum(followers);
     result.posts = toNum(posts);
   } catch {
