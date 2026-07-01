@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Bell, BookOpen, Columns3, Download, List, Map as MapIcon } from "lucide-react";
 import GlassCard from "@/components/ui/spectre/GlassCard";
+import { useVoiceStore } from "@/lib/voice/store";
 import { cn } from "@/lib/utils";
 import type { ApiResponse } from "@/types";
 import type {
@@ -147,6 +148,9 @@ export default function AutopilotConsole() {
   const [openLead, setOpenLead] = useState<AutopilotLead | null>(null);
   const [drawerFocus, setDrawerFocus] = useState<"chat" | undefined>();
 
+  const pendingAction = useVoiceStore((s) => s.pendingAction);
+  const consumeAction = useVoiceStore((s) => s.consumeAction);
+
   const refresh = useCallback(async () => {
     try {
       const [pipRes, alertsRes] = await Promise.all([
@@ -174,6 +178,20 @@ export default function AutopilotConsole() {
     const t = setInterval(refresh, 30_000);
     return () => clearInterval(t);
   }, [refresh]);
+
+  // Voice command bus: "aggiorna la pipeline" (era un comando Visor,
+  // rimasto orfano dopo la fusione Visor -> Pipeline: nessuna pagina
+  // lo ascoltava più).
+  useEffect(() => {
+    if (
+      !pendingAction ||
+      pendingAction.module !== "pipeline" ||
+      pendingAction.kind !== "refresh"
+    )
+      return;
+    consumeAction();
+    refresh();
+  }, [pendingAction, consumeAction, refresh]);
 
   // Il drawer mostra sempre la versione più fresca del lead aperto.
   useEffect(() => {
@@ -354,10 +372,12 @@ export default function AutopilotConsole() {
     }
   }
 
-  /** Import manuale dei lead esistenti mai contattati. Riporta anche
-   *  quanti sono stati saltati e perché (fisso/duplicato/callback):
-   *  senza questo, un lotto Hunter di soli numeri fissi importa 0 lead
-   *  e sembra che il pulsante non funzioni. */
+  /** Ripescaggio manuale: i lead trovati dall'Hunter entrano già in
+   *  pipeline da soli (se eleggibili); questo bottone resta come rete
+   *  di sicurezza per qualunque lead "todo" rimasto fuori (dati
+   *  precedenti a questo comportamento, altre vie di creazione…).
+   *  Riporta anche quanti sono stati saltati e perché
+   *  (fisso/duplicato/callback), così non sembra che non faccia nulla. */
   async function importVisorLeads() {
     setBusyId("import");
     try {
@@ -380,7 +400,7 @@ export default function AutopilotConsole() {
       }) => {
         const parts: string[] = [];
         if (d.skipped_fisso > 0)
-          parts.push(`${d.skipped_fisso} con numero fisso (restano in Visor)`);
+          parts.push(`${d.skipped_fisso} con numero fisso (richiama a voce)`);
         if (d.skipped_duplicate > 0)
           parts.push(`${d.skipped_duplicate} già in pipeline`);
         if (d.skipped_callback > 0)

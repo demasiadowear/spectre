@@ -275,22 +275,30 @@ function parseHunterBare(t: string): VoiceCommand | null {
 
 // ---------- Navigation ----------
 
+// Post "Pipeline unica" (11 viste -> 5): Visor/Cockpit/Oracle/Forecast/
+// Territorio sono confluiti in un'unica pagina (Lista/Kanban/Mappa
+// dentro Pipeline), non pagine a sé. Prima queste chiavi puntavano a
+// route cancellate ("/visor", "/oracle", "/cockpit"…): un utente che
+// diceva "apri pipeline" o "torna alla dashboard" finiva su un 404
+// vero. Tutti gli alias storici ora atterrano su /pipeline.
 const MODULE_ROUTES: Record<string, { route: string; label: string }> = {
-  visor: { route: "/visor", label: "Visor" },
-  cockpit: { route: "/cockpit", label: "Cockpit" },
+  pipeline: { route: "/pipeline", label: "Pipeline" },
+  visor: { route: "/pipeline", label: "Pipeline" },
+  cockpit: { route: "/pipeline", label: "Pipeline" },
+  oracle: { route: "/pipeline", label: "Pipeline" },
+  whisper: { route: "/pipeline", label: "Pipeline" },
+  territorio: { route: "/pipeline", label: "Pipeline" },
+  mappa: { route: "/pipeline", label: "Pipeline" },
+  mappe: { route: "/pipeline", label: "Pipeline" },
+  forecast: { route: "/pipeline", label: "Pipeline" },
+  cassa: { route: "/pipeline", label: "Pipeline" },
+  deals: { route: "/pipeline", label: "Pipeline" },
+  home: { route: "/pipeline", label: "Pipeline" },
+  dashboard: { route: "/pipeline", label: "Pipeline" },
   hunter: { route: "/hunter", label: "Hunter" },
   hand: { route: "/hand", label: "Hand" },
-  whisper: { route: "/whisper", label: "Whisper" },
-  oracle: { route: "/oracle", label: "Oracle" },
-  territorio: { route: "/territorio", label: "Territorio" },
-  mappa: { route: "/territorio", label: "Territorio" },
-  mappe: { route: "/territorio", label: "Territorio" },
-  forecast: { route: "/forecast", label: "Forecast" },
-  cassa: { route: "/forecast", label: "Forecast" },
-  deals: { route: "/visor", label: "Visor" },
-  pipeline: { route: "/visor", label: "Visor" },
-  home: { route: "/cockpit", label: "Cockpit" },
-  dashboard: { route: "/cockpit", label: "Cockpit" },
+  detective: { route: "/detective", label: "Detective" },
+  templates: { route: "/templates", label: "Templates" },
 };
 
 function clean(s: string): string {
@@ -401,7 +409,7 @@ export function parseCommand(transcript: string): VoiceCommand {
     return { type: "action", payload: { module: "whisper", kind: "shadow" }, responseText: "Attivo lo Shadow Mode." };
   }
   if (/\baggiorna\s+(?:il\s+)?(?:visor|lead|pipeline)\b/.test(t)) {
-    return { type: "action", payload: { module: "visor", kind: "refresh" }, responseText: "Aggiorno il Visor." };
+    return { type: "action", payload: { module: "pipeline", kind: "refresh" }, responseText: "Aggiorno la Pipeline." };
   }
 
   // 10. Navigation.
@@ -411,7 +419,7 @@ export function parseCommand(transcript: string): VoiceCommand {
     return { type: "navigate", payload: { route }, responseText: `Ci sono, apro ${label}.` };
   }
   if (/^(?:torna|indietro|dashboard|home)\b/.test(t)) {
-    return { type: "navigate", payload: { route: "/visor" }, responseText: "Torno al Visor." };
+    return { type: "navigate", payload: { route: "/pipeline" }, responseText: "Torno alla Pipeline." };
   }
 
   // 10b. Bare "categoria città" — last, so keyword commands win.
