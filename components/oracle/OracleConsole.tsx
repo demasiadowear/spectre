@@ -8,7 +8,7 @@ import NeonButton from "@/components/ui/spectre/NeonButton";
 import LoadingGrid from "@/components/ui/spectre/LoadingGrid";
 import TypingText from "@/components/ui/spectre/TypingText";
 import { useCountUp } from "@/hooks/useCountUp";
-import { LEAD_STATUS, probabilityHex } from "@/lib/constants";
+import { probabilityHex, statusMeta } from "@/lib/constants";
 import { useVoiceStore } from "@/lib/voice/store";
 import { clamp, formatCurrency } from "@/lib/utils";
 import type { ApiResponse, Lead, OraclePrediction } from "@/types";
@@ -208,9 +208,9 @@ export default function OracleConsole({ leads }: OracleConsoleProps) {
           {selectedLead && (
             <div className="mt-2 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.15em] text-spectre-muted">
               <span
-                className={`rounded-sm border px-1.5 py-0.5 ${LEAD_STATUS[selectedLead.status].badge}`}
+                className={`rounded-sm border px-1.5 py-0.5 ${statusMeta(selectedLead.status).badge}`}
               >
-                {LEAD_STATUS[selectedLead.status].label}
+                {statusMeta(selectedLead.status).label}
               </span>
               <span>Valore {formatCurrency(selectedLead.value)}</span>
             </div>

@@ -1,4 +1,4 @@
-import { LEAD_STATUS } from "@/lib/constants";
+import { statusMeta } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { LeadStatus } from "@/types";
 
@@ -9,7 +9,7 @@ interface StatusBadgeProps {
 
 /** Pill badge with status-coloured dot + label. */
 export default function StatusBadge({ status, className }: StatusBadgeProps) {
-  const meta = LEAD_STATUS[status];
+  const meta = statusMeta(status);
   return (
     <span
       className={cn(

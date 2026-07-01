@@ -14,7 +14,7 @@ import {
   Star,
   X,
 } from "lucide-react";
-import { LEAD_STATUS } from "@/lib/constants";
+import { LEAD_STATUS, statusMeta } from "@/lib/constants";
 import { cn, formatCurrency } from "@/lib/utils";
 import {
   activityType,
@@ -123,7 +123,7 @@ export default function LeadActionPanel({
   const mobile = isMobilePhone(lead.phone);
   const action = nextBestAction(lead);
   const a = activityType(lead);
-  const sm = LEAD_STATUS[lead.status];
+  const sm = statusMeta(lead.status);
 
   const messages = [
     { step: 1, label: "Step 1 · Primo contatto", text: generateStep1(lead) },

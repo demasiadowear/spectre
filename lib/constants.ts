@@ -102,11 +102,27 @@ export const LEAD_STATUS: Record<LeadStatus, StatusMeta> = {
  * "negotiating" gets a full rust fill (white text handled by callers via
  * `statusIsFill`); "lost" is dimmed.
  */
+/**
+ * Status meta lookup tolerant to unknown/legacy values. Seed data and
+ * older imports can carry statuses outside the 8-stage funnel (es.
+ * "warm"/"cold"/"proposal"): senza guardia un solo lead così manda in
+ * crash l'intero board (LEAD_STATUS[status] undefined). Qui degrada a
+ * una meta neutra e mostra il valore grezzo come label.
+ */
+export function statusMeta(status: string): StatusMeta {
+  return (
+    LEAD_STATUS[status as LeadStatus] ?? {
+      ...LEAD_STATUS.todo,
+      label: status ? status.toUpperCase() : "—",
+    }
+  );
+}
+
 export function statusCardClass(status: LeadStatus): string {
   if (status === "negotiating")
     return "border border-fn-negotiating bg-fn-negotiating";
   const dim = status === "lost" ? " opacity-[0.78]" : "";
-  return `border border-border border-l-[4px] ${LEAD_STATUS[status].leftBorder} bg-surface${dim}`;
+  return `border border-border border-l-[4px] ${statusMeta(status).leftBorder} bg-surface${dim}`;
 }
 
 export function statusIsFill(status: LeadStatus): boolean {

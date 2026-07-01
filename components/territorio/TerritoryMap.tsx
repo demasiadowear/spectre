@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
-import { LEAD_STATUS, PIPELINE_ORDER } from "@/lib/constants";
+import { LEAD_STATUS, PIPELINE_ORDER, statusMeta } from "@/lib/constants";
 import LeadActionPanel from "@/components/visor/LeadActionPanel";
 import type { Lead } from "@/types";
 
@@ -45,7 +45,7 @@ export default function TerritoryMap({ initialLeads }: TerritoryMapProps) {
       for (const lead of geoLeads) {
         const lat = lead.meta.lat as number;
         const lng = lead.meta.lng as number;
-        const hex = LEAD_STATUS[lead.status].hex;
+        const hex = statusMeta(lead.status).hex;
         const marker = L.circleMarker([lat, lng], {
           radius: 7,
           color: hex,

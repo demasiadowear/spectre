@@ -5,11 +5,11 @@ import { Ban, Download, LayoutGrid, List, Phone, Plus, Search } from "lucide-rea
 import { useHudStore } from "@/lib/store";
 import { useVoiceStore } from "@/lib/voice/store";
 import {
-  LEAD_STATUS,
   PIPELINE_ORDER,
   STATUS_SHORT,
   statusCardClass,
   statusIsFill,
+  statusMeta,
 } from "@/lib/constants";
 import { cn, formatCurrency, relativeTime } from "@/lib/utils";
 import { isMobilePhone, isStale, nextBestAction, telUrl } from "@/lib/pitch";
@@ -525,7 +525,7 @@ function LeadRow({
   onClick: () => void;
   onDiscard: () => void;
 }) {
-  const meta = LEAD_STATUS[lead.status];
+  const meta = statusMeta(lead.status);
   const action = nextBestAction(lead);
   const mobile = isMobilePhone(lead.phone);
   const fill = statusIsFill(lead.status);

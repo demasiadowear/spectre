@@ -2,11 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { AlertTriangle, ChevronRight } from "lucide-react";
-import { LEAD_STATUS, statusCardClass, statusIsFill } from "@/lib/constants";
+import { statusCardClass, statusIsFill, statusMeta } from "@/lib/constants";
 import { cn, formatCurrency } from "@/lib/utils";
 import { isStale, nextBestAction, waitingHours } from "@/lib/pitch";
 import LeadActionPanel from "@/components/visor/LeadActionPanel";
-import type { Lead, LeadStatus } from "@/types";
+import type { Lead } from "@/types";
 
 interface CockpitBoardProps {
   initialLeads: Lead[];
@@ -204,7 +204,7 @@ function ActionRow({
   onClick: () => void;
 }) {
   const action = nextBestAction(lead);
-  const sm = LEAD_STATUS[lead.status as LeadStatus];
+  const sm = statusMeta(lead.status);
   const fill = statusIsFill(lead.status);
   return (
     <button
