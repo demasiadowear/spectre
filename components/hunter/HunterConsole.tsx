@@ -16,6 +16,38 @@ import {
   type ScoredLead,
 } from "@/types/hunter";
 
+/** Risposta di POST /api/leads/import: quanti lead creati, quanti di
+ *  questi sono anche entrati in pipeline nello stesso passo, e perché
+ *  gli altri no (fisso/duplicato — restano in "leads" per il canale
+ *  telefonico, ma non spariscono: non c'è più bisogno di un secondo
+ *  giro manuale ora che "Visor" non esiste come pagina a sé). */
+interface ImportResponseData {
+  imported: number;
+  ids: string[];
+  added_to_pipeline: number;
+  skipped_fisso: number;
+  skipped_duplicate: number;
+}
+
+/** Messaggio toast che riassume l'esito pipeline di un import. */
+function pipelineOutcome(d: ImportResponseData): string {
+  const parts: string[] = [];
+  if (d.added_to_pipeline > 0) {
+    parts.push(
+      d.added_to_pipeline === d.imported
+        ? `${d.added_to_pipeline} in pipeline`
+        : `${d.added_to_pipeline}/${d.imported} in pipeline`,
+    );
+  }
+  if (d.skipped_fisso > 0) {
+    parts.push(`${d.skipped_fisso} con fisso (richiama a voce)`);
+  }
+  if (d.skipped_duplicate > 0) {
+    parts.push(`${d.skipped_duplicate} già in pipeline`);
+  }
+  return parts.length > 0 ? parts.join(" · ") : "salvato";
+}
+
 /** Map a spoken category ("parrucchiere") to a known option value. */
 function matchCategory(spoken: string): string {
   const s = spoken.toLowerCase().trim();
@@ -54,7 +86,7 @@ function toImportPayload(lead: ScoredLead, category: string) {
       reviews: lead.reviews,
       address: lead.address,
       category,
-      // Auto-create a Visor segment from the hunted category.
+      // Storico (era il segmento Visor); nessun filtro lo legge più.
       segmento: category === "ristorante" ? "ristoranti" : category,
       lat: lead.lat,
       lng: lead.lng,
@@ -133,14 +165,14 @@ export default function HunterConsole() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ leads: [toImportPayload(lead, category)] }),
         });
-        const json = (await res.json()) as ApiResponse<{ imported: number }>;
-        if (json.success) {
+        const json = (await res.json()) as ApiResponse<ImportResponseData>;
+        if (json.success && json.data) {
           setImportedIds((prev) => {
             const next = new Set(prev);
             next.add(lead.id);
             return next;
           });
-          setToast(`${lead.name} inserito in Visor`);
+          setToast(`${lead.name}: ${pipelineOutcome(json.data)}`);
         } else {
           setToast(json.error || "Import fallito.");
         }
@@ -186,8 +218,9 @@ export default function HunterConsole() {
     [category],
   );
 
-  // "Importa tutti in Visor" — bulk import of every visible (non-discarded,
-  // not-yet-imported) result; each carries the hunted category as segment.
+  // "Importa tutti in pipeline" — bulk import of every visible
+  // (non-discarded, not-yet-imported) result; ognuno entra subito in
+  // pipeline se eleggibile (mobile, non duplicato).
   const handleImportAll = useCallback(async () => {
     const toImport = leads.filter(
       (l) => !discardedIds.has(l.id) && !importedIds.has(l.id),
@@ -202,15 +235,14 @@ export default function HunterConsole() {
           leads: toImport.map((l) => toImportPayload(l, category)),
         }),
       });
-      const json = (await res.json()) as ApiResponse<{ imported: number }>;
-      if (json.success) {
+      const json = (await res.json()) as ApiResponse<ImportResponseData>;
+      if (json.success && json.data) {
         setImportedIds((prev) => {
           const next = new Set(prev);
           toImport.forEach((l) => next.add(l.id));
           return next;
         });
-        const n = json.data?.imported ?? toImport.length;
-        setToast(`${n} lead importati in Visor · segmento "${category}"`);
+        setToast(`segmento "${category}": ${pipelineOutcome(json.data)}`);
       } else {
         setToast(json.error || "Import multiplo fallito.");
       }

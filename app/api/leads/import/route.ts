@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server";
 import { createLead, type NewLead } from "@/lib/data";
-import type { ApiResponse, LeadSource, LeadStatus } from "@/types";
+import { addLeadsToPipeline } from "@/lib/autopilot/import";
+import type { ApiResponse, Lead, LeadSource, LeadStatus } from "@/types";
 
-// POST /api/leads/import — bulk-insert hunted leads into the pipeline.
-// Body: { leads: ImportItem[] } or a single lead object.
+// POST /api/leads/import — bulk-insert hunted leads (Hunter). Body:
+// { leads: ImportItem[] } o un singolo lead object. I lead creati con
+// status "todo" (il caso normale — "lost" lo usa solo lo scarto
+// dell'Hunter) entrano SUBITO anche in pipeline se eleggibili (mobile,
+// non duplicati): da quando "Visor" non esiste più come pagina a sé,
+// un secondo passo manuale per farli comparire da qualche parte li
+// faceva solo sembrare spariti.
 
 const SOURCES: LeadSource[] = ["maps", "linkedin", "referral", "cold"];
 const STATUSES: LeadStatus[] = [
@@ -80,13 +86,36 @@ export async function POST(req: Request) {
   }
 
   try {
-    const ids: string[] = [];
+    const created: Lead[] = [];
     for (const input of inputs) {
-      const lead = await createLead(input);
-      ids.push(lead.id);
+      created.push(await createLead(input));
     }
-    return NextResponse.json<ApiResponse<{ imported: number; ids: string[] }>>(
-      { success: true, data: { imported: ids.length, ids } },
+
+    // Solo i "todo" appena creati sono candidati pipeline: lo scarto
+    // dell'Hunter (handleDiscard) passa da qui con status "lost" e non
+    // deve mai finire in pipeline.
+    const toAttach = created.filter((l) => l.status === "todo");
+    const pipelineResult = await addLeadsToPipeline(toAttach);
+
+    return NextResponse.json<
+      ApiResponse<{
+        imported: number;
+        ids: string[];
+        added_to_pipeline: number;
+        skipped_fisso: number;
+        skipped_duplicate: number;
+      }>
+    >(
+      {
+        success: true,
+        data: {
+          imported: created.length,
+          ids: created.map((l) => l.id),
+          added_to_pipeline: pipelineResult.added,
+          skipped_fisso: pipelineResult.skipped_fisso,
+          skipped_duplicate: pipelineResult.skipped_duplicate,
+        },
+      },
       { status: 201 },
     );
   } catch (err) {

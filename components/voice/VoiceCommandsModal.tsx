@@ -11,14 +11,11 @@ interface VoiceCommandsModalProps {
 }
 
 const COMMANDS: { cmd: string; desc: string }[] = [
-  { cmd: "Apri [Visor | Hunter | Hand | Whisper | Oracle | Mind]", desc: "Naviga tra i moduli" },
+  { cmd: "Apri [Pipeline | Hunter | Hand | Detective | Templates]", desc: "Naviga tra i moduli" },
   { cmd: "Hunter cerca [categoria] a [città]", desc: "Lancia un hunt — es. parrucchiere a Milano" },
   { cmd: "Genera proposta per [nome]", desc: "Apre Hand sul lead" },
-  { cmd: "Simula scenario per [nome]", desc: "Oracle calcola la probabilità" },
-  { cmd: "Cerca lead [nome]", desc: "Filtra il Visor per nome" },
-  { cmd: "Mostra lead [hot | warm | cold]", desc: "Filtra la pipeline per stato" },
+  { cmd: "Aggiorna la pipeline", desc: "Ricarica i lead in pipeline" },
   { cmd: "Leggi [insight | script]", desc: "SPECTRE legge ad alta voce" },
-  { cmd: "Scan network", desc: "Mind cerca connessioni nascoste" },
   { cmd: "Stop / Silenzio", desc: "Ferma voce e ascolto" },
   { cmd: "Aiuto", desc: "SPECTRE elenca i comandi" },
 ];

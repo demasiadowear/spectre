@@ -39,11 +39,12 @@ export interface TTSOptions {
 }
 
 export type VoiceModule =
-  | "visor"
+  | "pipeline"
+  | "visor" // storico: nessun listener, Visor è confluito in Pipeline
   | "hunter"
   | "hand"
-  | "oracle"
-  | "whisper"
+  | "oracle" // storico: nessun listener, Oracle è confluito in Pipeline
+  | "whisper" // storico: nessun listener, funzione rimossa
   | "mind";
 
 /** Cross-component command bus: the hook publishes, a module consumes. */

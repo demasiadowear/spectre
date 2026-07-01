@@ -125,7 +125,7 @@ export default function HunterResults({
             filled
             disabled={importingAll || remaining === 0}
             onClick={onImportAll}
-            title="Importa tutti i risultati in Visor (crea il segmento)"
+            title="Importa tutti i risultati in Pipeline"
           >
             {importingAll ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
@@ -233,7 +233,7 @@ export default function HunterResults({
                 ) : (
                   <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
                 )}
-                {imported ? "In Visor" : "Visor"}
+                {imported ? "Importato" : "Pipeline"}
               </NeonButton>
               <NeonButton
                 variant="magenta"

@@ -230,18 +230,21 @@ export class VoiceController {
         return command.responseText;
       }
       case "simulate": {
+        // Oracle è confluito in Pipeline (nessuna pagina/listener dedicato
+        // ancora per "simula scenario"): naviga lì invece di 404are su
+        // /oracle, che non esiste più.
         this.cb.publish({ module: "oracle", kind: "simulate", payload: command.payload });
-        this.cb.navigate("/oracle");
+        this.cb.navigate("/pipeline");
         return command.responseText;
       }
       case "search": {
         this.cb.publish({ module: "visor", kind: "search", payload: command.payload });
-        this.cb.navigate("/visor");
+        this.cb.navigate("/pipeline");
         return command.responseText;
       }
       case "filter": {
         this.cb.publish({ module: "visor", kind: "filter", payload: command.payload });
-        this.cb.navigate("/visor");
+        this.cb.navigate("/pipeline");
         return command.responseText;
       }
       case "browser": {
@@ -260,7 +263,10 @@ export class VoiceController {
             kind,
             payload: command.payload,
           });
-          this.cb.navigate(`/${mod}`);
+          // Navigare letteralmente su `/${mod}` (es. "/mind", "/whisper")
+          // dava un 404: quei moduli non hanno più una pagina propria.
+          // L'unica destinazione reale rimasta per queste azioni è Pipeline.
+          this.cb.navigate("/pipeline");
         }
         return command.responseText;
       }

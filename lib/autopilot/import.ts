@@ -90,6 +90,55 @@ export async function eligibleVisorLeads(): Promise<Lead[]> {
   return (await classifyVisorLeads()).eligible;
 }
 
+export interface PipelineAttachResult {
+  added: number;
+  skipped_fisso: number;
+  skipped_duplicate: number;
+}
+
+/**
+ * Aggiunge in pipeline una lista di lead GIÀ CREATI in `leads` (tipico:
+ * appena importati dall'Hunter), scoped alla lista data — non uno scan
+ * dell'intera tabella come classifyVisorLeads/importFromVisor (che
+ * restano per il "ripescaggio" di lead rimasti indietro per altre vie).
+ * Da quando "Visor" non esiste più come pagina a sé, aspettare un
+ * secondo click manuale per veder comparire un lead appena trovato è
+ * solo un modo per farlo sembrare sparito — l'Hunter ora lo mette in
+ * pipeline nello stesso passo, se è eleggibile. */
+export async function addLeadsToPipeline(
+  leads: Lead[],
+): Promise<PipelineAttachResult> {
+  if (!isTursoConnected() || leads.length === 0) {
+    return { added: 0, skipped_fisso: 0, skipped_duplicate: 0 };
+  }
+  const [ids, phones] = await Promise.all([pipelineLeadIds(), pipelinePhones()]);
+  let added = 0;
+  let skipped_fisso = 0;
+  let skipped_duplicate = 0;
+
+  for (const l of leads) {
+    const phone = normalizePhone(l.phone);
+    if (!isMobilePhone(l.phone) || !phone) {
+      skipped_fisso++;
+      continue;
+    }
+    if (ids.has(l.id) || phones.has(phone)) {
+      skipped_duplicate++;
+      continue;
+    }
+    await insertPipelineRow({
+      lead_id: l.id,
+      place_id: "",
+      category: l.meta.category ?? "attività",
+      city: cityOf(l),
+    });
+    ids.add(l.id);
+    phones.add(phone);
+    added++;
+  }
+  return { added, skipped_fisso, skipped_duplicate };
+}
+
 export interface VisorImportResult {
   eligible: number;
   imported: number;
