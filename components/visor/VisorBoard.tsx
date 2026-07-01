@@ -11,7 +11,7 @@ import {
   statusCardClass,
   statusIsFill,
 } from "@/lib/constants";
-import { cn, formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency, relativeTime } from "@/lib/utils";
 import { isMobilePhone, isStale, nextBestAction, telUrl } from "@/lib/pitch";
 import GlassCard from "@/components/ui/spectre/GlassCard";
 import NeonButton from "@/components/ui/spectre/NeonButton";
@@ -26,7 +26,22 @@ interface VisorBoardProps {
   initialLeads: Lead[];
 }
 
-type FilterKey = LeadStatus | "all" | "wa" | "fisso";
+type FilterKey = LeadStatus | "all" | "wa" | "fisso" | "recent";
+
+// "Recenti": lead aggiunti nelle ultime 48h. Copre il caso "ho appena
+// importato un batch dall'Hunter e voglio ritrovarli" senza doverli
+// cercare nel mucchio dei todo.
+const RECENT_WINDOW_MS = 48 * 60 * 60 * 1000;
+
+function isRecent(lead: Lead): boolean {
+  const t = new Date(lead.created_at).getTime();
+  return !Number.isNaN(t) && Date.now() - t < RECENT_WINDOW_MS;
+}
+
+function createdAtMs(lead: Lead): number {
+  const t = new Date(lead.created_at).getTime();
+  return Number.isNaN(t) ? 0 : t;
+}
 
 // Display labels for known segments; unknown ones (auto-created from a hunt)
 // fall back to a capitalised version of their slug.
@@ -136,10 +151,12 @@ export default function VisorBoard({ initialLeads }: VisorBoardProps) {
     return segmentLeads.filter((l) => {
       if (filter === "wa" && !isMobilePhone(l.phone)) return false;
       if (filter === "fisso" && isMobilePhone(l.phone)) return false;
+      if (filter === "recent" && !isRecent(l)) return false;
       if (
         filter !== "all" &&
         filter !== "wa" &&
         filter !== "fisso" &&
+        filter !== "recent" &&
         l.status !== filter
       )
         return false;
@@ -153,11 +170,22 @@ export default function VisorBoard({ initialLeads }: VisorBoardProps) {
       [...PIPELINE_ORDER, "lost"].map((s) => [s, [] as Lead[]]),
     ) as Record<LeadStatus, Lead[]>;
     for (const lead of filtered) (map[lead.status] ??= []).push(lead);
+    // Sotto "Recenti" ogni colonna mostra prima gli ultimi aggiunti.
+    if (filter === "recent") {
+      for (const s of Object.keys(map) as LeadStatus[]) {
+        map[s].sort((a, b) => createdAtMs(b) - createdAtMs(a));
+      }
+    }
     return map;
-  }, [filtered]);
+  }, [filtered, filter]);
 
   // List view: open leads first (by urgency), then closed/lost.
+  // Sotto "Recenti" si passa a puro ordine cronologico inverso: quello
+  // che il filtro promette è "gli ultimi aggiunti in cima".
   const listSorted = useMemo(() => {
+    if (filter === "recent") {
+      return [...filtered].sort((a, b) => createdAtMs(b) - createdAtMs(a));
+    }
     const order: Record<LeadStatus, number> = {
       todo: 0,
       step1_sent: 1,
@@ -174,7 +202,7 @@ export default function VisorBoard({ initialLeads }: VisorBoardProps) {
       if (sa !== sb) return sa - sb;
       return Number(isStale(b)) - Number(isStale(a)) || b.value - a.value;
     });
-  }, [filtered]);
+  }, [filtered, filter]);
 
   async function handleDrop(id: string, status: LeadStatus) {
     setDraggingId(null);
@@ -288,6 +316,16 @@ export default function VisorBoard({ initialLeads }: VisorBoardProps) {
     { key: "wa", label: "📱 WhatsApp", count: segmentLeads.filter((l) => isMobilePhone(l.phone)).length },
     { key: "fisso", label: "☎ Fisso", count: segmentLeads.filter((l) => !isMobilePhone(l.phone)).length },
   ];
+
+  // Chip "Recenti" mostrato solo se c'è davvero qualcosa di fresco (es.
+  // dopo un import dall'Hunter), così di norma non ingombra la barra.
+  const recentCount = useMemo(
+    () => segmentLeads.filter(isRecent).length,
+    [segmentLeads],
+  );
+  if (recentCount > 0 || filter === "recent") {
+    filterChips.unshift({ key: "recent", label: "🆕 Recenti", count: recentCount });
+  }
 
   // Segments are dynamic: derived from the distinct meta.segmento on the
   // leads, so importing a new category from the Hunter auto-creates its chip.
@@ -491,6 +529,7 @@ function LeadRow({
   const action = nextBestAction(lead);
   const mobile = isMobilePhone(lead.phone);
   const fill = statusIsFill(lead.status);
+  const recent = isRecent(lead);
   const stop = (e: { stopPropagation: () => void }) => e.stopPropagation();
   return (
     <div
@@ -570,20 +609,34 @@ function LeadRow({
       </div>
 
       <div className="mt-2 flex items-center justify-between">
-        {fill ? (
-          <span className="rounded-sm border border-white/40 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.1em] text-white">
-            {meta.label}
-          </span>
-        ) : (
-          <span
-            className={cn(
-              "rounded-sm border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.1em]",
-              meta.badge,
-            )}
-          >
-            {meta.label}
-          </span>
-        )}
+        <div className="flex items-center gap-1.5">
+          {fill ? (
+            <span className="rounded-sm border border-white/40 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.1em] text-white">
+              {meta.label}
+            </span>
+          ) : (
+            <span
+              className={cn(
+                "rounded-sm border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.1em]",
+                meta.badge,
+              )}
+            >
+              {meta.label}
+            </span>
+          )}
+          {recent && (
+            <span
+              className={cn(
+                "rounded-sm px-1.5 py-0.5 text-[9px] uppercase tracking-[0.1em]",
+                fill
+                  ? "border border-white/40 text-white"
+                  : "bg-spectre-green/15 text-spectre-green",
+              )}
+            >
+              🆕 {relativeTime(lead.created_at)}
+            </span>
+          )}
+        </div>
         <span className={cn("text-[11px]", fill ? "text-white" : "text-accent")}>
           {formatCurrency(lead.value)}
         </span>
