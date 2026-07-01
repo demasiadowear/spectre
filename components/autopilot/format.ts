@@ -46,6 +46,14 @@ export function parseDbDate(value: string | null): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+/** Entrato in pipeline nelle ultime 48h. created_at della riga pipeline
+ *  = momento dell'import (da Hunter/Visor), cioè "appena aggiunto". */
+const RECENT_WINDOW_MS = 48 * 60 * 60 * 1000;
+export function isRecent(lead: AutopilotLead, now = Date.now()): boolean {
+  const d = parseDbDate(lead.created_at);
+  return d !== null && now - d.getTime() < RECENT_WINDOW_MS;
+}
+
 /** "ora" / "35m fa" / "4h fa" / "3g fa". */
 export function timeAgo(value: string | null): string {
   const d = parseDbDate(value);

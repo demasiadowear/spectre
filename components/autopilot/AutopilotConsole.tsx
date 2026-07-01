@@ -14,7 +14,13 @@ import AutopilotKanban from "./AutopilotKanban";
 import AutopilotLeadDrawer, { type ConversationResult } from "./AutopilotLeadDrawer";
 import AutopilotLeadRow from "./AutopilotLeadRow";
 import PipelineMap from "./PipelineMap";
-import { actionPriority, sortByAction, sortByQuality } from "./format";
+import {
+  actionPriority,
+  isRecent,
+  parseDbDate,
+  sortByAction,
+  sortByQuality,
+} from "./format";
 
 // ============================================================
 // AUTOPILOT console — copilota MANUALE. Scout+Study trovano e
@@ -28,6 +34,7 @@ type ViewMode = "list" | "kanban" | "mappa";
 type StatusFilter =
   | "azione"
   | "agenda"
+  | "recent"
   | "tutti"
   | "da_contattare"
   | "contattati"
@@ -51,6 +58,7 @@ const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
 const EMPTY_STATES: Record<StatusFilter, string> = {
   azione: "Niente da fare adesso. Lo scout gira ogni mattina alle 6.",
   agenda: "Nessuna azione pianificata: fissa data e prossima azione dal dettaglio lead.",
+  recent: "Nessun lead aggiunto di recente.",
   tutti: "Nessun lead in pipeline. Lo scout gira ogni mattina alle 6.",
   da_contattare: "Nessun lead pronto da contattare: lo study li sta preparando.",
   contattati: "Nessun lead contattato in attesa di risposta.",
@@ -67,6 +75,8 @@ function matchesStatus(lead: AutopilotLead, f: StatusFilter): boolean {
       return actionPriority(lead) < 3;
     case "agenda":
       return Boolean(lead.next_action_at) && lead.stage !== "archiviato" && lead.stage !== "perso";
+    case "recent":
+      return isRecent(lead);
     case "tutti":
       return true;
     case "da_contattare":
@@ -199,8 +209,20 @@ export default function AutopilotConsole() {
           new Date(b.next_action_at ?? 0).getTime(),
       );
     }
+    // "Recenti": ultimi aggiunti in cima, a prescindere dallo stato.
+    if (statusFilter === "recent") {
+      return [...filtered].sort(
+        (a, b) =>
+          (parseDbDate(b.created_at)?.getTime() ?? 0) -
+          (parseDbDate(a.created_at)?.getTime() ?? 0),
+      );
+    }
     return sortMode === "qualita" ? sortByQuality(filtered) : sortByAction(filtered);
   }, [leads, statusFilter, categoryFilter, sortMode, waOnly]);
+
+  // Chip "Recenti" mostrato solo se c'è davvero qualcosa di fresco (es.
+  // dopo un import dall'Hunter), così di norma non ingombra la barra.
+  const recentCount = useMemo(() => leads.filter((l) => isRecent(l)).length, [leads]);
 
   // ----- azioni -----------------------------------------------
 
@@ -492,6 +514,14 @@ export default function AutopilotConsole() {
           <span className="w-16 font-ui text-[10px] uppercase tracking-[0.18em] text-text2">
             Stato
           </span>
+          {(recentCount > 0 || statusFilter === "recent") && (
+            <Chip
+              label="🆕 Recenti"
+              count={recentCount}
+              active={statusFilter === "recent"}
+              onClick={() => setStatusFilter("recent")}
+            />
+          )}
           {STATUS_FILTERS.map((f) => (
             <Chip
               key={f.id}
