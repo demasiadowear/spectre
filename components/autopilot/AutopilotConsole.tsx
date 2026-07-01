@@ -386,6 +386,7 @@ export default function AutopilotConsole() {
         eligible: number;
         sample: string[];
         skipped_fisso: number;
+        skipped_no_phone: number;
         skipped_duplicate: number;
         skipped_callback: number;
       }>;
@@ -395,12 +396,15 @@ export default function AutopilotConsole() {
       }
       const skippedNote = (d: {
         skipped_fisso: number;
+        skipped_no_phone: number;
         skipped_duplicate: number;
         skipped_callback: number;
       }) => {
         const parts: string[] = [];
         if (d.skipped_fisso > 0)
           parts.push(`${d.skipped_fisso} con numero fisso (richiama a voce)`);
+        if (d.skipped_no_phone > 0)
+          parts.push(`${d.skipped_no_phone} senza telefono (verifica a mano)`);
         if (d.skipped_duplicate > 0)
           parts.push(`${d.skipped_duplicate} già in pipeline`);
         if (d.skipped_callback > 0)
@@ -425,6 +429,7 @@ export default function AutopilotConsole() {
       const pj = (await post.json()) as ApiResponse<{
         imported: number;
         skipped_fisso: number;
+        skipped_no_phone: number;
         skipped_duplicate: number;
         skipped_callback: number;
       }>;

@@ -1,5 +1,5 @@
 import { getLeads } from "@/lib/data";
-import { cityOf, isMobilePhone } from "@/lib/pitch";
+import { cityOf, classifyPhone } from "@/lib/pitch";
 import { isTursoConnected, turso } from "@/lib/turso";
 import type { Lead } from "@/types";
 import { insertPipelineRow, normalizePhone } from "./db";
@@ -35,18 +35,23 @@ async function pipelineLeadIds(): Promise<Set<string>> {
 
 export interface VisorImportCandidates {
   eligible: Lead[];
-  /** Fisso o telefono non riconoscibile: niente WhatsApp, restano in Visor. */
+  /** Numero fisso riconosciuto (inizia per 0): niente WhatsApp. */
   skipped_fisso: number;
+  /** Nessun telefono raccolto o non classificabile — DIVERSO da un
+   *  fisso: qui non c'è proprio un numero da chiamare, va verificato
+   *  a mano (Google Places spesso non ha il telefono per attività
+   *  piccole/nuove). Confonderlo col fisso confondeva la diagnosi. */
+  skipped_no_phone: number;
   /** Stesso telefono già in pipeline o duplicato nel lotto stesso. */
   skipped_duplicate: number;
   /** Callback pianificato: trattativa già seguita a mano. */
   skipped_callback: number;
 }
 
-/** Lead Visor importabili: mai contattati + telefono + non in pipeline.
+/** Lead Visor importabili: mai contattati + mobile + non in pipeline.
  *  Riporta anche PERCHÉ gli altri sono stati esclusi, così l'operatore
  *  non si chiede "perché non ha importato niente" (es. lotto di soli
- *  numeri fissi dall'Hunter, che restano in Visor per il canale voce). */
+ *  numeri fissi dall'Hunter, che restano in leads per il canale voce). */
 export async function classifyVisorLeads(): Promise<VisorImportCandidates> {
   const [leads, ids, phones] = await Promise.all([
     getLeads(),
@@ -56,6 +61,7 @@ export async function classifyVisorLeads(): Promise<VisorImportCandidates> {
   const seen = new Set<string>(); // dedup interno (stesso telefono su 2 lead)
   const eligible: Lead[] = [];
   let skipped_fisso = 0;
+  let skipped_no_phone = 0;
   let skipped_duplicate = 0;
   let skipped_callback = 0;
 
@@ -69,12 +75,19 @@ export async function classifyVisorLeads(): Promise<VisorImportCandidates> {
       continue;
     }
     // Solo mobili: i fissi non sono su WhatsApp, inutile importarli
-    // (restano in Visor per il canale telefonico).
-    const phone = normalizePhone(l.phone);
-    if (!isMobilePhone(l.phone) || !phone) {
+    // (restano in "leads" per il canale telefonico). Un telefono
+    // assente/non classificabile NON è un fisso: è un caso diverso,
+    // contato a parte.
+    const kind = classifyPhone(l.phone);
+    if (kind === "fisso") {
       skipped_fisso++;
       continue;
     }
+    if (kind !== "mobile") {
+      skipped_no_phone++;
+      continue;
+    }
+    const phone = normalizePhone(l.phone);
     if (ids.has(l.id) || phones.has(phone) || seen.has(phone)) {
       skipped_duplicate++;
       continue;
@@ -82,7 +95,13 @@ export async function classifyVisorLeads(): Promise<VisorImportCandidates> {
     seen.add(phone);
     eligible.push(l);
   }
-  return { eligible, skipped_fisso, skipped_duplicate, skipped_callback };
+  return {
+    eligible,
+    skipped_fisso,
+    skipped_no_phone,
+    skipped_duplicate,
+    skipped_callback,
+  };
 }
 
 /** Solo i lead eleggibili (compat: usato dalla GET di preview). */
@@ -93,6 +112,9 @@ export async function eligibleVisorLeads(): Promise<Lead[]> {
 export interface PipelineAttachResult {
   added: number;
   skipped_fisso: number;
+  /** Nessun telefono raccolto (es. Google Places senza numero) — non
+   *  un fisso, un caso diverso: va verificato a mano, non richiamato. */
+  skipped_no_phone: number;
   skipped_duplicate: number;
 }
 
@@ -109,19 +131,25 @@ export async function addLeadsToPipeline(
   leads: Lead[],
 ): Promise<PipelineAttachResult> {
   if (!isTursoConnected() || leads.length === 0) {
-    return { added: 0, skipped_fisso: 0, skipped_duplicate: 0 };
+    return { added: 0, skipped_fisso: 0, skipped_no_phone: 0, skipped_duplicate: 0 };
   }
   const [ids, phones] = await Promise.all([pipelineLeadIds(), pipelinePhones()]);
   let added = 0;
   let skipped_fisso = 0;
+  let skipped_no_phone = 0;
   let skipped_duplicate = 0;
 
   for (const l of leads) {
-    const phone = normalizePhone(l.phone);
-    if (!isMobilePhone(l.phone) || !phone) {
+    const kind = classifyPhone(l.phone);
+    if (kind === "fisso") {
       skipped_fisso++;
       continue;
     }
+    if (kind !== "mobile") {
+      skipped_no_phone++;
+      continue;
+    }
+    const phone = normalizePhone(l.phone);
     if (ids.has(l.id) || phones.has(phone)) {
       skipped_duplicate++;
       continue;
@@ -136,13 +164,14 @@ export async function addLeadsToPipeline(
     phones.add(phone);
     added++;
   }
-  return { added, skipped_fisso, skipped_duplicate };
+  return { added, skipped_fisso, skipped_no_phone, skipped_duplicate };
 }
 
 export interface VisorImportResult {
   eligible: number;
   imported: number;
   skipped_fisso: number;
+  skipped_no_phone: number;
   skipped_duplicate: number;
   skipped_callback: number;
 }
@@ -153,8 +182,13 @@ export async function importFromVisor(): Promise<VisorImportResult> {
   if (!isTursoConnected()) {
     throw new Error("Turso non configurato: l'import richiede il DB.");
   }
-  const { eligible, skipped_fisso, skipped_duplicate, skipped_callback } =
-    await classifyVisorLeads();
+  const {
+    eligible,
+    skipped_fisso,
+    skipped_no_phone,
+    skipped_duplicate,
+    skipped_callback,
+  } = await classifyVisorLeads();
   let imported = 0;
   for (const l of eligible) {
     await insertPipelineRow({
@@ -169,6 +203,7 @@ export async function importFromVisor(): Promise<VisorImportResult> {
     eligible: eligible.length,
     imported,
     skipped_fisso,
+    skipped_no_phone,
     skipped_duplicate,
     skipped_callback,
   };

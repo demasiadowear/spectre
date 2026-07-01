@@ -103,6 +103,7 @@ export async function POST(req: Request) {
         ids: string[];
         added_to_pipeline: number;
         skipped_fisso: number;
+        skipped_no_phone: number;
         skipped_duplicate: number;
       }>
     >(
@@ -113,6 +114,7 @@ export async function POST(req: Request) {
           ids: created.map((l) => l.id),
           added_to_pipeline: pipelineResult.added,
           skipped_fisso: pipelineResult.skipped_fisso,
+          skipped_no_phone: pipelineResult.skipped_no_phone,
           skipped_duplicate: pipelineResult.skipped_duplicate,
         },
       },

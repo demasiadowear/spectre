@@ -13,13 +13,19 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const { eligible, skipped_fisso, skipped_duplicate, skipped_callback } =
-      await classifyVisorLeads();
+    const {
+      eligible,
+      skipped_fisso,
+      skipped_no_phone,
+      skipped_duplicate,
+      skipped_callback,
+    } = await classifyVisorLeads();
     return NextResponse.json<
       ApiResponse<{
         eligible: number;
         sample: string[];
         skipped_fisso: number;
+        skipped_no_phone: number;
         skipped_duplicate: number;
         skipped_callback: number;
       }>
@@ -29,6 +35,7 @@ export async function GET() {
         eligible: eligible.length,
         sample: eligible.slice(0, 5).map((l) => l.company || l.name),
         skipped_fisso,
+        skipped_no_phone,
         skipped_duplicate,
         skipped_callback,
       },
