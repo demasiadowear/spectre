@@ -11,6 +11,7 @@ import {
 } from "@/lib/autopilot/db";
 import { triageInbound } from "@/lib/autopilot/triage";
 import { suggestReply, type SuggestedReply } from "@/lib/autopilot/reply";
+import { STAGE_LABELS } from "@/components/autopilot/format";
 import type { ApiResponse } from "@/types";
 import type { AutopilotLead, AutopilotStage } from "@/types/autopilot";
 
@@ -27,16 +28,30 @@ import type { AutopilotLead, AutopilotStage } from "@/types/autopilot";
 
 export const dynamic = "force-dynamic";
 
-/** Stati in cui una risposta vaga NON deve cambiare stage da sola (lo
- *  gestisce Puccio): trattativa attiva e stati terminali. Un perso che
- *  riscrive resta perso ma genera comunque l'alert; se invece il triage
- *  rileva un intento forte (es. "mandami la demo") lo riapre. */
+/** Stati in cui una risposta vaga NON deve declassare lo stage da sola
+ *  (lo gestisce Puccio): trattativa attiva e stati terminali. Un perso
+ *  che riscrive resta perso ma genera comunque l'alert; se invece il
+ *  triage rileva un intento forte (es. "mandami la demo") lo riapre —
+ *  un lead perso è un prospect normale che può tornare interessato. */
 const NEGOTIATION_STAGES = new Set<AutopilotStage>([
   "in_trattativa",
   "vinto",
   "perso",
   "archiviato",
 ]);
+
+/**
+ * Vinto/archiviato: MAI un cambio di stage automatico, qualunque sia
+ * l'intento rilevato — a differenza di "perso" (prospect normale che
+ * può tornare interessato), questi due sono terminali per motivi che
+ * il triage non può valutare: "vinto" è già un cliente pagante (un
+ * follow-up non deve rimetterlo silenziosamente nel funnel di
+ * vendita, altrimenti si sballano i conteggi vinto/perso); "archiviato"
+ * è spesso un'uscita per vincolo di canale o compliance (numero fisso,
+ * opt-out), non per disinteresse — non è il triage a poterla annullare.
+ * L'alert parte comunque SEMPRE: la riapertura resta possibile, ma
+ * la decide Puccio a mano dal drawer. */
+const LOCKED_STAGES = new Set<AutopilotStage>(["vinto", "archiviato"]);
 
 interface ConversationPayload {
   lead: AutopilotLead;
@@ -89,19 +104,33 @@ export async function POST(req: Request) {
       // Triage Gemini: cataloga lo stato di trattativa (mai risponde).
       const triage = await triageInbound(lead, text, history);
 
-      // In trattativa attiva una risposta vaga non declassa lo stage.
+      const stageLocked = LOCKED_STAGES.has(lead.stage);
+      // In trattativa attiva una risposta vaga non declassa lo stage;
+      // vinto/archiviato non si spostano MAI da soli (vedi LOCKED_STAGES).
       const keepStage =
-        NEGOTIATION_STAGES.has(lead.stage) && triage.stage === "ha_risposto";
+        stageLocked ||
+        (NEGOTIATION_STAGES.has(lead.stage) && triage.stage === "ha_risposto");
       await updateDeal(leadId, {
         ...(keepStage ? {} : { stage: triage.stage }),
         ...(triage.next_action ? { next_action: triage.next_action } : {}),
         ...(triage.callback_at ? { next_action_at: triage.callback_at } : {}),
-        ...(triage.lost_reason ? { lost_reason: triage.lost_reason } : {}),
+        // lost_reason ha senso solo se si transita davvero su "perso":
+        // se lo stage resta bloccato non lo si scrive, altrimenti un
+        // lead "vinto" si ritroverebbe un motivo di perdita in bacheca.
+        ...(!stageLocked && triage.lost_reason
+          ? { lost_reason: triage.lost_reason }
+          : {}),
       });
 
       const extra = [
         triage.callback_at ? `quando: ${triage.callback_at.replace("T", " ")}` : "",
-        triage.lost_reason ? `motivo: ${triage.lost_reason}` : "",
+        !stageLocked && triage.lost_reason ? `motivo: ${triage.lost_reason}` : "",
+        // Il triage avrebbe spostato lo stage ma è bloccato: lo si dice
+        // esplicitamente, altrimenti sembra che l'alert non abbia
+        // avuto seguito. La riapertura resta possibile, ma a mano.
+        stageLocked && triage.stage !== lead.stage
+          ? `resta "${STAGE_LABELS[lead.stage]}": aggiorna a mano dal drawer se vuoi riaprirlo`
+          : "",
       ]
         .filter(Boolean)
         .join(" · ");
