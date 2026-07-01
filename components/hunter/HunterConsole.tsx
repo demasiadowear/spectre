@@ -26,6 +26,11 @@ interface ImportResponseData {
   ids: string[];
   added_to_pipeline: number;
   skipped_fisso: number;
+  /** Nessun telefono raccolto (Google Places spesso non ce l'ha per
+   *  attività piccole) — DIVERSO da un fisso: qui non c'è proprio un
+   *  numero, va cercato a mano. Confonderlo col fisso ("richiama a
+   *  voce" su un lead senza alcun numero) è fuorviante. */
+  skipped_no_phone: number;
   skipped_duplicate: number;
 }
 
@@ -41,6 +46,9 @@ function pipelineOutcome(d: ImportResponseData): string {
   }
   if (d.skipped_fisso > 0) {
     parts.push(`${d.skipped_fisso} con fisso (richiama a voce)`);
+  }
+  if (d.skipped_no_phone > 0) {
+    parts.push(`${d.skipped_no_phone} senza telefono (verifica a mano)`);
   }
   if (d.skipped_duplicate > 0) {
     parts.push(`${d.skipped_duplicate} già in pipeline`);
