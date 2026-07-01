@@ -64,14 +64,43 @@ export async function generateWithGemini(
   return result.response.text();
 }
 
-/** Pull the first balanced JSON object out of a model response. */
+/**
+ * Pull the first balanced JSON object out of a model response, honoring
+ * string literals (a "}" inside a quoted string doesn't count towards
+ * nesting). The doc comment always promised "balanced" but the old
+ * implementation just took first-"{"-to-last-"}": if the model added
+ * any prose containing braces around the JSON (still possible even
+ * with jsonMode, e.g. a trailing note), that swallowed garbage and
+ * broke JSON.parse on an otherwise valid payload.
+ */
 function extractJson(raw: string): string {
   const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const body = fenced ? fenced[1] : raw;
   const start = body.indexOf("{");
+  if (start === -1) return body.trim();
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < body.length; i++) {
+    const ch = body[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) return body.slice(start, i + 1);
+    }
+  }
+  // Non bilanciato (es. risposta troncata): fallback al vecchio
+  // comportamento, meglio un tentativo di parse che rinunciare subito.
   const end = body.lastIndexOf("}");
-  if (start === -1 || end === -1) return body.trim();
-  return body.slice(start, end + 1);
+  return end === -1 ? body.trim() : body.slice(start, end + 1);
 }
 
 /**

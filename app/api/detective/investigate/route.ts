@@ -4,6 +4,7 @@ import {
   investigateAndAnalyze,
   type InvestigateOutcome,
 } from "@/lib/detective/run";
+import { parseOptionalNumber } from "@/lib/utils";
 import type { ApiResponse } from "@/types";
 
 // POST /api/detective/investigate — indagine singola o batch.
@@ -32,7 +33,7 @@ export async function POST(req: Request) {
       (v): v is string => typeof v === "string",
     );
   } else if (body.all_scouted === true) {
-    const limit = Number.isFinite(body.limit) ? Number(body.limit) : 5;
+    const limit = parseOptionalNumber(body.limit) ?? 5;
     ids = (await getCases("scouted")).slice(0, limit).map((c) => c.id);
   }
 

@@ -33,34 +33,69 @@ async function pipelineLeadIds(): Promise<Set<string>> {
   return new Set(res.rows.map((r) => String(r.lead_id)));
 }
 
-/** Lead Visor importabili: mai contattati + telefono + non in pipeline. */
-export async function eligibleVisorLeads(): Promise<Lead[]> {
+export interface VisorImportCandidates {
+  eligible: Lead[];
+  /** Fisso o telefono non riconoscibile: niente WhatsApp, restano in Visor. */
+  skipped_fisso: number;
+  /** Stesso telefono già in pipeline o duplicato nel lotto stesso. */
+  skipped_duplicate: number;
+  /** Callback pianificato: trattativa già seguita a mano. */
+  skipped_callback: number;
+}
+
+/** Lead Visor importabili: mai contattati + telefono + non in pipeline.
+ *  Riporta anche PERCHÉ gli altri sono stati esclusi, così l'operatore
+ *  non si chiede "perché non ha importato niente" (es. lotto di soli
+ *  numeri fissi dall'Hunter, che restano in Visor per il canale voce). */
+export async function classifyVisorLeads(): Promise<VisorImportCandidates> {
   const [leads, ids, phones] = await Promise.all([
     getLeads(),
     pipelineLeadIds(),
     pipelinePhones(),
   ]);
   const seen = new Set<string>(); // dedup interno (stesso telefono su 2 lead)
-  return leads.filter((l) => {
-    if (l.status !== "todo") return false;
+  const eligible: Lead[] = [];
+  let skipped_fisso = 0;
+  let skipped_duplicate = 0;
+  let skipped_callback = 0;
+
+  for (const l of leads) {
+    if (l.status !== "todo") continue; // non è un candidato pipeline
     // Callback pianificato = gestione manuale in corso anche se lo
     // status è rimasto "todo" (caso Giosuè): l'autopilot non deve
     // toccare trattative seguite a mano.
-    if (l.meta.callback) return false;
+    if (l.meta.callback) {
+      skipped_callback++;
+      continue;
+    }
     // Solo mobili: i fissi non sono su WhatsApp, inutile importarli
     // (restano in Visor per il canale telefonico).
-    if (!isMobilePhone(l.phone)) return false;
     const phone = normalizePhone(l.phone);
-    if (!phone) return false;
-    if (ids.has(l.id) || phones.has(phone) || seen.has(phone)) return false;
+    if (!isMobilePhone(l.phone) || !phone) {
+      skipped_fisso++;
+      continue;
+    }
+    if (ids.has(l.id) || phones.has(phone) || seen.has(phone)) {
+      skipped_duplicate++;
+      continue;
+    }
     seen.add(phone);
-    return true;
-  });
+    eligible.push(l);
+  }
+  return { eligible, skipped_fisso, skipped_duplicate, skipped_callback };
+}
+
+/** Solo i lead eleggibili (compat: usato dalla GET di preview). */
+export async function eligibleVisorLeads(): Promise<Lead[]> {
+  return (await classifyVisorLeads()).eligible;
 }
 
 export interface VisorImportResult {
   eligible: number;
   imported: number;
+  skipped_fisso: number;
+  skipped_duplicate: number;
+  skipped_callback: number;
 }
 
 /** Importa in batch tutti gli eleggibili in stage "da_contattare". Lo
@@ -69,7 +104,8 @@ export async function importFromVisor(): Promise<VisorImportResult> {
   if (!isTursoConnected()) {
     throw new Error("Turso non configurato: l'import richiede il DB.");
   }
-  const eligible = await eligibleVisorLeads();
+  const { eligible, skipped_fisso, skipped_duplicate, skipped_callback } =
+    await classifyVisorLeads();
   let imported = 0;
   for (const l of eligible) {
     await insertPipelineRow({
@@ -80,5 +116,11 @@ export async function importFromVisor(): Promise<VisorImportResult> {
     });
     imported++;
   }
-  return { eligible: eligible.length, imported };
+  return {
+    eligible: eligible.length,
+    imported,
+    skipped_fisso,
+    skipped_duplicate,
+    skipped_callback,
+  };
 }

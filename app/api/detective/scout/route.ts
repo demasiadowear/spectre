@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { runAuditScout, type AuditScoutResult } from "@/lib/detective/scout";
+import { parseOptionalNumber } from "@/lib/utils";
 import type { ApiResponse } from "@/types";
 
 // Scout mode "audit" — trigger MANUALE dalla dashboard (no cron in v1).
@@ -23,7 +24,7 @@ export async function POST(req: Request) {
       locations: Array.isArray(body.locations)
         ? (body.locations as string[])
         : undefined,
-      limit: Number.isFinite(body.limit) ? Number(body.limit) : undefined,
+      limit: parseOptionalNumber(body.limit),
     });
     console.log("[detective/scout]", JSON.stringify(result));
     return NextResponse.json<ApiResponse<AuditScoutResult>>({

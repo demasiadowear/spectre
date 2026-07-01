@@ -187,21 +187,30 @@ export default function AutopilotConsole() {
     [leads],
   );
 
+  // Filtri trasversali (categoria, solo WhatsApp) applicati PRIMA dei
+  // chip di stato: senza questo, i numeri sui chip contavano su tutti
+  // i lead mentre "visible" filtrava anche per categoria/waOnly, e il
+  // numero sul chip non coincideva con le righe mostrate cliccandolo.
+  const crossFiltered = useMemo(
+    () =>
+      leads.filter(
+        (l) =>
+          (!categoryFilter || l.category === categoryFilter) &&
+          (!waOnly || l.phone_type === "mobile"),
+      ),
+    [leads, categoryFilter, waOnly],
+  );
+
   const counts = useMemo(() => {
     const c = {} as Record<StatusFilter, number>;
     for (const f of STATUS_FILTERS) {
-      c[f.id] = leads.filter((l) => matchesStatus(l, f.id)).length;
+      c[f.id] = crossFiltered.filter((l) => matchesStatus(l, f.id)).length;
     }
     return c;
-  }, [leads]);
+  }, [crossFiltered]);
 
   const visible = useMemo(() => {
-    const filtered = leads.filter(
-      (l) =>
-        matchesStatus(l, statusFilter) &&
-        (!categoryFilter || l.category === categoryFilter) &&
-        (!waOnly || l.phone_type === "mobile"),
-    );
+    const filtered = crossFiltered.filter((l) => matchesStatus(l, statusFilter));
     if (statusFilter === "agenda") {
       return [...filtered].sort(
         (a, b) =>
@@ -218,23 +227,45 @@ export default function AutopilotConsole() {
       );
     }
     return sortMode === "qualita" ? sortByQuality(filtered) : sortByAction(filtered);
-  }, [leads, statusFilter, categoryFilter, sortMode, waOnly]);
+  }, [crossFiltered, statusFilter, sortMode]);
 
   // Chip "Recenti" mostrato solo se c'è davvero qualcosa di fresco (es.
   // dopo un import dall'Hunter), così di norma non ingombra la barra.
-  const recentCount = useMemo(() => leads.filter((l) => isRecent(l)).length, [leads]);
+  // Sugli stessi lead scoperti dai filtri trasversali, per coerenza col
+  // numero che poi si vede cliccandolo.
+  const recentCount = useMemo(
+    () => crossFiltered.filter((l) => isRecent(l)).length,
+    [crossFiltered],
+  );
 
   // ----- azioni -----------------------------------------------
 
-  async function patch(url: string, body: Record<string, unknown>, id: string) {
+  /** PATCH generico (archive/update_deal): controlla SEMPRE l'esito.
+   *  Senza questo, un errore server (validazione, DB) passava inosservato
+   *  — l'utente credeva di aver archiviato/salvato la trattativa mentre
+   *  il server non aveva cambiato nulla. */
+  async function patch(
+    url: string,
+    body: Record<string, unknown>,
+    id: string,
+  ): Promise<boolean> {
     setBusyId(id);
     try {
-      await fetch(url, {
+      const res = await fetch(url, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
+      const j = (await res.json()) as ApiResponse<unknown>;
       await refresh();
+      if (!j.success) {
+        window.alert(`Errore: ${j.error ?? "operazione non riuscita"}`);
+        return false;
+      }
+      return true;
+    } catch {
+      window.alert("Errore di rete: l'azione potrebbe non essere stata salvata.");
+      return false;
     } finally {
       setBusyId(null);
     }
@@ -323,7 +354,10 @@ export default function AutopilotConsole() {
     }
   }
 
-  /** Import manuale dei lead esistenti mai contattati. */
+  /** Import manuale dei lead esistenti mai contattati. Riporta anche
+   *  quanti sono stati saltati e perché (fisso/duplicato/callback):
+   *  senza questo, un lotto Hunter di soli numeri fissi importa 0 lead
+   *  e sembra che il pulsante non funzioni. */
   async function importVisorLeads() {
     setBusyId("import");
     try {
@@ -331,30 +365,61 @@ export default function AutopilotConsole() {
       const j = (await res.json()) as ApiResponse<{
         eligible: number;
         sample: string[];
+        skipped_fisso: number;
+        skipped_duplicate: number;
+        skipped_callback: number;
       }>;
       if (!j.success || !j.data) {
         window.alert(`Errore conteggio: ${j.error ?? "risposta non valida"}`);
         return;
       }
+      const skippedNote = (d: {
+        skipped_fisso: number;
+        skipped_duplicate: number;
+        skipped_callback: number;
+      }) => {
+        const parts: string[] = [];
+        if (d.skipped_fisso > 0)
+          parts.push(`${d.skipped_fisso} con numero fisso (restano in Visor)`);
+        if (d.skipped_duplicate > 0)
+          parts.push(`${d.skipped_duplicate} già in pipeline`);
+        if (d.skipped_callback > 0)
+          parts.push(`${d.skipped_callback} con callback pianificato`);
+        return parts.length > 0 ? `\nSaltati: ${parts.join(", ")}.` : "";
+      };
       if (j.data.eligible === 0) {
-        window.alert("Nessun lead eleggibile (mai contattati, con telefono, non già in pipeline).");
+        window.alert(
+          `Nessun lead eleggibile da importare.${skippedNote(j.data)}`,
+        );
         return;
       }
       const sample = j.data.sample.join(", ");
       if (
         !window.confirm(
-          `${j.data.eligible} lead eleggibili (es. ${sample}).\n\nImportarli in Pipeline? Lo study li preparerà a lotti nei prossimi giorni.`,
+          `${j.data.eligible} lead eleggibili (es. ${sample}).${skippedNote(j.data)}\n\nImportarli in Pipeline? Lo study li preparerà a lotti nei prossimi giorni.`,
         )
       ) {
         return;
       }
       const post = await fetch("/api/autopilot/import", { method: "POST" });
-      const pj = (await post.json()) as ApiResponse<{ imported: number }>;
+      const pj = (await post.json()) as ApiResponse<{
+        imported: number;
+        skipped_fisso: number;
+        skipped_duplicate: number;
+        skipped_callback: number;
+      }>;
+      if (!pj.success || !pj.data) {
+        window.alert(`Errore import: ${pj.error ?? "sconosciuto"}`);
+        return;
+      }
       window.alert(
-        pj.success
-          ? `Importati ${pj.data?.imported ?? 0} lead in pipeline (stato "da contattare").`
-          : `Errore import: ${pj.error ?? "sconosciuto"}`,
+        `Importati ${pj.data.imported} lead in pipeline (stato "da contattare").${skippedNote(pj.data)}`,
       );
+      // Salta subito sul filtro "Recenti": altrimenti i lead appena
+      // importati (senza messaggio pronto) restano nascosti dalla
+      // vista di default "Cosa fare ora" e sembra che l'import sia
+      // andato a vuoto.
+      if (pj.data.imported > 0) setStatusFilter("recent");
       await refresh();
     } catch {
       window.alert("Errore di rete durante l'import.");
