@@ -59,9 +59,24 @@ export interface LeadMeta {
   custom_step3?: string;
   /** Live preview URL pasted into the Step 3 delivery message. */
   preview_url?: string;
+  // Intent Scout (lead da richieste pubblicate — v. lib/intent/).
+  /** Link all'annuncio originale sulla piattaforma freelance. */
+  source_url?: string;
+  /** Budget dichiarato nella richiesta ('' = non dichiarato). */
+  budget?: string;
+  /** Data pubblicazione della richiesta (ISO). */
+  published_at?: string;
+  /** Score intent 0-100 al momento della scoperta. */
+  intent_score?: number;
 }
 
-export type LeadSource = "maps" | "linkedin" | "referral" | "cold";
+/** `intent_<piattaforma>` = lead da richiesta pubblicata (Intent Scout). */
+export type LeadSource =
+  | "maps"
+  | "linkedin"
+  | "referral"
+  | "cold"
+  | `intent_${string}`;
 
 export type RelationType =
   | "colleague"
