@@ -10,6 +10,7 @@ import {
   Fingerprint,
   MessageSquareText,
   LogOut,
+  Zap,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -23,6 +24,7 @@ interface NavItem {
 const NAV: NavItem[] = [
   { href: "/pipeline", label: "Pipeline", icon: LayoutDashboard },
   { href: "/hunter", label: "Hunter", icon: Crosshair },
+  { href: "/intent", label: "Intent", icon: Zap },
   { href: "/hand", label: "Hand", icon: Hand },
   { href: "/detective", label: "Detective", icon: Fingerprint },
   { href: "/templates", label: "Templates", icon: MessageSquareText },
