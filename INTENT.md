@@ -31,16 +31,28 @@ richieste <24h arrivano a notifica anche senza bonus.
 
 **Kanban dedicato** `/intent`: `intent_found → contacted → meeting → won / lost`.
 
-## Scheduling — ogni 2 ore, 7-21
+## Scheduling — ATTIVO (stato al 04/07/2026)
 
-L'endpoint è `GET /api/intent/scout`, protetto dallo stesso
-`CRON_SECRET` degli altri scout (header `Authorization: Bearer <secret>`).
+L'endpoint è `GET /api/intent/scout`, protetto da `CRON_SECRET`
+(header `Authorization: Bearer <secret>`), lo stesso degli altri scout.
 
-- **Vercel Hobby** (default): cron esterno su [cron-job.org](https://cron-job.org) —
-  gratuito, supporta header custom e schedule `0 7-21/2 * * *`.
-- **Vercel Pro**: si può aggiungere a `vercel.json`:
-  `{ "path": "/api/intent/scout", "schedule": "0 7-21/2 * * *" }`
-  (su Hobby i cron sono solo giornalieri: non aggiungerlo).
+**Cronjob attivo su [cron-job.org](https://console.cron-job.org)** —
+job "SPECTER Intent Scout":
+- schedule **ogni ora 7-21** (`0 7,8,…,21 * * *`), timezone Europe/Rome
+  (nota: il parser cron-job.org non accetta la sintassi `7-21/2`, usare
+  ore esplicite separate da virgola)
+- header `Authorization: Bearer <CRON_SECRET>` configurato
+- auto-disable per troppi fallimenti: spento (la run può superare il
+  timeout 30s di cron-job.org; la function Vercel completa comunque)
+- **CRON_SECRET ruotato il 04/07/2026** (il valore storico non era
+  recuperabile: env sensitive su Vercel) — nuovo valore solo su Vercel
+  (Production) e nell'header cron-job.org
+- test del 04/07/2026: **200 OK** — prima run 26s (40 scraped, 3 match,
+  3 inseriti), seconda run 9s (3 duplicati saltati, dedup verificato)
+
+In alternativa su **Vercel Pro** si può usare il cron nativo in
+`vercel.json`: `{ "path": "/api/intent/scout", "schedule": "0 7-21 * * *" }`
+(su Hobby i cron sono solo giornalieri).
 
 ## Setup
 
