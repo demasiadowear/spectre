@@ -9,6 +9,7 @@ import { scrapeFreelanceboard } from "./scrapers/freelanceboard";
 import { matchesIntent, scoreIntent } from "./score";
 import {
   deleteOrphanLead,
+  ensureIntentSchema,
   getIntentLeadsMissingHook,
   insertIntentRow,
   intentKey,
@@ -116,6 +117,7 @@ export async function runIntentScout(): Promise<IntentScoutResult> {
   if (!isTursoConnected()) {
     throw new Error("Turso non configurato: lo scout intent richiede il DB.");
   }
+  await ensureIntentSchema();
 
   const result: IntentScoutResult = {
     scraped: 0,

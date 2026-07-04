@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+  ensureIntentSchema,
   getIntentPipeline,
   getIntentStats,
   updateIntentStage,
@@ -14,6 +15,9 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
+    // La kanban può essere aperta prima della prima run dello scout:
+    // lo schema si applica qui (idempotente) per non rispondere 500.
+    await ensureIntentSchema();
     const [leads, stats] = await Promise.all([
       getIntentPipeline(),
       getIntentStats(),

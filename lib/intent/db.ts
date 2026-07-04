@@ -14,6 +14,40 @@ import { INTENT_STAGES } from "./constants";
 
 type Row = Record<string, unknown>;
 
+// ----- Schema (auto-migrazione) --------------------------------
+// Specchio runtime di lib/intent/schema.sql: applicato al primo uso
+// (idempotente, IF NOT EXISTS) così non serve accesso locale al DB
+// di produzione — le env Turso vivono solo su Vercel. Lo script
+// scripts/setup-intent.mjs resta per il setup manuale da zero.
+
+let schemaEnsured = false;
+
+export async function ensureIntentSchema(): Promise<void> {
+  if (!turso || schemaEnsured) return;
+  await turso.executeMultiple(`
+    create table if not exists intent_pipeline (
+      lead_id      text primary key references leads(id) on delete cascade,
+      stage        text not null default 'intent_found',
+      platform     text not null default '',
+      source_url   text unique,
+      title        text default '',
+      body         text default '',
+      category     text default '',
+      zone         text default '',
+      budget       text default '',
+      published_at text,
+      score        integer default 0,
+      hook         text default '',
+      notified     integer default 0,
+      created_at   text default (datetime('now')),
+      updated_at   text default (datetime('now'))
+    );
+    create index if not exists idx_intent_stage on intent_pipeline(stage);
+    create index if not exists idx_intent_score on intent_pipeline(score);
+  `);
+  schemaEnsured = true;
+}
+
 const str = (v: unknown): string => (v == null ? "" : String(v));
 const num = (v: unknown): number => (typeof v === "number" ? v : Number(v) || 0);
 
