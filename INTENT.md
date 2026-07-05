@@ -15,6 +15,35 @@ Autopilot (che cerca attività senza sito), qui l'intento è esplicito:
 | Sevedemo | ❌ esclusa | Nessuna lista progetti pubblica. |
 | Subito.it | ❌ esclusa | Anti-bot DataDome: blocca l'headless. Alternativa pulita: ricerche salvate + email alert di Subito. |
 
+## Ricognizione v2 — Telegram + Bakeca (05/07/2026, NON implementata)
+
+Valutata l'aggiunta di fonti a risposta gratuita. **Esito: nessuna fonte
+aggiunta**, si resta sulle 2 fonti v1. Motivi, per non riaprire il tema
+tra 3 mesi:
+
+- **Telegram broadcast** (`t.me/s/<canale>`, leggibile senza login):
+  testati ~50 handle. I canali pubblici italiani vivi sono **aggregatori
+  di offerte di lavoro dipendente** (il datore cerca un dipendente:
+  fullremote.it, lavorosubito, lavoroeconcorsi…), NON il nostro segnale
+  ("azienda cerca chi le realizzi il sito"). I canali con nomi a target
+  (`sitiwebitalia`, `commissioniitalia`…) non esistono o sono morti
+  (fermi al 2020-2022). Segnale a target ≈ zero.
+- **Telegram gruppi/chat** (dove girano davvero le richieste "cerco chi
+  mi fa il sito"): `t.me/s/` **non li espone** (mostra solo i broadcast).
+  Per leggerli serve la **Telegram Bot API** (`getUpdates`, il bot deve
+  essere membro del gruppo) o un client MTProto — non è web scraping.
+  Riapribile SOLO con handle di gruppi reali forniti a mano + setup bot.
+- **Bakeca.it**: WAF aggressivo, **403 "sei stato bloccato"** sia via
+  curl sia via Chrome headless (blocca l'automazione, non solo l'UA).
+  Nessun RSS (`/rss` → redirect home). Solo sitemap/robots passano, e
+  `robots.txt` dichiara `ai-train=no`. Come Subito: bloccato, lasciar
+  stare.
+
+Le fonti freelance con richieste esplicite di siti + budget (AddLance,
+Freelanceboard) restano il canale a ROI più alto. Prossima espansione
+utile semmai: altre board dello stesso tipo (es. Fiverr requests,
+Twago), non i social/classified generalisti.
+
 ## Pipeline
 
 ```
