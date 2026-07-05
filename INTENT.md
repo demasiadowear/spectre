@@ -15,11 +15,11 @@ Autopilot (che cerca attività senza sito), qui l'intento è esplicito:
 | Sevedemo | ❌ esclusa | Nessuna lista progetti pubblica. |
 | Subito.it | ❌ esclusa | Anti-bot DataDome: blocca l'headless. Alternativa pulita: ricerche salvate + email alert di Subito. |
 
-## Ricognizione v2 — Telegram + Bakeca (05/07/2026, NON implementata)
+## Ricognizioni fonti aggiuntive — tutte SCARTATE (Telegram, Bakeca, Cronoshare)
 
 Valutata l'aggiunta di fonti a risposta gratuita. **Esito: nessuna fonte
-aggiunta**, si resta sulle 2 fonti v1. Motivi, per non riaprire il tema
-tra 3 mesi:
+aggiunta**, si resta sulle 2 fonti v1 (AddLance + Freelanceboard). Motivi,
+per non riaprire ogni tema tra 3 mesi:
 
 - **Telegram broadcast** (`t.me/s/<canale>`, leggibile senza login):
   testati ~50 handle. I canali pubblici italiani vivi sono **aggregatori
@@ -38,11 +38,28 @@ tra 3 mesi:
   Nessun RSS (`/rss` → redirect home). Solo sitemap/robots passano, e
   `robots.txt` dichiara `ai-train=no`. Come Subito: bloccato, lasciar
   stare.
+- **Cronoshare.it** (ricognizione 05/07/2026): elenco richieste pubblico
+  e scrapabile senza login, ma inadatto. Due feed:
+  - `/offerte-lavoro/impiego` = feed globale fresco (ultime ~10-20,
+    ordine per ID), **NON filtrabile per categoria** (`/offerte-lavoro/
+    realizzazione-siti-web` ignora la categoria, ridà il globale) e la
+    **paginazione via URL non funziona** (`?page=2` e `/2` ridanno le
+    stesse 10). Dominato da servizi alla persona/casa (pulizie, badanti,
+    estetista, cani…): nelle ~30 richieste più recenti campionate,
+    **ZERO richieste di siti web/ecommerce**. Segnale a target ≈ 0 nel
+    flusso fresco, e comunque scorrerebbe via tra una run e l'altra.
+  - `/servizi/realizzazione-siti-web/richieste` = richieste web sì, ma
+    **archivio SEO stantìo** (più recente 25-09-2025, 9+ mesi). Inutile
+    per lead "entro 1 ora".
+  - Dettaglio richiesta: titolo/zona/data/categoria/descrizione estraibili,
+    ma **contatto mascherato** (`366 xxx xxxx`, email `x@x`) dietro paywall
+    "cronos", e **nessun badge "telefono verificato"** sul dettaglio
+    pubblico (il bonus telefono-verificato ipotizzato non è estraibile).
 
 Le fonti freelance con richieste esplicite di siti + budget (AddLance,
 Freelanceboard) restano il canale a ROI più alto. Prossima espansione
 utile semmai: altre board dello stesso tipo (es. Fiverr requests,
-Twago), non i social/classified generalisti.
+Twago), non i social/classified/marketplace-servizi generalisti.
 
 ## Pipeline
 
