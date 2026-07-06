@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/autopilot/study",
-      "schedule": "30 6 * * 1-5"
+      "schedule": "30 6-18/2 * * 1-5"
     }
   ]
 }
