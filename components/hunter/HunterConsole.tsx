@@ -98,6 +98,10 @@ function toImportPayload(lead: ScoredLead, category: string) {
       segmento: category === "ristorante" ? "ristoranti" : category,
       lat: lead.lat,
       lng: lead.lng,
+      // place_id reale di Google: senza questo, addLeadsToPipeline lo
+      // inserisce vuoto e lo Study deve ri-cercarlo da capo con una
+      // Text Search extra per OGNI lead — spreco di quota e tempo.
+      place_id: lead.id,
     },
   };
 }
