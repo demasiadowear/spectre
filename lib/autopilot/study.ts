@@ -255,9 +255,13 @@ export interface StudyResult {
 }
 
 /** Prepara fino a `limit` lead "da contattare" ancora senza primo
- *  messaggio (quelli che lo Scout ha appena trovato, o l'Hunter), in
- *  ordine di arrivo — i più vecchi per primi. Saltando quelli già
- *  marcati "da completare" e i numeri fissi già classificati.
+ *  messaggio (quelli che lo Scout ha appena trovato, o l'Hunter),
+ *  MIGLIORI PRIMA: rating poi n. recensioni (stesso criterio di
+ *  sortByQuality in dashboard) — con centinaia di lead in coda,
+ *  l'ordine di arrivo faceva studiare per giorni l'arretrato mediocre
+ *  prima dei lead che valgono di più. I lead senza rating (meta non
+ *  risolta) finiscono in fondo, non davanti. Salta quelli già marcati
+ *  "da completare" e i numeri fissi già classificati.
  *
  *  Default 30, non 10: con un arretrato di centinaia di lead (Hunter
  *  può importarne a decine per volta) processarne solo 10 a botta —
@@ -277,7 +281,11 @@ export async function runStudy(limit = 30): Promise<StudyResult> {
             AND (p.wa_first_message IS NULL OR p.wa_first_message = '')
             AND (p.brief IS NULL OR p.brief NOT LIKE '${INCOMPLETE_BRIEF_PREFIX}%')
             AND (l.meta IS NULL OR l.meta NOT LIKE '%"phone_type":"fisso"%')
-          ORDER BY p.created_at ASC LIMIT ?`,
+          ORDER BY
+            CAST(json_extract(l.meta, '$.rating') AS REAL) DESC,
+            CAST(json_extract(l.meta, '$.reviews') AS INTEGER) DESC,
+            p.created_at ASC
+          LIMIT ?`,
     args: [limit],
   });
 
