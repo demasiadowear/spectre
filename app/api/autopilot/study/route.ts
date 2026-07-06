@@ -4,7 +4,7 @@ import { runStudy, type StudyResult } from "@/lib/autopilot/study";
 import type { ApiResponse } from "@/types";
 
 // Stadio 1.5 — STUDY. Cron Vercel: enrichment + brief + primo
-// messaggio WA per i lead in stato "nuovo".
+// messaggio WA per i lead "da contattare" ancora senza messaggio.
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 

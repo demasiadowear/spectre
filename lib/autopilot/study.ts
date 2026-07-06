@@ -255,9 +255,18 @@ export interface StudyResult {
 }
 
 /** Prepara fino a `limit` lead "da contattare" ancora senza primo
- *  messaggio (quelli che lo Scout ha appena trovato), saltando quelli
- *  già marcati "da completare" e i numeri fissi già classificati. */
-export async function runStudy(limit = 10): Promise<StudyResult> {
+ *  messaggio (quelli che lo Scout ha appena trovato, o l'Hunter), in
+ *  ordine di arrivo — i più vecchi per primi. Saltando quelli già
+ *  marcati "da completare" e i numeri fissi già classificati.
+ *
+ *  Default 30, non 10: con un arretrato di centinaia di lead (Hunter
+ *  può importarne a decine per volta) processarne solo 10 a botta —
+ *  che sia il cron giornaliero o "Studia ora" — lascia i lead nuovi
+ *  in coda per giorni dietro l'arretrato più vecchio (FIFO). 30 lead
+ *  x ~1-3 chiamate esterne l'uno restano ben dentro il maxDuration di
+ *  300s della route; ogni lead si salva appena pronto, quindi un
+ *  eventuale timeout a metà lotto non perde il lavoro già fatto. */
+export async function runStudy(limit = 30): Promise<StudyResult> {
   if (!isTursoConnected() || !turso) {
     throw new Error("Turso non configurato: lo study richiede il DB.");
   }

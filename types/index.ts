@@ -22,6 +22,9 @@ export interface LeadMeta {
   rating?: number;
   reviews?: number;
   address?: string;
+  /** Google Places id (dall'Hunter): evita che lo Study debba ri-cercarlo
+   *  da capo con una Text Search extra per ogni lead importato. */
+  place_id?: string;
   /** activity category: ristorante, barbiere, estetista, parrucchiere… */
   category?: string;
   ig?: string;

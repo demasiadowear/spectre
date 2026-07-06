@@ -33,6 +33,16 @@ async function pipelineLeadIds(): Promise<Set<string>> {
   return new Set(res.rows.map((r) => String(r.lead_id)));
 }
 
+/** Place id (Google) già in pipeline — dedup più robusto del solo
+ *  telefono (stessa attività, numero riformattato diversamente). */
+async function pipelinePlaceIds(): Promise<Set<string>> {
+  if (!turso) return new Set();
+  const res = await turso.execute(
+    "SELECT place_id FROM autopilot_pipeline WHERE place_id IS NOT NULL AND place_id != ''",
+  );
+  return new Set(res.rows.map((r) => String(r.place_id ?? "")).filter(Boolean));
+}
+
 export interface VisorImportCandidates {
   eligible: Lead[];
   /** Numero fisso riconosciuto (inizia per 0): niente WhatsApp. */
@@ -133,7 +143,11 @@ export async function addLeadsToPipeline(
   if (!isTursoConnected() || leads.length === 0) {
     return { added: 0, skipped_fisso: 0, skipped_no_phone: 0, skipped_duplicate: 0 };
   }
-  const [ids, phones] = await Promise.all([pipelineLeadIds(), pipelinePhones()]);
+  const [ids, phones, placeIds] = await Promise.all([
+    pipelineLeadIds(),
+    pipelinePhones(),
+    pipelinePlaceIds(),
+  ]);
   let added = 0;
   let skipped_fisso = 0;
   let skipped_no_phone = 0;
@@ -150,18 +164,22 @@ export async function addLeadsToPipeline(
       continue;
     }
     const phone = normalizePhone(l.phone);
-    if (ids.has(l.id) || phones.has(phone)) {
+    // place_id reale (dall'Hunter, via meta): dedup più robusto del solo
+    // telefono E permesso allo Study di saltare la ri-ricerca Places.
+    const placeId = l.meta.place_id ?? "";
+    if (ids.has(l.id) || phones.has(phone) || (placeId && placeIds.has(placeId))) {
       skipped_duplicate++;
       continue;
     }
     await insertPipelineRow({
       lead_id: l.id,
-      place_id: "",
+      place_id: placeId,
       category: l.meta.category ?? "attività",
       city: cityOf(l),
     });
     ids.add(l.id);
     phones.add(phone);
+    if (placeId) placeIds.add(placeId);
     added++;
   }
   return { added, skipped_fisso, skipped_no_phone, skipped_duplicate };
@@ -193,7 +211,7 @@ export async function importFromVisor(): Promise<VisorImportResult> {
   for (const l of eligible) {
     await insertPipelineRow({
       lead_id: l.id,
-      place_id: "",
+      place_id: l.meta.place_id ?? "",
       category: l.meta.category ?? "attività",
       city: cityOf(l),
     });
