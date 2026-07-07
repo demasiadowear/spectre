@@ -4,6 +4,7 @@ import { STAGE_LABELS } from "@/components/autopilot/format";
 import { agendaLabel, buildMorningBrief, isDueToday, todayRome } from "@/lib/brief";
 import { sendTelegram } from "@/lib/telegram";
 import { AUTOPILOT_STAGES } from "@/lib/autopilot/constants";
+import { isCronAuthorized } from "@/lib/autopilot/cron-auth";
 
 // ============================================================
 // Webhook comandi Telegram — SOLO comandi fissi, nessun parsing
@@ -63,6 +64,79 @@ async function leadsText(): Promise<string> {
       (l) => `• ${l.company} (${l.category || "?"}, ${l.city || "?"}) — ${STAGE_LABELS[l.stage]}`,
     ),
   ].join("\n");
+}
+
+/** Diagnostica/setup (bearer CRON_SECRET, mai aperto):
+ *  - GET → username del bot configurato in env (getMe), senza token.
+ *  - GET ?register=1 → registra il webhook di QUESTO deployment sul
+ *    bot delle env, con TELEGRAM_WEBHOOK_SECRET come secret_token.
+ *  Serve perché le env Telegram su Vercel sono sensitive (write-only):
+ *  solo l'app può usarle per identificare il bot e auto-registrarsi. */
+export async function GET(req: Request) {
+  if (!isCronAuthorized(req)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
+  const secret = process.env.TELEGRAM_WEBHOOK_SECRET?.trim();
+  if (!token) {
+    return NextResponse.json(
+      { success: false, error: "TELEGRAM_BOT_TOKEN non configurato" },
+      { status: 500 },
+    );
+  }
+  try {
+    const me = await (
+      await fetch(`https://api.telegram.org/bot${token}/getMe`, {
+        signal: AbortSignal.timeout(10_000),
+      })
+    ).json();
+    const bot = me?.result?.username ?? null;
+    if (!me?.ok || !bot) {
+      return NextResponse.json(
+        { success: false, error: "getMe fallito: token non valido?" },
+        { status: 500 },
+      );
+    }
+
+    const url = new URL(req.url);
+    if (url.searchParams.get("register") !== "1") {
+      return NextResponse.json({ success: true, bot });
+    }
+
+    if (!secret) {
+      return NextResponse.json(
+        { success: false, bot, error: "TELEGRAM_WEBHOOK_SECRET non configurato" },
+        { status: 500 },
+      );
+    }
+    const host = req.headers.get("host");
+    const webhookUrl = `https://${host}/api/telegram/webhook`;
+    const set = await (
+      await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: webhookUrl,
+          secret_token: secret,
+          allowed_updates: ["message"],
+          drop_pending_updates: true,
+        }),
+        signal: AbortSignal.timeout(10_000),
+      })
+    ).json();
+    return NextResponse.json({
+      success: !!set?.ok,
+      bot,
+      webhook_url: webhookUrl,
+      telegram: set?.description ?? set,
+    });
+  } catch (err) {
+    console.error("[telegram/webhook] diag:", (err as Error).message);
+    return NextResponse.json(
+      { success: false, error: (err as Error).message },
+      { status: 500 },
+    );
+  }
 }
 
 export async function POST(req: Request) {

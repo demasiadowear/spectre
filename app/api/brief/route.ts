@@ -20,7 +20,9 @@ export async function GET(req: Request) {
   try {
     const brief = await buildMorningBrief();
     const sent = await sendTelegram(brief.text);
-    return NextResponse.json({ success: true, sent, stats: brief.stats });
+    // text nel payload: la chiamata è già autenticata (CRON_SECRET) e
+    // serve a verificare dal trigger manuale cosa è arrivato in chat.
+    return NextResponse.json({ success: true, sent, stats: brief.stats, text: brief.text });
   } catch (err) {
     console.error("[api/brief]", (err as Error).message);
     return NextResponse.json(
