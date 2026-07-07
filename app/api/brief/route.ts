@@ -1,0 +1,31 @@
+import { NextResponse } from "next/server";
+import { isCronAuthorized } from "@/lib/autopilot/cron-auth";
+import { buildMorningBrief } from "@/lib/brief";
+import { sendTelegram } from "@/lib/telegram";
+
+// ============================================================
+// Morning brief — GET /api/brief (Bearer CRON_SECRET, stesso guard
+// degli altri cron). Schedulato alle 7:00 Europe/Rome su
+// cron-job.org (Hobby: i 2 cron Vercel sono già usati da
+// scout/study). Trigger manuale: stessa chiamata con lo stesso
+// header. Il digest arriva anche dal comando Telegram /brief.
+// ============================================================
+
+export const dynamic = "force-dynamic";
+
+export async function GET(req: Request) {
+  if (!isCronAuthorized(req)) {
+    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  }
+  try {
+    const brief = await buildMorningBrief();
+    const sent = await sendTelegram(brief.text);
+    return NextResponse.json({ success: true, sent, stats: brief.stats });
+  } catch (err) {
+    console.error("[api/brief]", (err as Error).message);
+    return NextResponse.json(
+      { success: false, error: (err as Error).message },
+      { status: 500 },
+    );
+  }
+}

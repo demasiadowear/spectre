@@ -1,4 +1,5 @@
 import { getLeadById, updateLead } from "@/lib/data";
+import { findContactWithSerper } from "@/lib/enrich/serper";
 import { geminiJSON } from "@/lib/gemini";
 import { isMobilePhone } from "@/lib/pitch";
 import { searchGooglePlaces } from "@/lib/hunter/google-places";
@@ -127,6 +128,9 @@ async function savePhoneType(leadId: string, type: "mobile" | "fisso"): Promise<
   const visorLead = await getLeadById(leadId);
   if (visorLead) {
     await updateLead(leadId, { meta: { ...visorLead.meta, phone_type: type } });
+  } else {
+    // Senza questo write il lead rientrerebbe in coda study a ogni run.
+    console.error("[autopilot/study] savePhoneType: lead non trovato", leadId);
   }
 }
 
@@ -137,8 +141,38 @@ export async function studyLead(lead: AutopilotLead): Promise<StudyOutcome> {
   // Si marca phone_type=fisso così non rientrano più nella coda study.
   if (!isMobilePhone(lead.phone)) {
     await savePhoneType(lead.lead_id, "fisso");
-    if (!lead.next_action) {
-      await updatePipeline(lead.lead_id, { next_action: "numero fisso: chiama" });
+    // Da qui in poi errori NON bloccanti: phone_type=fisso è già scritto
+    // e la query di runStudy esclude i fissi — se un passo successivo
+    // lanciasse, il lead verrebbe contato "failed" e mai più ripescato
+    // (senza next_action). Meglio loggare e tornare comunque "fisso".
+    try {
+      // Enrichment Serper (no-op senza SERPER_API_KEY): il fisso non è
+      // su WhatsApp, ma un'email trovata negli snippet Google apre un
+      // canale alternativo alla chiamata.
+      let email = "";
+      const visorLead = await getLeadById(lead.lead_id);
+      if (visorLead && !visorLead.email) {
+        const found = await findContactWithSerper(lead.company, lead.city);
+        if (found.email) {
+          email = found.email;
+          await updateLead(lead.lead_id, { email: found.email });
+        }
+      } else if (visorLead?.email) {
+        email = visorLead.email;
+      }
+      if (!lead.next_action) {
+        await updatePipeline(lead.lead_id, {
+          next_action: email
+            ? `numero fisso: chiama o scrivi a ${email}`
+            : "numero fisso: chiama",
+        });
+      }
+    } catch (err) {
+      console.error(
+        "[autopilot/study] enrichment/next_action fisso fallito per",
+        lead.lead_id,
+        (err as Error).message,
+      );
     }
     return "fisso";
   }

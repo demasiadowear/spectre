@@ -84,3 +84,26 @@ ordinata per data, drawer di dettaglio col flusso sopra, notifiche.
 `wa_messages` (storico conversazione, in/out scritti a mano dall'operatore),
 `autopilot_alerts` (notifiche dashboard). Le tabelle worker
 (`autopilot_counters`, settings di warm-up/heartbeat) non sono più usate.
+
+## Morning brief + comandi Telegram (da agenti-01, 07/07/2026)
+
+**Brief giornaliero** — `GET /api/brief` (bearer `CRON_SECRET`, stesso
+guard degli altri cron): digest Telegram con intent aperti, agenda del
+giorno (azioni di oggi + scadute), risposte da gestire, lead pronti da
+contattare, fissi da chiamare. Solo lettura, nessuno stato cambia.
+Schedule: **cron-job.org alle 7:00 Europe/Rome** (i 2 cron Vercel del
+piano Hobby sono già usati da scout/study), header
+`Authorization: Bearer <CRON_SECRET>` come l'Intent Scout.
+
+**Comandi bot** — `POST /api/telegram/webhook`: `/brief` `/pipeline`
+`/agenda` `/leads`. SOLO comandi fissi, nessun parsing in linguaggio
+naturale. Sicurezza: header `X-Telegram-Bot-Api-Secret-Token` =
+`TELEGRAM_WEBHOOK_SECRET` (env Vercel) + whitelist `TELEGRAM_CHAT_ID`;
+il path è escluso dal middleware JWT. Registrazione webhook:
+`node scripts/setup-telegram-webhook.mjs https://<dominio>`.
+
+**Enrichment email fissi** — nello Study, i lead con solo numero fisso
+(non su WhatsApp) passano da Serper (`SERPER_API_KEY`, opzionale): se
+negli snippet Google c'è un'email, finisce su `leads.email` e la
+next_action diventa "numero fisso: chiama o scrivi a <email>".
+Senza key: no-op, resta "numero fisso: chiama".

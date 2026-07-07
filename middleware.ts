@@ -24,6 +24,7 @@ export async function middleware(req: NextRequest) {
     "/api/autopilot/scout",
     "/api/autopilot/study",
     "/api/intent/scout",
+    "/api/brief",
   ];
   if (
     cronSecret &&
@@ -46,7 +47,10 @@ export const config = {
   // Detective reports — SOLO /detective/<slug> ("detective/" col trailing
   // slash: la dashboard /detective e le API /api/detective/* restano
   // dietro il JWT) — Next internals and static assets.
+  // api/telegram resta fuori dal matcher: Telegram non ha sessione JWT,
+  // il webhook si difende da solo (X-Telegram-Bot-Api-Secret-Token +
+  // whitelist chat_id nella route).
   matcher: [
-    "/((?!login|api/auth|detective/|_next/static|_next/image|favicon.ico|fonts).*)",
+    "/((?!login|api/auth|api/telegram|detective/|_next/static|_next/image|favicon.ico|fonts).*)",
   ],
 };
