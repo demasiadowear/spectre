@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { searchGooglePlaces } from "@/lib/hunter/google-places";
-import { MOCK_HUNTER_LEADS } from "@/lib/hunter/mock-leads";
 import { scoreLead } from "@/lib/hunter/scorer";
 import { getLeads } from "@/lib/data";
 import { normalizePhone } from "@/lib/pitch";
@@ -13,7 +12,7 @@ import type {
 } from "@/types/hunter";
 
 // POST /api/hunt — find local businesses, filter, score, rank.
-// Google Places when GOOGLE_PLACES_API_KEY is set, otherwise mock.
+// Solo Google Places: senza chiave l'endpoint fallisce esplicito.
 
 // Exclude obvious chains / corporates (not "spa" the wellness word).
 const EXCLUDE = [/franchising/i, /\bgroup\b/i, /s\.p\.a\.?/i];
@@ -62,17 +61,22 @@ export async function POST(req: Request) {
     only_no_website: onlyNoWebsite,
   };
 
-  // Source resolution: real data first, mock fallback (never empty in demo).
-  let raw: RawLead[] = [];
-  let source: HuntResult["source"] = "mock";
-  if (process.env.GOOGLE_PLACES_API_KEY) {
-    raw = await searchGooglePlaces(params);
-    if (raw.length > 0) source = "google-places";
+  // Solo dati reali. Il vecchio fallback mock (6 attività finte fisse)
+  // mascherava la chiave mancante recitando risultati scollegati dalla
+  // ricerca ("gelaterie a Napoli" → parrucchieri a Milano): meglio un
+  // errore esplicito che dati inventati in un tool operativo.
+  if (!process.env.GOOGLE_PLACES_API_KEY) {
+    return NextResponse.json<ApiResponse<never>>(
+      {
+        success: false,
+        error:
+          "GOOGLE_PLACES_API_KEY mancante in produzione: Hunter non può interrogare Google. Sistemala nelle Environment Variables su Vercel e rideploya.",
+      },
+      { status: 500 },
+    );
   }
-  if (raw.length === 0) {
-    raw = MOCK_HUNTER_LEADS;
-    source = "mock";
-  }
+  const raw: RawLead[] = await searchGooglePlaces(params);
+  const source: HuntResult["source"] = "google-places";
 
   // Exclude businesses already discarded (status "lost") so they never
   // resurface in future hunts — match by normalized phone or by name.
