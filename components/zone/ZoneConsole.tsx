@@ -14,32 +14,33 @@ import GlassCard from "@/components/ui/spectre/GlassCard";
 import NeonButton from "@/components/ui/spectre/NeonButton";
 import { cn } from "@/lib/utils";
 import type { ApiResponse } from "@/types";
-import type { CareTier, ZoneHuntResult, ZoneLead } from "@/types/zone";
+import type { OpportunityTier, ZoneHuntResult, ZoneLead } from "@/types/zone";
 
 // ============================================================
 // ZONE — pianifica il giro porta-a-porta delle card NFC recensioni.
 // Tocca la mappa per fissare il centro, regola il raggio, "Cerca in
-// zona": le attività del cerchio ordinate dalla più attenta alle
-// recensioni alla meno attenta. Lista copiabile / CSV per il giro.
+// zona": le attività del cerchio ordinate per OPPORTUNITÀ — in cima
+// chi ha più bisogno di recensioni (vendita facile), in fondo i
+// saturi. Lista copiabile / CSV per il giro.
 // ============================================================
 
-const TIER_LABEL: Record<CareTier, string> = {
-  molto_attento: "Molto attento",
-  attento: "Attento",
+const TIER_LABEL: Record<OpportunityTier, string> = {
+  caldo: "Caldo: ha fame di recensioni",
   tiepido: "Tiepido",
+  gia_a_posto: "Già a posto (o servizio debole)",
 };
 
-const TIER_CHIP: Record<CareTier, string> = {
-  molto_attento: "bg-success/15 text-success border-success/40",
-  attento: "bg-ochre/15 text-ochre border-ochre/40",
-  tiepido: "bg-surface2 text-text2 border-border",
+const TIER_CHIP: Record<OpportunityTier, string> = {
+  caldo: "bg-success/15 text-success border-success/40",
+  tiepido: "bg-ochre/15 text-ochre border-ochre/40",
+  gia_a_posto: "bg-surface2 text-text2 border-border",
 };
 
 /** Colori pin Leaflet (hex fissi: i CSS var non arrivano al canvas). */
-const TIER_HEX: Record<CareTier, string> = {
-  molto_attento: "#4ade80",
-  attento: "#eab308",
-  tiepido: "#8a8577",
+const TIER_HEX: Record<OpportunityTier, string> = {
+  caldo: "#4ade80",
+  tiepido: "#eab308",
+  gia_a_posto: "#8a8577",
 };
 
 const DEFAULT_CENTER: [number, number] = [41.117, 16.871]; // Bari
@@ -144,13 +145,13 @@ export default function ZoneConsole() {
         const selected = lead.id === selectedId;
         const marker = L.circleMarker([lead.lat, lead.lng], {
           radius: selected ? 10 : 6,
-          color: selected ? "#ffffff" : TIER_HEX[lead.care_tier],
+          color: selected ? "#ffffff" : TIER_HEX[lead.tier],
           weight: selected ? 2 : 1,
-          fillColor: TIER_HEX[lead.care_tier],
+          fillColor: TIER_HEX[lead.tier],
           fillOpacity: 0.85,
         })
           .addTo(map)
-          .bindTooltip(`${lead.name} · ${lead.care_score}`, { direction: "top" })
+          .bindTooltip(`${lead.name} · ${lead.score}`, { direction: "top" })
           .on("click", () => setSelectedId(lead.id));
         markersRef.current.set(lead.id, marker);
       }
@@ -213,7 +214,7 @@ export default function ZoneConsole() {
     return result.leads
       .map(
         (l, i) =>
-          `${i + 1}. ${l.name} [${l.care_score}] — ★${l.rating} (${l.reviews} rec.) — ${l.address}${l.phone ? ` — ${l.phone}` : ""}`,
+          `${i + 1}. ${l.name} [${l.score}] — ★${l.rating} (${l.reviews} rec.) — ${l.address}${l.phone ? ` — ${l.phone}` : ""}`,
       )
       .join("\n");
   }, [result]);
@@ -230,7 +231,7 @@ export default function ZoneConsole() {
     const rows = result.leads.map((l) =>
       [
         l.name,
-        String(l.care_score),
+        String(l.score),
         String(l.rating),
         String(l.reviews),
         l.category,
@@ -252,8 +253,8 @@ export default function ZoneConsole() {
   }
 
   const tierCounts = useMemo(() => {
-    const c = { molto_attento: 0, attento: 0, tiepido: 0 };
-    for (const l of result?.leads ?? []) c[l.care_tier]++;
+    const c = { caldo: 0, tiepido: 0, gia_a_posto: 0 };
+    for (const l of result?.leads ?? []) c[l.tier]++;
     return c;
   }, [result]);
 
@@ -317,9 +318,9 @@ export default function ZoneConsole() {
               {result ? (
                 <>
                   <b className="text-text">{result.count}</b> attività ·{" "}
-                  <span className="text-success">{tierCounts.molto_attento} top</span> ·{" "}
-                  <span className="text-ochre">{tierCounts.attento} medi</span> ·{" "}
-                  {tierCounts.tiepido} tiepidi
+                  <span className="text-success">{tierCounts.caldo} caldi</span> ·{" "}
+                  <span className="text-ochre">{tierCounts.tiepido} tiepidi</span> ·{" "}
+                  {tierCounts.gia_a_posto} già a posto
                 </>
               ) : (
                 "Nessuna scansione: fissa il centro e cerca."
@@ -367,11 +368,11 @@ export default function ZoneConsole() {
                     <span
                       className={cn(
                         "shrink-0 rounded-full border px-2 py-0.5 font-ui text-[10px] font-bold",
-                        TIER_CHIP[l.care_tier],
+                        TIER_CHIP[l.tier],
                       )}
-                      title={TIER_LABEL[l.care_tier]}
+                      title={TIER_LABEL[l.tier]}
                     >
-                      {l.care_score}
+                      {l.score}
                     </span>
                   </div>
                   <div className="mt-0.5 flex items-center gap-2 font-ui text-[11px] text-text2">

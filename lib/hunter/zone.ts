@@ -1,19 +1,17 @@
-import type { CareTier, ZoneHuntResult, ZoneLead } from "@/types/zone";
+import type { OpportunityTier, ZoneHuntResult, ZoneLead } from "@/types/zone";
 
 // ============================================================
 // ZONE HUNT — caccia per zona (cerchio su mappa) per la vendita
-// porta-a-porta delle card NFC recensioni. A differenza dell'Hunter
-// classico (una categoria, una città) qui si spara UNA Nearby Search
-// per ogni gruppo di categorie da vetrina dentro il cerchio, si
-// deduplica e si ordina per "indice attenzione recensioni".
+// porta-a-porta delle card NFC recensioni. Una Nearby Search per
+// ogni gruppo di categorie da vetrina dentro il cerchio, dedup,
+// ordinamento per INDICE OPPORTUNITÀ: in cima chi ha più bisogno
+// di raccogliere recensioni (vendita facile), in fondo chi ne ha
+// già migliaia (non compra) o ha un voto da problema di servizio
+// (la card raccoglierebbe altre negative).
 //
 // Limite strutturale: Nearby Search (New) non ha paginazione (max 20
 // risultati a richiesta) — il volume arriva dal numero di gruppi
-// (9 × 20 = fino a ~180 candidati per zona). L'API non espone le
-// risposte del titolare alle recensioni, quindi l'"attenzione" è un
-// proxy: volume recensioni (peso 70) + voto (peso 30). Chi accumula
-// tante recensioni con voto alto le sta già curando — ed è il
-// compratore ideale della card.
+// (9 × 20 = fino a ~180 candidati per zona).
 // ============================================================
 
 const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_PLACES_API_KEY;
@@ -44,6 +42,7 @@ const FIELD_MASK = [
   "places.userRatingCount",
   "places.location",
   "places.googleMapsUri",
+  "places.businessStatus",
 ].join(",");
 
 interface NearbyPlace {
@@ -55,22 +54,60 @@ interface NearbyPlace {
   userRatingCount?: number;
   location?: { latitude?: number; longitude?: number };
   googleMapsUri?: string;
+  businessStatus?: string;
 }
 
-/** Indice attenzione recensioni 0-100. Volume log-scalato che satura
- *  a ~400 recensioni (oltre, sei comunque al massimo dell'attenzione),
- *  voto normalizzato su 5. Zero recensioni = zero indice. */
-export function reviewCareScore(rating: number, reviews: number): number {
-  if (reviews <= 0 || rating <= 0) return 0;
-  const volume = Math.min(1, Math.log10(1 + reviews) / Math.log10(1 + 400));
-  const quality = Math.max(0, Math.min(1, rating / 5));
-  return Math.round(volume * 70 + quality * 30);
+// ----- Indice opportunità ------------------------------------------
+// Progettato con Puccio per la vendita della card: il cliente ideale
+// è "buon servizio, poca visibilità" (voto 3.5-4.4, poche recensioni,
+// profilo reale). I saturi (>600 recensioni) e i disastri (<3.0, che
+// hanno un problema di servizio, non di visibilità) vanno in fondo.
+
+/** Fame di recensioni (0..1) — peso dominante dell'indice.
+ *  Zero recensioni = fame massima SOLO con profilo reale (telefono +
+ *  indirizzo): senza, è probabile scheda fantasma e viene declassata. */
+function fame(reviews: number, hasPhone: boolean, hasAddress: boolean): number {
+  if (reviews <= 30) {
+    if (reviews === 0 && !(hasPhone && hasAddress)) return 0.35;
+    return 1;
+  }
+  if (reviews <= 100) return 0.8;
+  if (reviews <= 250) return 0.55;
+  if (reviews <= 600) return 0.3;
+  return 0.05;
 }
 
-export function careTier(score: number): CareTier {
-  if (score >= 75) return "molto_attento";
-  if (score >= 50) return "attento";
-  return "tiepido";
+/** Margine di miglioramento del voto (0..1): il pitch "ti alzo la
+ *  media" funziona al massimo nella fascia 3.5-4.4. */
+function margineVoto(rating: number): number {
+  if (rating <= 0) return 0.5; // nessun voto: neutro (già premiato dalla fame)
+  if (rating < 3) return 0.1;
+  if (rating < 3.5) return 0.6;
+  if (rating <= 4.4) return 1; // sweet spot commerciale
+  return 0.4; // 4.5-5: già belli, gli vendi solo volume
+}
+
+export function opportunityScore(
+  rating: number,
+  reviews: number,
+  hasPhone: boolean,
+  hasAddress: boolean,
+): number {
+  const contattabilita = (hasPhone ? 0.6 : 0) + (hasAddress ? 0.4 : 0);
+  const base =
+    70 * fame(reviews, hasPhone, hasAddress) +
+    15 * margineVoto(rating) +
+    15 * contattabilita;
+  // Sotto 3.0 il problema è il servizio, non la visibilità: la card
+  // raccoglierebbe altre recensioni negative. Fuori dalla fascia calda.
+  const malusServizio = rating > 0 && rating < 3 ? 0.5 : 1;
+  return Math.round(base * malusServizio);
+}
+
+export function opportunityTier(score: number): OpportunityTier {
+  if (score >= 70) return "caldo";
+  if (score >= 40) return "tiepido";
+  return "gia_a_posto";
 }
 
 async function fetchGroup(
@@ -93,9 +130,12 @@ async function fetchGroup(
         includedTypes: group.types,
         maxResultCount: PAGE_MAX,
         languageCode: "it",
-        // POPULARITY favorisce le attività con più interazioni — coerente
-        // con l'obiettivo (chi è già attivo su Maps).
-        rankPreference: "POPULARITY",
+        // DISTANCE, non POPULARITY (il default): con soli 20 slot per
+        // gruppo, "per popolarità" riempie il paniere di attività già
+        // sature di recensioni — l'esatto contrario del target card.
+        // "Per distanza" campiona il vicinato com'è, incluse le
+        // piccole invisibili che sono il compratore ideale.
+        rankPreference: "DISTANCE",
         locationRestriction: {
           circle: { center: { latitude: lat, longitude: lng }, radius },
         },
@@ -148,20 +188,25 @@ export async function huntZone(
       const id = p.id ?? "";
       if (!id || seen.has(id)) continue;
       seen.add(id);
+      // Serrande abbassate fuori dal giro: se Google marca l'attività
+      // come chiusa (temporaneamente o per sempre) non è un prospect.
+      if (p.businessStatus && p.businessStatus !== "OPERATIONAL") continue;
       const rating = typeof p.rating === "number" ? p.rating : 0;
       const reviews =
         typeof p.userRatingCount === "number" ? p.userRatingCount : 0;
-      const score = reviewCareScore(rating, reviews);
+      const phone = p.nationalPhoneNumber ?? "";
+      const address = p.formattedAddress || "";
+      const score = opportunityScore(rating, reviews, phone.length > 0, address.length > 0);
       leads.push({
         id,
         name: p.displayName?.text || "Attività senza nome",
         category: group.label,
-        address: p.formattedAddress || "",
-        phone: p.nationalPhoneNumber ?? "",
+        address,
+        phone,
         rating,
         reviews,
-        care_score: score,
-        care_tier: careTier(score),
+        score,
+        tier: opportunityTier(score),
         lat: typeof p.location?.latitude === "number" ? p.location.latitude : null,
         lng: typeof p.location?.longitude === "number" ? p.location.longitude : null,
         maps_url:
@@ -171,9 +216,10 @@ export async function huntZone(
     }
   }
 
-  // Più attente prima; a pari indice vince chi ha più recensioni.
+  // Opportunità più alta prima; a pari indice vince chi ha MENO
+  // recensioni (più fame), poi il voto migliore (cliente più sano).
   leads.sort(
-    (a, b) => b.care_score - a.care_score || b.reviews - a.reviews,
+    (a, b) => b.score - a.score || a.reviews - b.reviews || b.rating - a.rating,
   );
 
   return { leads, count: leads.length, groups_failed: groupsFailed };

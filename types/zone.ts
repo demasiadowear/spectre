@@ -2,10 +2,10 @@
 // AYRO SPECTRE — Zone hunt types (caccia porta-a-porta card NFC)
 // ============================================================
 
-/** Quanto l'attività è "attenta alle recensioni" (proxy da dati
- *  Places: volume recensioni + voto — le risposte del titolare non
- *  sono esposte dall'API). */
-export type CareTier = "molto_attento" | "attento" | "tiepido";
+/** Fascia di vendibilità della card NFC recensioni: "caldo" = ha
+ *  fame di recensioni ed è un profilo reale (vendita facile),
+ *  "gia_a_posto" = saturo di recensioni o servizio scadente. */
+export type OpportunityTier = "caldo" | "tiepido" | "gia_a_posto";
 
 export interface ZoneLead {
   id: string;
@@ -16,9 +16,10 @@ export interface ZoneLead {
   phone: string;
   rating: number;
   reviews: number;
-  /** Indice attenzione recensioni 0-100 (ordinamento discendente). */
-  care_score: number;
-  care_tier: CareTier;
+  /** Indice opportunità 0-100: in cima chi ha più BISOGNO di
+   *  recensioni (compratore facile della card), in fondo i saturi. */
+  score: number;
+  tier: OpportunityTier;
   lat: number | null;
   lng: number | null;
   /** Scheda Google Maps (per aprire la pagina recensioni sul posto). */
