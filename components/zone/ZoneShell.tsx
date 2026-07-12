@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Crosshair, Notebook } from "lucide-react";
+import { BarChart3, Crosshair, Notebook } from "lucide-react";
+import ZoneAnalytics from "@/components/zone/ZoneAnalytics";
 import ZoneConsole from "@/components/zone/ZoneConsole";
 import ZoneRegistry from "@/components/zone/ZoneRegistry";
 import { cn } from "@/lib/utils";
@@ -9,7 +10,7 @@ import { cn } from "@/lib/utils";
 // Tab del modulo Zone. La Caccia resta montata anche quando guardi
 // il Registro (nascosta via CSS): i risultati dello scan non si
 // perdono passando a segnare una vendita e tornando al giro.
-type Tab = "caccia" | "registro";
+type Tab = "caccia" | "registro" | "analisi";
 
 export default function ZoneShell() {
   const [tab, setTab] = useState<Tab>("caccia");
@@ -21,6 +22,7 @@ export default function ZoneShell() {
           [
             { id: "caccia", label: "Caccia", icon: Crosshair },
             { id: "registro", label: "Registro", icon: Notebook },
+            { id: "analisi", label: "Analisi", icon: BarChart3 },
           ] as const
         ).map(({ id, label, icon: Icon }) => (
           <button
@@ -43,6 +45,7 @@ export default function ZoneShell() {
         <ZoneConsole />
       </div>
       {tab === "registro" && <ZoneRegistry />}
+      {tab === "analisi" && <ZoneAnalytics />}
     </div>
   );
 }

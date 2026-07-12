@@ -3,6 +3,7 @@ import {
   ZONE_STATUSES,
   getClientDetail,
   listClients,
+  setBaselineNow,
   updateClient,
   upsertClient,
   type UpsertClientInput,
@@ -143,6 +144,17 @@ export async function PATCH(req: Request) {
     );
   }
   try {
+    // Azione dedicata: baseline delta "a oggi" (solo se assente).
+    if (body.set_baseline === true) {
+      const client = await setBaselineNow(id);
+      if (!client) {
+        return NextResponse.json<ApiResponse<never>>(
+          { success: false, error: "Cliente non trovato nel registro." },
+          { status: 404 },
+        );
+      }
+      return NextResponse.json<ApiResponse<ZoneClient>>({ success: true, data: client });
+    }
     const client = await updateClient(id, body);
     if (!client) {
       return NextResponse.json<ApiResponse<never>>(

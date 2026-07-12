@@ -332,10 +332,25 @@ export default function ZoneClientSheet({ clientId, onClose, onChanged }: Props)
                 </p>
               </div>
             ) : (
-              <p className="font-ui text-xs text-text2">
-                Ancora nessuna vendita: alla prima vendita salvo le recensioni di
-                partenza e da lì misuro l&apos;effetto della card.
-              </p>
+              <div className="space-y-2">
+                <p className="font-ui text-xs text-text2">
+                  Ancora nessuna baseline: si salva da sola alla prima vendita,
+                  oppure fissala a oggi (per chi ha già la card da prima).
+                </p>
+                <NeonButton
+                  size="sm"
+                  variant="cyan"
+                  disabled={busy}
+                  onClick={() =>
+                    patchClient({ set_baseline: true }).then(
+                      (ok) => ok && flash(`Baseline fissata: ${detail.reviews} recensioni.`),
+                    )
+                  }
+                >
+                  <TrendingUp className="h-3.5 w-3.5" /> Imposta baseline a oggi (
+                  {detail.reviews} rec)
+                </NeonButton>
+              </div>
             )}
             <div className="mt-2">
               <NeonButton size="sm" onClick={refreshData} disabled={busy}>

@@ -262,8 +262,8 @@ export async function upsertClient(input: UpsertClientInput): Promise<ZoneClient
   await turso.execute({
     sql: `insert into zone_clients
             (id, name, category, address, cap, phone, lat, lng, maps_url,
-             nfc_review_url, rating, reviews, zone_label, status)
-          values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             nfc_review_url, rating, reviews, reviews_updated_at, zone_label, status)
+          values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, case when ? > 0 then datetime('now') end, ?, ?)
           on conflict(id) do update set
             name = excluded.name,
             -- anagrafica: il valore nuovo vince solo se non vuoto — un
@@ -294,6 +294,7 @@ export async function upsertClient(input: UpsertClientInput): Promise<ZoneClient
       input.maps_url ?? "",
       input.nfc_review_url ?? "",
       input.rating ?? 0,
+      input.reviews ?? 0,
       input.reviews ?? 0,
       input.zone_label ?? "",
       input.status ?? "da_visitare",
@@ -459,6 +460,21 @@ export async function savedStatusMap(
   return map;
 }
 
+/** Baseline manuale "a oggi": SOLO se non esiste già (la baseline
+ *  della prima vendita è sacra) — per i clienti venduti prima della
+ *  feature delta, che altrimenti resterebbero fuori dall'upsell. */
+export async function setBaselineNow(id: string): Promise<ZoneClient | null> {
+  if (!turso) throw new Error("Turso non configurato: il registro Zone richiede il DB.");
+  await ensureZoneSchema();
+  await turso.execute({
+    sql: `update zone_clients set reviews_at_sale = reviews,
+            updated_at = datetime('now')
+          where id = ? and reviews_at_sale is null`,
+    args: [id],
+  });
+  return getClient(id);
+}
+
 /** Aggiorna il conteggio recensioni/voto di UN cliente (bottone
  *  "Aggiorna dati": una Place Details, niente scan di zona). */
 export async function refreshClientReviews(
@@ -539,6 +555,9 @@ export interface AddSaleInput {
 export async function addSale(input: AddSaleInput): Promise<ZoneClientDetail | null> {
   if (!turso) throw new Error("Turso non configurato: il registro Zone richiede il DB.");
   await ensureZoneSchema();
+  if (!(await getClient(input.client_id))) {
+    throw new Error("Cliente non trovato nel registro: importalo prima di registrare la vendita.");
+  }
   const saleId = `sale-${randomUUID().slice(0, 12)}`;
   await turso.execute({
     sql: `insert into zone_sales (id, client_id, product_id, product_name, qty, price, sold_at, notes)
@@ -582,6 +601,21 @@ export async function assignCard(
 ): Promise<void> {
   if (!turso) throw new Error("Turso non configurato: il registro Zone richiede il DB.");
   await ensureZoneSchema();
+  // Una card ATTIVA di un ALTRO cliente non si ruba con un refuso di
+  // codice: errore esplicito (per spostarla davvero: dismissione o
+  // sostituzione dal legittimo proprietario). Ri-assegnare allo stesso
+  // cliente o riattivare una dismessa/sostituita resta permesso.
+  const existing = await turso.execute({
+    sql: "select client_id, status from zone_cards where code = ? limit 1",
+    args: [code],
+  });
+  const row = existing.rows[0] as Row | undefined;
+  if (row && str(row.status) === "attiva" && str(row.client_id) !== clientId) {
+    const owner = await getClient(str(row.client_id));
+    throw new Error(
+      `Card "${code}" già attiva su ${owner?.name ?? "un altro cliente"}: controlla il codice.`,
+    );
+  }
   await turso.execute({
     sql: `insert into zone_cards (code, client_id, sale_id, status, notes)
           values (?, ?, ?, 'attiva', ?)
@@ -610,13 +644,15 @@ export async function replaceCard(
   });
   const old = res.rows[0] ? rowToCard(res.rows[0] as Row) : null;
   if (!old) return null;
+  // Prima la nuova (il guard anti-furto può lanciare: se fallisce non
+  // abbiamo ancora toccato la vecchia), poi la vecchia in storia.
+  await assignCard(newCode, old.client_id, old.sale_id, notes || `sostituisce ${oldCode}`);
   await turso.execute({
     sql: `update zone_cards set status = 'sostituita',
             notes = case when notes = '' then ? else notes || ' · ' || ? end
           where code = ?`,
     args: [`sostituita con ${newCode}`, `sostituita con ${newCode}`, oldCode],
   });
-  await assignCard(newCode, old.client_id, old.sale_id, notes || `sostituisce ${oldCode}`);
   const created = await turso.execute({
     sql: "select * from zone_cards where code = ? limit 1",
     args: [newCode],
