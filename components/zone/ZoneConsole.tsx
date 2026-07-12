@@ -8,8 +8,11 @@ import {
   Download,
   ExternalLink,
   LocateFixed,
+  Nfc,
   Phone,
+  Plus,
 } from "lucide-react";
+import { STATUS_CHIP, STATUS_LABEL } from "@/components/zone/ZoneClientSheet";
 import GlassCard from "@/components/ui/spectre/GlassCard";
 import NeonButton from "@/components/ui/spectre/NeonButton";
 import { cn } from "@/lib/utils";
@@ -210,6 +213,55 @@ export default function ZoneConsole() {
     }
   }
 
+  async function importLead(l: ZoneLead) {
+    try {
+      const res = await fetch("/api/zone/clients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: l.id,
+          name: l.name,
+          category: l.category,
+          address: l.address,
+          phone: l.phone,
+          lat: l.lat,
+          lng: l.lng,
+          maps_url: l.maps_url,
+          nfc_review_url: l.nfc_review_url ?? "",
+          rating: l.rating,
+          reviews: l.reviews,
+        }),
+      });
+      const json = (await res.json()) as ApiResponse<{ status?: string }>;
+      if (!json.success) {
+        flash(`Errore: ${json.error ?? "import fallito"}`);
+        return;
+      }
+      // il badge "in registro" si accende subito sul risultato
+      setResult((prev) =>
+        prev
+          ? {
+              ...prev,
+              leads: prev.leads.map((x) =>
+                x.id === l.id
+                  ? { ...x, saved_status: x.saved_status ?? "da_visitare" }
+                  : x,
+              ),
+            }
+          : prev,
+      );
+      flash(`${l.name} nel Registro (da visitare).`);
+    } catch {
+      flash("Errore di rete durante l'import.");
+    }
+  }
+
+  async function copyNfc(l: ZoneLead) {
+    if (!l.nfc_review_url) return;
+    await navigator.clipboard.writeText(l.nfc_review_url);
+    flash(`Link NFC di ${l.name} copiato: incollalo su NFC Tools.`);
+  }
+
   const selectLead = useCallback((lead: ZoneLead) => {
     setSelectedId(lead.id);
     if (lead.lat != null && lead.lng != null) {
@@ -359,11 +411,13 @@ export default function ZoneConsole() {
           <ul ref={listRef} className="flex-1 space-y-2 overflow-y-auto pr-1">
             {(result?.leads ?? []).map((l, i) => (
               <li key={l.id}>
-                <button
-                  type="button"
+                <div
+                  role="button"
+                  tabIndex={0}
                   onClick={() => selectLead(l)}
+                  onKeyDown={(e) => e.key === "Enter" && selectLead(l)}
                   className={cn(
-                    "w-full rounded-sm border px-3 py-2 text-left transition-colors",
+                    "w-full cursor-pointer rounded-sm border px-3 py-2 text-left transition-colors",
                     l.id === selectedId
                       ? "border-accent/60 bg-accent/5"
                       : "border-border hover:bg-surface2",
@@ -373,14 +427,27 @@ export default function ZoneConsole() {
                     <span className="truncate font-ui text-xs font-semibold text-text">
                       {i + 1}. {l.name}
                     </span>
-                    <span
-                      className={cn(
-                        "shrink-0 rounded-full border px-2 py-0.5 font-ui text-[10px] font-bold",
-                        TIER_CHIP[l.tier],
+                    <span className="flex shrink-0 items-center gap-1.5">
+                      {l.saved_status && (
+                        <span
+                          className={cn(
+                            "rounded-full border px-2 py-0.5 font-ui text-[10px]",
+                            STATUS_CHIP[l.saved_status],
+                          )}
+                          title="Già nel Registro"
+                        >
+                          ✓ {STATUS_LABEL[l.saved_status]}
+                        </span>
                       )}
-                      title={TIER_LABEL[l.tier]}
-                    >
-                      {l.score}
+                      <span
+                        className={cn(
+                          "rounded-full border px-2 py-0.5 font-ui text-[10px] font-bold",
+                          TIER_CHIP[l.tier],
+                        )}
+                        title={TIER_LABEL[l.tier]}
+                      >
+                        {l.score}
+                      </span>
                     </span>
                   </div>
                   <div className="mt-0.5 flex items-center gap-2 font-ui text-[11px] text-text2">
@@ -391,7 +458,31 @@ export default function ZoneConsole() {
                       {l.category} · {l.address}
                     </span>
                   </div>
-                  <div className="mt-1 flex items-center gap-3 font-ui text-[11px]">
+                  <div className="mt-1.5 flex flex-wrap items-center gap-2 font-ui text-[11px]">
+                    {!l.saved_status && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          importLead(l);
+                        }}
+                        className="inline-flex items-center gap-1 rounded-sm border border-accent/50 bg-accent/10 px-2 py-1 font-semibold text-accent hover:bg-accent/20"
+                      >
+                        <Plus className="h-3 w-3" /> Registro
+                      </button>
+                    )}
+                    {l.nfc_review_url && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          copyNfc(l);
+                        }}
+                        className="inline-flex items-center gap-1 rounded-sm border border-success/50 bg-success/10 px-2 py-1 font-semibold text-success hover:bg-success/20"
+                      >
+                        <Nfc className="h-3 w-3" /> Copia NFC
+                      </button>
+                    )}
                     {l.phone && (
                       <a
                         href={`tel:${l.phone.replace(/\s/g, "")}`}
@@ -411,7 +502,7 @@ export default function ZoneConsole() {
                       <ExternalLink className="h-3 w-3" /> Maps
                     </a>
                   </div>
-                </button>
+                </div>
               </li>
             ))}
             {result && result.count === 0 && (
