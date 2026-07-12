@@ -93,9 +93,24 @@ export async function ensureZoneSchema(): Promise<void> {
     create index if not exists idx_zone_sales_sold_at on zone_sales(sold_at);
     create index if not exists idx_zone_cards_client on zone_cards(client_id);
     insert or ignore into zone_products (id, name, default_price) values
-      ('prod-card', 'Card NFC singola', 10),
-      ('prod-targhetta', 'Targhetta da banco', 40),
-      ('prod-bundle', 'Bundle', 60);
+      ('prod-card', 'Card singola', 15),
+      ('prod-targhetta', 'Targhetta 10x10 (con biadesivo)', 50),
+      ('prod-targhetta-piedino', 'Targhetta 10x10 con supporto/piedino', 55),
+      ('prod-bundle', 'Bundle 1+1 (1 targhetta + 1 card)', 60),
+      ('prod-bundle-2', 'Bundle 1+2 (1 targhetta + 2 card)', 70),
+      ('prod-bundle-3', 'Bundle 1+3 (1 targhetta + 3 card)', 80);
+  `);
+  // Migrazione listino: i 3 prodotti del seed provvisorio (card 10 /
+  // targhetta 40 / bundle 60) diventano il listino definitivo — SOLO
+  // se hanno ancora nome+prezzo originali: una modifica manuale di
+  // Puccio non viene mai sovrascritta. Idempotente.
+  await turso.executeMultiple(`
+    update zone_products set name = 'Card singola', default_price = 15
+      where id = 'prod-card' and name = 'Card NFC singola' and default_price = 10;
+    update zone_products set name = 'Targhetta 10x10 (con biadesivo)', default_price = 50
+      where id = 'prod-targhetta' and name = 'Targhetta da banco' and default_price = 40;
+    update zone_products set name = 'Bundle 1+1 (1 targhetta + 1 card)', default_price = 60
+      where id = 'prod-bundle' and name = 'Bundle' and default_price = 60;
   `);
   // Migrazione link NFC: il vecchio formato g.page (incluso il trucco
   // ",5", oggi 404) viene riscritto nel formato ufficiale writereview,
