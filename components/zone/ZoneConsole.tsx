@@ -60,6 +60,7 @@ export default function ZoneConsole() {
   const mapRef = useRef<import("leaflet").Map | null>(null);
   const circleRef = useRef<import("leaflet").Circle | null>(null);
   const markersRef = useRef<Map<string, import("leaflet").CircleMarker>>(new Map());
+  const cleanupRef = useRef<(() => void) | null>(null);
   const [mapReady, setMapReady] = useState(false);
 
   const [center, setCenter] = useState<[number, number] | null>(null);
@@ -94,10 +95,17 @@ export default function ZoneConsole() {
         setCenter([e.latlng.lat, e.latlng.lng]);
       });
       mapRef.current = map;
+      // Il tab Registro nasconde la Caccia via CSS: al ritorno il
+      // container passa da 0 alla sua taglia e Leaflet va risvegliato,
+      // altrimenti tile grigie e click disallineati.
+      const ro = new ResizeObserver(() => map.invalidateSize());
+      ro.observe(containerRef.current!);
+      cleanupRef.current = () => ro.disconnect();
       if (!cancelled) setMapReady(true);
     })();
     return () => {
       cancelled = true;
+      cleanupRef.current?.();
       mapRef.current?.remove();
       mapRef.current = null;
       setMapReady(false);

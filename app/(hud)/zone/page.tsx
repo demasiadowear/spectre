@@ -1,5 +1,5 @@
 import ModuleHeader from "@/components/layout/ModuleHeader";
-import ZoneConsole from "@/components/zone/ZoneConsole";
+import ZoneShell from "@/components/zone/ZoneShell";
 
 export default function ZonePage() {
   return (
@@ -8,10 +8,10 @@ export default function ZonePage() {
         index="09"
         label="NFC Review Cards"
         title="Zone"
-        subtitle="Giro porta-a-porta — disegna il cerchio della zona, trova le attività più attente alle recensioni e battile in ordine."
+        subtitle="Card NFC recensioni — caccia per zona sulla mappa e registro clienti del giro (vendite, card, richiami)."
         accent="green"
       />
-      <ZoneConsole />
+      <ZoneShell />
     </div>
   );
 }

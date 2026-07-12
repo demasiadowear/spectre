@@ -93,9 +93,9 @@ export async function ensureZoneSchema(): Promise<void> {
     create index if not exists idx_zone_sales_sold_at on zone_sales(sold_at);
     create index if not exists idx_zone_cards_client on zone_cards(client_id);
     insert or ignore into zone_products (id, name, default_price) values
-      ('prod-card', 'Card NFC singola', 0),
-      ('prod-targhetta', 'Targhetta da banco', 0),
-      ('prod-bundle', 'Bundle', 0);
+      ('prod-card', 'Card NFC singola', 10),
+      ('prod-targhetta', 'Targhetta da banco', 40),
+      ('prod-bundle', 'Bundle', 60);
   `);
   schemaEnsured = true;
 }
@@ -187,16 +187,18 @@ export async function upsertClient(input: UpsertClientInput): Promise<ZoneClient
           values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           on conflict(id) do update set
             name = excluded.name,
-            category = excluded.category,
-            address = excluded.address,
-            cap = excluded.cap,
-            phone = excluded.phone,
-            lat = excluded.lat,
-            lng = excluded.lng,
-            maps_url = excluded.maps_url,
-            nfc_review_url = excluded.nfc_review_url,
-            rating = excluded.rating,
-            reviews = excluded.reviews,
+            -- anagrafica: il valore nuovo vince solo se non vuoto — un
+            -- upsert parziale non deve cancellare telefono/indirizzo.
+            category = case when excluded.category != '' then excluded.category else zone_clients.category end,
+            address = case when excluded.address != '' then excluded.address else zone_clients.address end,
+            cap = case when excluded.cap != '' then excluded.cap else zone_clients.cap end,
+            phone = case when excluded.phone != '' then excluded.phone else zone_clients.phone end,
+            lat = coalesce(excluded.lat, zone_clients.lat),
+            lng = coalesce(excluded.lng, zone_clients.lng),
+            maps_url = case when excluded.maps_url != '' then excluded.maps_url else zone_clients.maps_url end,
+            nfc_review_url = case when excluded.nfc_review_url != '' then excluded.nfc_review_url else zone_clients.nfc_review_url end,
+            rating = case when excluded.rating > 0 then excluded.rating else zone_clients.rating end,
+            reviews = case when excluded.reviews > 0 then excluded.reviews else zone_clients.reviews end,
             zone_label = case when excluded.zone_label != '' then excluded.zone_label else zone_clients.zone_label end,
             status = coalesce(?, zone_clients.status),
             updated_at = datetime('now')`,
