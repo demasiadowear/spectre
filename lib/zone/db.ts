@@ -57,6 +57,17 @@ export async function ensureZoneSchema(): Promise<void> {
       callback_at    text,
       referent       text default '',
       notes          text default '',
+      fatt_ragione_sociale text default '',
+      fatt_piva      text default '',
+      fatt_cf        text default '',
+      fatt_indirizzo text default '',
+      fatt_cap       text default '',
+      fatt_citta     text default '',
+      fatt_email     text default '',
+      fatt_pec       text default '',
+      fatt_sdi       text default '',
+      fatt_telefono  text default '',
+      invoice_status text not null default '',
       created_at     text default (datetime('now')),
       updated_at     text default (datetime('now'))
     );
@@ -100,6 +111,23 @@ export async function ensureZoneSchema(): Promise<void> {
       ('prod-bundle-2', 'Bundle 1+2 (1 targhetta + 2 card)', 70),
       ('prod-bundle-3', 'Bundle 1+3 (1 targhetta + 3 card)', 80);
   `);
+  // Migrazione fatturazione: colonne aggiunte ai DB esistenti, una
+  // per una ("duplicate column" = già migrata, si ignora).
+  for (const col of [
+    "fatt_ragione_sociale", "fatt_piva", "fatt_cf", "fatt_indirizzo",
+    "fatt_cap", "fatt_citta", "fatt_email", "fatt_pec", "fatt_sdi",
+    "fatt_telefono",
+  ]) {
+    try {
+      await turso.execute(`alter table zone_clients add column ${col} text default ''`);
+    } catch { /* colonna già presente */ }
+  }
+  try {
+    await turso.execute(
+      "alter table zone_clients add column invoice_status text not null default ''",
+    );
+  } catch { /* colonna già presente */ }
+
   // Migrazione listino: i 3 prodotti del seed provvisorio (card 10 /
   // targhetta 40 / bundle 60) diventano il listino definitivo — SOLO
   // se hanno ancora nome+prezzo originali: una modifica manuale di
@@ -144,6 +172,17 @@ function rowToClient(r: Row): ZoneClient {
     callback_at: r.callback_at ? str(r.callback_at) : null,
     referent: str(r.referent),
     notes: str(r.notes),
+    fatt_ragione_sociale: str(r.fatt_ragione_sociale),
+    fatt_piva: str(r.fatt_piva),
+    fatt_cf: str(r.fatt_cf),
+    fatt_indirizzo: str(r.fatt_indirizzo),
+    fatt_cap: str(r.fatt_cap),
+    fatt_citta: str(r.fatt_citta),
+    fatt_email: str(r.fatt_email),
+    fatt_pec: str(r.fatt_pec),
+    fatt_sdi: str(r.fatt_sdi),
+    fatt_telefono: str(r.fatt_telefono),
+    invoice_status: (str(r.invoice_status) || "") as ZoneClient["invoice_status"],
     created_at: str(r.created_at),
     updated_at: str(r.updated_at),
   };
@@ -256,6 +295,17 @@ const CLIENT_EDITABLE = [
   "zone_label",
   "phone",
   "nfc_review_url",
+  "fatt_ragione_sociale",
+  "fatt_piva",
+  "fatt_cf",
+  "fatt_indirizzo",
+  "fatt_cap",
+  "fatt_citta",
+  "fatt_email",
+  "fatt_pec",
+  "fatt_sdi",
+  "fatt_telefono",
+  "invoice_status",
 ] as const;
 
 export async function updateClient(
@@ -316,6 +366,8 @@ export interface ClientFilters {
   cap?: string;
   zone_label?: string;
   q?: string;
+  /** Filtro stato fattura ('richiesta' = fatture da emettere). */
+  invoice?: "richiesta" | "fatturata";
 }
 
 export async function listClients(filters: ClientFilters = {}): Promise<ZoneClient[]> {
@@ -334,6 +386,10 @@ export async function listClients(filters: ClientFilters = {}): Promise<ZoneClie
   if (filters.zone_label) {
     where.push("zone_label = ?");
     args.push(filters.zone_label);
+  }
+  if (filters.invoice) {
+    where.push("invoice_status = ?");
+    args.push(filters.invoice);
   }
   if (filters.q) {
     where.push("(name like ? or address like ? or referent like ? or notes like ?)");

@@ -38,6 +38,7 @@ const inputCls =
 export default function ZoneRegistry() {
   const [clients, setClients] = useState<ZoneClient[]>([]);
   const [statusFilter, setStatusFilter] = useState<ZoneClientStatus | "tutti">("tutti");
+  const [invoiceOnly, setInvoiceOnly] = useState(false);
   const [q, setQ] = useState("");
   const [cardCode, setCardCode] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
@@ -57,6 +58,7 @@ export default function ZoneRegistry() {
   const refresh = useCallback(async () => {
     const params = new URLSearchParams();
     if (statusFilter !== "tutti") params.set("status", statusFilter);
+    if (invoiceOnly) params.set("invoice", "richiesta");
     if (q.trim()) params.set("q", q.trim());
     try {
       const res = await fetch(`/api/zone/clients?${params}`, { cache: "no-store" });
@@ -65,7 +67,7 @@ export default function ZoneRegistry() {
     } catch {
       /* rete: lo stato precedente resta visibile */
     }
-  }, [statusFilter, q]);
+  }, [statusFilter, q, invoiceOnly]);
 
   useEffect(() => {
     const t = setTimeout(refresh, q ? 300 : 0); // debounce sulla ricerca
@@ -164,6 +166,19 @@ export default function ZoneRegistry() {
               {s !== "tutti" && counts.get(s) ? ` (${counts.get(s)})` : ""}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={() => setInvoiceOnly((v) => !v)}
+            className={cn(
+              "rounded-full border px-2.5 py-1 font-ui text-[11px] font-semibold transition-colors",
+              invoiceOnly
+                ? "border-danger/50 bg-danger/15 text-danger"
+                : "border-border text-text2 hover:text-text",
+            )}
+            title="Solo clienti con fattura da emettere"
+          >
+            📄 Richiesta fattura
+          </button>
           <a
             href="/api/zone/export?what=clients"
             className="ml-auto inline-flex items-center gap-1 font-ui text-[11px] text-text2 hover:text-text"
@@ -297,13 +312,25 @@ export default function ZoneRegistry() {
                     )}
                   </p>
                 </div>
-                <span
-                  className={cn(
-                    "shrink-0 rounded-full border px-2 py-0.5 font-ui text-[10px] font-semibold",
-                    STATUS_CHIP[c.status],
+                <span className="flex shrink-0 items-center gap-1.5">
+                  {c.invoice_status === "richiesta" && (
+                    <span className="animate-pulse rounded-full border border-danger/50 bg-danger/15 px-2 py-0.5 font-ui text-[10px] font-bold text-danger">
+                      📄 FATTURA
+                    </span>
                   )}
-                >
-                  {STATUS_LABEL[c.status]}
+                  {c.invoice_status === "fatturata" && (
+                    <span className="rounded-full border border-success/40 px-2 py-0.5 font-ui text-[10px] text-success">
+                      Fatturata
+                    </span>
+                  )}
+                  <span
+                    className={cn(
+                      "rounded-full border px-2 py-0.5 font-ui text-[10px] font-semibold",
+                      STATUS_CHIP[c.status],
+                    )}
+                  >
+                    {STATUS_LABEL[c.status]}
+                  </span>
                 </span>
               </button>
             </li>

@@ -44,13 +44,17 @@ export async function GET(req: Request) {
   const res = await turso.execute(`
     select id, name, category, status, phone, address, cap, zone_label,
            rating, reviews, referent, callback_at, notes, nfc_review_url,
-           created_at, updated_at
+           invoice_status, fatt_ragione_sociale, fatt_piva, fatt_cf,
+           fatt_indirizzo, fatt_cap, fatt_citta, fatt_email, fatt_pec,
+           fatt_sdi, fatt_telefono, created_at, updated_at
     from zone_clients order by updated_at desc`);
   const csv = toCsv(
     [
       "id", "name", "category", "status", "phone", "address", "cap", "zone_label",
       "rating", "reviews", "referent", "callback_at", "notes", "nfc_review_url",
-      "created_at", "updated_at",
+      "invoice_status", "fatt_ragione_sociale", "fatt_piva", "fatt_cf",
+      "fatt_indirizzo", "fatt_cap", "fatt_citta", "fatt_email", "fatt_pec",
+      "fatt_sdi", "fatt_telefono", "created_at", "updated_at",
     ],
     res.rows as Record<string, unknown>[],
   );
