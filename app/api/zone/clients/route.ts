@@ -49,6 +49,10 @@ export async function GET(req: Request) {
       q: url.searchParams.get("q") ?? undefined,
       invoice:
         invoice === "richiesta" || invoice === "fatturata" ? invoice : undefined,
+      upsell_min: (() => {
+        const v = Number(url.searchParams.get("upsell_min"));
+        return Number.isFinite(v) && v > 0 ? v : undefined;
+      })(),
     });
     return NextResponse.json<ApiResponse<ZoneClient[]>>({
       success: true,

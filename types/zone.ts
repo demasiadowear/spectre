@@ -92,6 +92,11 @@ export interface ZoneClient {
   /** '' = nessuna · 'richiesta' = fattura DA FARE (badge acceso) ·
    *  'fatturata' = emessa e inviata. */
   invoice_status: "" | "richiesta" | "fatturata";
+  /** Recensioni al momento della PRIMA vendita (baseline delta upsell,
+   *  null = mai venduto). Le vendite successive non la toccano. */
+  reviews_at_sale: number | null;
+  /** Ultimo aggiornamento del conteggio recensioni (scan o refresh). */
+  reviews_updated_at: string | null;
   created_at: string;
   updated_at: string;
 }
