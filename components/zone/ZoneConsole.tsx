@@ -11,8 +11,10 @@ import {
   Nfc,
   Phone,
   Plus,
+  SlidersHorizontal,
 } from "lucide-react";
 import { STATUS_CHIP, STATUS_LABEL } from "@/components/zone/ZoneClientSheet";
+import { ZONE_CATEGORY_LABELS } from "@/lib/zone/categories";
 import GlassCard from "@/components/ui/spectre/GlassCard";
 import NeonButton from "@/components/ui/spectre/NeonButton";
 import { cn } from "@/lib/utils";
@@ -74,6 +76,21 @@ export default function ZoneConsole() {
   const [result, setResult] = useState<ZoneHuntResult | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  // filtri ricerca (vuoto/indefinito = nessun filtro)
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [cats, setCats] = useState<string[]>([]);
+  const [revMin, setRevMin] = useState("");
+  const [revMax, setRevMax] = useState("");
+  const [ratMin, setRatMin] = useState("");
+  const [ratMax, setRatMax] = useState("");
+
+  const activeFilters =
+    cats.length + [revMin, revMax, ratMin, ratMax].filter(Boolean).length;
+
+  const toggleCat = (label: string) =>
+    setCats((prev) =>
+      prev.includes(label) ? prev.filter((c) => c !== label) : [...prev, label],
+    );
 
   function flash(msg: string) {
     setToast(msg);
@@ -194,7 +211,16 @@ export default function ZoneConsole() {
       const res = await fetch("/api/hunt/zone", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lat: center[0], lng: center[1], radius }),
+        body: JSON.stringify({
+          lat: center[0],
+          lng: center[1],
+          radius,
+          categories: cats,
+          reviews_min: revMin !== "" ? Number(revMin) : undefined,
+          reviews_max: revMax !== "" ? Number(revMax) : undefined,
+          rating_min: ratMin !== "" ? Number(ratMin) : undefined,
+          rating_max: ratMax !== "" ? Number(ratMax) : undefined,
+        }),
       });
       const json = (await res.json()) as ApiResponse<ZoneHuntResult>;
       if (!json.success || !json.data) {
@@ -338,6 +364,19 @@ export default function ZoneConsole() {
           />
           <span className="w-14 font-semibold text-text">{fmtRadius(radius)}</span>
         </label>
+        <button
+          type="button"
+          onClick={() => setFiltersOpen((v) => !v)}
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1.5 font-ui text-xs font-semibold transition-colors",
+            filtersOpen || activeFilters > 0
+              ? "border-accent/60 bg-accent/10 text-accent"
+              : "border-border text-text2 hover:text-text",
+          )}
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" />
+          Filtri{activeFilters > 0 ? ` (${activeFilters})` : ""}
+        </button>
         <NeonButton
           size="sm"
           variant="amber"
@@ -353,6 +392,94 @@ export default function ZoneConsole() {
             : "tocca la mappa per fissare il centro del giro"}
         </p>
       </GlassCard>
+
+      {filtersOpen && (
+        <GlassCard className="space-y-3 px-4 py-3">
+          <div>
+            <p className="mb-1.5 font-ui text-[10px] uppercase tracking-widest text-text2">
+              Categorie (nessuna selezione = tutte)
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {ZONE_CATEGORY_LABELS.map((label) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => toggleCat(label)}
+                  className={cn(
+                    "rounded-full border px-2.5 py-1 font-ui text-[11px] font-semibold transition-colors",
+                    cats.includes(label)
+                      ? "border-accent/60 bg-accent/15 text-accent"
+                      : "border-border text-text2 hover:text-text",
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-wrap items-end gap-4 font-ui text-[11px] text-text2">
+            <label className="flex items-center gap-1.5">
+              Recensioni
+              <input
+                type="number"
+                min={0}
+                placeholder="min"
+                value={revMin}
+                onChange={(e) => setRevMin(e.target.value)}
+                className="w-16 rounded-sm border border-border bg-surface px-1.5 py-1 text-text focus:border-accent focus:outline-none"
+              />
+              –
+              <input
+                type="number"
+                min={0}
+                placeholder="max"
+                value={revMax}
+                onChange={(e) => setRevMax(e.target.value)}
+                className="w-16 rounded-sm border border-border bg-surface px-1.5 py-1 text-text focus:border-accent focus:outline-none"
+              />
+            </label>
+            <label className="flex items-center gap-1.5">
+              Voto ★
+              <input
+                type="number"
+                min={0}
+                max={5}
+                step={0.1}
+                placeholder="min"
+                value={ratMin}
+                onChange={(e) => setRatMin(e.target.value)}
+                className="w-16 rounded-sm border border-border bg-surface px-1.5 py-1 text-text focus:border-accent focus:outline-none"
+              />
+              –
+              <input
+                type="number"
+                min={0}
+                max={5}
+                step={0.1}
+                placeholder="max"
+                value={ratMax}
+                onChange={(e) => setRatMax(e.target.value)}
+                className="w-16 rounded-sm border border-border bg-surface px-1.5 py-1 text-text focus:border-accent focus:outline-none"
+              />
+            </label>
+            {activeFilters > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setCats([]);
+                  setRevMin("");
+                  setRevMax("");
+                  setRatMin("");
+                  setRatMax("");
+                }}
+                className="font-semibold text-text2 underline hover:text-text"
+              >
+                Azzera filtri
+              </button>
+            )}
+          </div>
+        </GlassCard>
+      )}
 
       {toast && (
         <p className="font-ui text-xs text-accent" role="status">

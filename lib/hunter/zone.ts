@@ -1,3 +1,4 @@
+import { ZONE_TYPE_GROUPS } from "@/lib/zone/categories";
 import { savedStatusMap } from "@/lib/zone/db";
 import { nfcReviewUrl } from "@/lib/zone/review-link";
 import type { OpportunityTier, ZoneHuntResult, ZoneLead } from "@/types/zone";
@@ -20,20 +21,9 @@ const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_PLACES_API_KEY;
 const NEARBY_URL = "https://places.googleapis.com/v1/places:searchNearby";
 const PAGE_MAX = 20; // hard max Nearby Search (New)
 
-/** Gruppi di categorie Places (Table A) da vetrina/banco: attività
- *  con un bancone fisico dove la card NFC ha senso. Un gruppo che
- *  fallisce (tipo non valido, quota) non blocca gli altri. */
-const TYPE_GROUPS: { label: string; types: string[] }[] = [
-  { label: "ristorazione", types: ["restaurant", "pizza_restaurant", "fast_food_restaurant"] },
-  { label: "bar & caffè", types: ["bar", "cafe", "bakery", "ice_cream_shop"] },
-  { label: "bellezza", types: ["hair_salon", "beauty_salon", "barber_shop", "nail_salon", "spa"] },
-  { label: "salute", types: ["dentist", "physiotherapist", "veterinary_care"] },
-  { label: "negozi", types: ["clothing_store", "shoe_store", "jewelry_store", "florist", "gift_shop"] },
-  { label: "casa & tech", types: ["home_goods_store", "electronics_store", "hardware_store", "furniture_store"] },
-  { label: "auto & moto", types: ["car_repair", "car_wash", "car_dealer"] },
-  { label: "sport & animali", types: ["gym", "book_store", "pet_store"] },
-  { label: "ospitalità", types: ["hotel", "bed_and_breakfast"] },
-];
+// Gruppi categoria: in lib/zone/categories.ts (client-safe, condiviso
+// con le checkbox filtri). Un gruppo che fallisce non blocca gli altri.
+const TYPE_GROUPS = ZONE_TYPE_GROUPS;
 
 const FIELD_MASK = [
   "places.id",
@@ -186,9 +176,6 @@ export interface ZoneHuntFilters {
   rating_min?: number;
   rating_max?: number;
 }
-
-/** Etichette gruppo per la UI (checkbox categorie). */
-export const ZONE_CATEGORY_LABELS = TYPE_GROUPS.map((g) => g.label);
 
 export async function huntZone(
   lat: number,
