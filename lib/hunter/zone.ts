@@ -1,3 +1,5 @@
+import { savedStatusMap } from "@/lib/zone/db";
+import { nfcReviewUrl } from "@/lib/zone/gpage";
 import type { OpportunityTier, ZoneHuntResult, ZoneLead } from "@/types/zone";
 
 // ============================================================
@@ -64,13 +66,16 @@ interface NearbyPlace {
 // hanno un problema di servizio, non di visibilità) vanno in fondo.
 
 /** Fame di recensioni (0..1) — peso dominante dell'indice.
- *  Zero recensioni = fame massima SOLO con profilo reale (telefono +
- *  indirizzo): senza, è probabile scheda fantasma e viene declassata. */
+ *  In cima chi ha 10-30 recensioni: attività rodata ma invisibile
+ *  (richiesta Puccio: sotto le ~10 sono troppo acerbe/fantasma per
+ *  stare in cima, anche se il bisogno è reale). Zero recensioni con
+ *  profilo incompleto (senza telefono+indirizzo) = quasi certamente
+ *  scheda fantasma, in fondo. */
 function fame(reviews: number, hasPhone: boolean, hasAddress: boolean): number {
-  if (reviews <= 30) {
-    if (reviews === 0 && !(hasPhone && hasAddress)) return 0.35;
-    return 1;
-  }
+  if (reviews === 0) return hasPhone && hasAddress ? 0.55 : 0.3;
+  if (reviews <= 3) return 0.45;
+  if (reviews <= 9) return 0.7;
+  if (reviews <= 30) return 1;
   if (reviews <= 100) return 0.8;
   if (reviews <= 250) return 0.55;
   if (reviews <= 600) return 0.3;
@@ -157,10 +162,23 @@ async function fetchGroup(
   }
 }
 
+export interface ZoneHuntFilters {
+  /** Etichette dei gruppi da cercare (vuoto = tutti). */
+  categories?: string[];
+  reviews_min?: number;
+  reviews_max?: number;
+  rating_min?: number;
+  rating_max?: number;
+}
+
+/** Etichette gruppo per la UI (checkbox categorie). */
+export const ZONE_CATEGORY_LABELS = TYPE_GROUPS.map((g) => g.label);
+
 export async function huntZone(
   lat: number,
   lng: number,
   radius: number,
+  filters: ZoneHuntFilters = {},
 ): Promise<ZoneHuntResult> {
   if (!GOOGLE_PLACES_API_KEY) {
     throw new Error("GOOGLE_PLACES_API_KEY mancante: la caccia zona richiede Places.");
@@ -168,8 +186,15 @@ export async function huntZone(
   const apiKey = GOOGLE_PLACES_API_KEY;
   const r = Math.min(5000, Math.max(100, Math.round(radius)));
 
+  // Filtro categorie: meno gruppi selezionati = meno chiamate Places.
+  const wanted = (filters.categories ?? []).filter(Boolean);
+  const groups =
+    wanted.length > 0
+      ? TYPE_GROUPS.filter((g) => wanted.includes(g.label))
+      : TYPE_GROUPS;
+
   const results = await Promise.all(
-    TYPE_GROUPS.map(async (g) => ({
+    groups.map(async (g) => ({
       group: g,
       places: await fetchGroup(apiKey, g, lat, lng, r),
     })),
@@ -194,6 +219,10 @@ export async function huntZone(
       const rating = typeof p.rating === "number" ? p.rating : 0;
       const reviews =
         typeof p.userRatingCount === "number" ? p.userRatingCount : 0;
+      if (filters.reviews_min != null && reviews < filters.reviews_min) continue;
+      if (filters.reviews_max != null && reviews > filters.reviews_max) continue;
+      if (filters.rating_min != null && rating < filters.rating_min) continue;
+      if (filters.rating_max != null && rating > filters.rating_max) continue;
       const phone = p.nationalPhoneNumber ?? "";
       const address = p.formattedAddress || "";
       const score = opportunityScore(rating, reviews, phone.length > 0, address.length > 0);
@@ -212,6 +241,10 @@ export async function huntZone(
         maps_url:
           p.googleMapsUri ||
           `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(id)}`,
+        // Link ,5 per il chip: derivato dal CID in googleMapsUri.
+        // null = non ricavabile (mai un link costruito male).
+        nfc_review_url: p.googleMapsUri ? nfcReviewUrl(p.googleMapsUri) : null,
+        saved_status: null,
       });
     }
   }
@@ -221,6 +254,15 @@ export async function huntZone(
   leads.sort(
     (a, b) => b.score - a.score || a.reviews - b.reviews || b.rating - a.rating,
   );
+
+  // Overlay registro: chi è già cliente/visitato lo vedi nello scan.
+  // Non blocca la caccia se il DB non risponde.
+  try {
+    const saved = await savedStatusMap(leads.map((l) => l.id));
+    for (const l of leads) l.saved_status = saved.get(l.id) ?? null;
+  } catch (err) {
+    console.error("[zone] overlay registro fallito:", (err as Error).message);
+  }
 
   return { leads, count: leads.length, groups_failed: groupsFailed };
 }

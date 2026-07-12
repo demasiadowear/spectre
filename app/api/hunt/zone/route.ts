@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { huntZone } from "@/lib/hunter/zone";
+import { huntZone, type ZoneHuntFilters } from "@/lib/hunter/zone";
 import type { ApiResponse } from "@/types";
 import type { ZoneHuntResult } from "@/types/zone";
 
@@ -34,8 +34,18 @@ export async function POST(req: Request) {
     );
   }
 
+  const filters: ZoneHuntFilters = {
+    categories: Array.isArray(body.categories)
+      ? body.categories.filter((c): c is string => typeof c === "string")
+      : [],
+    reviews_min: num(body.reviews_min) ?? undefined,
+    reviews_max: num(body.reviews_max) ?? undefined,
+    rating_min: num(body.rating_min) ?? undefined,
+    rating_max: num(body.rating_max) ?? undefined,
+  };
+
   try {
-    const result = await huntZone(lat, lng, radius);
+    const result = await huntZone(lat, lng, radius, filters);
     return NextResponse.json<ApiResponse<ZoneHuntResult>>({
       success: true,
       data: result,
