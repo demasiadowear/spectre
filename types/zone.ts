@@ -77,6 +77,21 @@ export interface ZoneClient {
   callback_at: string | null;
   referent: string;
   notes: string;
+  // ----- Dati fatturazione (raccolti via OCR o a mano, sempre
+  // confermati dall'utente prima del salvataggio) -----
+  fatt_ragione_sociale: string;
+  fatt_piva: string;
+  fatt_cf: string;
+  fatt_indirizzo: string;
+  fatt_cap: string;
+  fatt_citta: string;
+  fatt_email: string;
+  fatt_pec: string;
+  fatt_sdi: string;
+  fatt_telefono: string;
+  /** '' = nessuna · 'richiesta' = fattura DA FARE (badge acceso) ·
+   *  'fatturata' = emessa e inviata. */
+  invoice_status: "" | "richiesta" | "fatturata";
   created_at: string;
   updated_at: string;
 }

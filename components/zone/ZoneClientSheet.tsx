@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import NeonButton from "@/components/ui/spectre/NeonButton";
+import ZoneBillingSection from "@/components/zone/ZoneBillingSection";
 import { cn } from "@/lib/utils";
 import type { ApiResponse } from "@/types";
 import type {
@@ -153,6 +154,9 @@ export default function ZoneClientSheet({ clientId, onClose, onChanged }: Props)
       setBusy(false);
     }
   }
+
+  const patchClient = (fields: Record<string, unknown>) =>
+    api("/api/zone/clients", "PATCH", { id: clientId, ...fields });
 
   const setStatus = (status: ZoneClientStatus) =>
     api("/api/zone/clients", "PATCH", {
@@ -489,6 +493,16 @@ export default function ZoneClientSheet({ clientId, onClose, onChanged }: Props)
             </NeonButton>
           </div>
         </Section>
+
+        {/* fattura e dati fiscali */}
+        {detail && (
+          <ZoneBillingSection
+            detail={detail}
+            busy={busy}
+            patch={patchClient}
+            flash={flash}
+          />
+        )}
 
         {/* scheda */}
         <Section title="Scheda">

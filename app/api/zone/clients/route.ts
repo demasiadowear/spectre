@@ -41,11 +41,14 @@ export async function GET(req: Request) {
       });
     }
     const status = url.searchParams.get("status");
+    const invoice = url.searchParams.get("invoice");
     const clients = await listClients({
       status: isStatus(status) ? status : undefined,
       cap: url.searchParams.get("cap") ?? undefined,
       zone_label: url.searchParams.get("zone") ?? undefined,
       q: url.searchParams.get("q") ?? undefined,
+      invoice:
+        invoice === "richiesta" || invoice === "fatturata" ? invoice : undefined,
     });
     return NextResponse.json<ApiResponse<ZoneClient[]>>({
       success: true,
@@ -123,6 +126,15 @@ export async function PATCH(req: Request) {
   if ("status" in body && !isStatus(body.status)) {
     return NextResponse.json<ApiResponse<never>>(
       { success: false, error: `Stato non valido. Ammessi: ${ZONE_STATUSES.join(", ")}.` },
+      { status: 400 },
+    );
+  }
+  if (
+    "invoice_status" in body &&
+    !["", "richiesta", "fatturata"].includes(String(body.invoice_status))
+  ) {
+    return NextResponse.json<ApiResponse<never>>(
+      { success: false, error: "Stato fattura non valido ('' | richiesta | fatturata)." },
       { status: 400 },
     );
   }
