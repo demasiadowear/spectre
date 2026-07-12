@@ -284,7 +284,7 @@ export default function ZoneClientSheet({ clientId, onClose, onChanged }: Props)
         )}
 
         {/* LINK NFC — il gesto principale in negozio */}
-        <Section title="Link recensioni per NFC (5 stelle preselezionate)">
+        <Section title="Link recensioni per NFC (un tap → form recensione)">
           {detail?.nfc_review_url ? (
             <div className="space-y-2">
               <p className="break-all rounded-sm border border-border bg-surface2 px-2 py-1.5 font-mono text-[11px] text-text">
@@ -296,8 +296,8 @@ export default function ZoneClientSheet({ clientId, onClose, onChanged }: Props)
             </div>
           ) : (
             <p className="font-ui text-xs text-danger">
-              Link non ricavabile per questa attività (CID Google assente): NON
-              programmare il chip a mano — segnalalo.
+              Link mancante per questa attività: riapri la scheda (la
+              migrazione lo rigenera dal place_id) o segnalalo.
             </p>
           )}
         </Section>
