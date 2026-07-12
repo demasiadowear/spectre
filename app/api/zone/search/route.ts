@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { nfcReviewUrl } from "@/lib/zone/gpage";
+import { nfcReviewUrl } from "@/lib/zone/review-link";
 import type { ApiResponse } from "@/types";
 import type { ZoneLead } from "@/types/zone";
 
@@ -100,7 +100,7 @@ export async function POST(req: Request) {
         maps_url:
           p.googleMapsUri ||
           `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(p.id as string)}`,
-        nfc_review_url: p.googleMapsUri ? nfcReviewUrl(p.googleMapsUri) : null,
+        nfc_review_url: nfcReviewUrl(p.id as string),
         saved_status: null,
       }));
     return NextResponse.json<ApiResponse<ZoneLead[]>>({

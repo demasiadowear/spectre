@@ -1,5 +1,5 @@
 import { savedStatusMap } from "@/lib/zone/db";
-import { nfcReviewUrl } from "@/lib/zone/gpage";
+import { nfcReviewUrl } from "@/lib/zone/review-link";
 import type { OpportunityTier, ZoneHuntResult, ZoneLead } from "@/types/zone";
 
 // ============================================================
@@ -241,9 +241,9 @@ export async function huntZone(
         maps_url:
           p.googleMapsUri ||
           `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(id)}`,
-        // Link ,5 per il chip: derivato dal CID in googleMapsUri.
-        // null = non ricavabile (mai un link costruito male).
-        nfc_review_url: p.googleMapsUri ? nfcReviewUrl(p.googleMapsUri) : null,
+        // Link recensioni per il chip: formato ufficiale writereview,
+        // costruito dal place_id — sempre disponibile.
+        nfc_review_url: nfcReviewUrl(id),
         saved_status: null,
       });
     }

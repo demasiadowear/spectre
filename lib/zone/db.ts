@@ -97,6 +97,14 @@ export async function ensureZoneSchema(): Promise<void> {
       ('prod-targhetta', 'Targhetta da banco', 40),
       ('prod-bundle', 'Bundle', 60);
   `);
+  // Migrazione link NFC: il vecchio formato g.page (incluso il trucco
+  // ",5", oggi 404) viene riscritto nel formato ufficiale writereview,
+  // costruito dal place_id (= id cliente). Idempotente.
+  await turso.execute(
+    `update zone_clients
+     set nfc_review_url = 'https://search.google.com/local/writereview?placeid=' || id
+     where nfc_review_url = '' or nfc_review_url like 'https://g.page/%'`,
+  );
   schemaEnsured = true;
 }
 
