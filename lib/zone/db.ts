@@ -68,6 +68,8 @@ export async function ensureZoneSchema(): Promise<void> {
       fatt_sdi       text default '',
       fatt_telefono  text default '',
       invoice_status text not null default '',
+      reviews_at_sale integer,
+      reviews_updated_at text,
       created_at     text default (datetime('now')),
       updated_at     text default (datetime('now'))
     );
@@ -127,6 +129,16 @@ export async function ensureZoneSchema(): Promise<void> {
       "alter table zone_clients add column invoice_status text not null default ''",
     );
   } catch { /* colonna già presente */ }
+  // Delta recensioni per upsell: baseline alla PRIMA vendita + data
+  // ultimo aggiornamento del conteggio attuale.
+  for (const ddl of [
+    "alter table zone_clients add column reviews_at_sale integer",
+    "alter table zone_clients add column reviews_updated_at text",
+  ]) {
+    try {
+      await turso.execute(ddl);
+    } catch { /* colonna già presente */ }
+  }
 
   // Migrazione listino: i 3 prodotti del seed provvisorio (card 10 /
   // targhetta 40 / bundle 60) diventano il listino definitivo — SOLO
@@ -183,6 +195,11 @@ function rowToClient(r: Row): ZoneClient {
     fatt_sdi: str(r.fatt_sdi),
     fatt_telefono: str(r.fatt_telefono),
     invoice_status: (str(r.invoice_status) || "") as ZoneClient["invoice_status"],
+    reviews_at_sale:
+      typeof r.reviews_at_sale === "number" || typeof r.reviews_at_sale === "bigint"
+        ? Number(r.reviews_at_sale)
+        : null,
+    reviews_updated_at: r.reviews_updated_at ? str(r.reviews_updated_at) : null,
     created_at: str(r.created_at),
     updated_at: str(r.updated_at),
   };
@@ -261,6 +278,7 @@ export async function upsertClient(input: UpsertClientInput): Promise<ZoneClient
             nfc_review_url = case when excluded.nfc_review_url != '' then excluded.nfc_review_url else zone_clients.nfc_review_url end,
             rating = case when excluded.rating > 0 then excluded.rating else zone_clients.rating end,
             reviews = case when excluded.reviews > 0 then excluded.reviews else zone_clients.reviews end,
+            reviews_updated_at = case when excluded.reviews > 0 then datetime('now') else zone_clients.reviews_updated_at end,
             zone_label = case when excluded.zone_label != '' then excluded.zone_label else zone_clients.zone_label end,
             status = coalesce(?, zone_clients.status),
             updated_at = datetime('now')`,
@@ -368,13 +386,16 @@ export interface ClientFilters {
   q?: string;
   /** Filtro stato fattura ('richiesta' = fatture da emettere). */
   invoice?: "richiesta" | "fatturata";
+  /** Candidati upsell: delta recensioni dalla vendita >= soglia.
+   *  Ordina per delta decrescente. */
+  upsell_min?: number;
 }
 
 export async function listClients(filters: ClientFilters = {}): Promise<ZoneClient[]> {
   if (!turso) return [];
   await ensureZoneSchema();
   const where: string[] = [];
-  const args: string[] = [];
+  const args: (string | number)[] = [];
   if (filters.status) {
     where.push("status = ?");
     args.push(filters.status);
@@ -391,18 +412,29 @@ export async function listClients(filters: ClientFilters = {}): Promise<ZoneClie
     where.push("invoice_status = ?");
     args.push(filters.invoice);
   }
+  if (filters.upsell_min != null) {
+    where.push(
+      "reviews_at_sale is not null and (reviews - reviews_at_sale) >= ?",
+    );
+    // numero, NON stringa: SQLite ordina INTEGER < TEXT, quindi
+    // 58 >= '20' sarebbe sempre falso.
+    args.push(Math.max(1, Math.round(filters.upsell_min)));
+  }
   if (filters.q) {
     where.push("(name like ? or address like ? or referent like ? or notes like ?)");
     const like = `%${filters.q}%`;
     args.push(like, like, like, like);
   }
+  const orderBy =
+    filters.upsell_min != null
+      ? "(reviews - reviews_at_sale) desc, reviews desc"
+      : `case when status = 'da_richiamare' then 0 else 1 end,
+            callback_at asc nulls last,
+            updated_at desc`;
   const res = await turso.execute({
     sql: `select * from zone_clients
           ${where.length ? `where ${where.join(" and ")}` : ""}
-          order by
-            case when status = 'da_richiamare' then 0 else 1 end,
-            callback_at asc nulls last,
-            updated_at desc
+          order by ${orderBy}
           limit 500`,
     args,
   });
@@ -425,6 +457,27 @@ export async function savedStatusMap(
     map.set(str(r.id), str(r.status) as ZoneClientStatus);
   }
   return map;
+}
+
+/** Aggiorna il conteggio recensioni/voto di UN cliente (bottone
+ *  "Aggiorna dati": una Place Details, niente scan di zona). */
+export async function refreshClientReviews(
+  id: string,
+  rating: number,
+  reviews: number,
+): Promise<ZoneClient | null> {
+  if (!turso) throw new Error("Turso non configurato: il registro Zone richiede il DB.");
+  await ensureZoneSchema();
+  await turso.execute({
+    sql: `update zone_clients set
+            rating = case when ? > 0 then ? else rating end,
+            reviews = case when ? > 0 then ? else reviews end,
+            reviews_updated_at = datetime('now'),
+            updated_at = datetime('now')
+          where id = ?`,
+    args: [rating, rating, reviews, reviews, id],
+  });
+  return getClient(id);
 }
 
 // ----- Prodotti --------------------------------------------------
@@ -506,7 +559,14 @@ export async function addSale(input: AddSaleInput): Promise<ZoneClientDetail | n
     if (clean) await assignCard(clean, input.client_id, saleId);
   }
   await turso.execute({
-    sql: `update zone_clients set status = 'venduto', updated_at = datetime('now') where id = ?`,
+    sql: `update zone_clients set
+            status = 'venduto',
+            -- baseline delta: le recensioni al momento della PRIMA
+            -- vendita. Le vendite successive NON la toccano (si misura
+            -- l'effetto della card dall'inizio).
+            reviews_at_sale = coalesce(reviews_at_sale, reviews),
+            updated_at = datetime('now')
+          where id = ?`,
     args: [input.client_id],
   });
   return getClientDetail(input.client_id);

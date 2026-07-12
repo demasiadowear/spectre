@@ -10,6 +10,7 @@ import {
   Phone,
   Plus,
   RefreshCw,
+  TrendingUp,
   X,
 } from "lucide-react";
 import NeonButton from "@/components/ui/spectre/NeonButton";
@@ -175,6 +176,8 @@ export default function ZoneClientSheet({ clientId, onClose, onChanged }: Props)
       callback_at: callback || null,
     }).then((ok) => ok && flash("Scheda salvata."));
 
+  const refreshData = () => api("/api/zone/refresh", "POST", { id: clientId });
+
   async function copyNfc() {
     if (!detail?.nfc_review_url) return;
     await navigator.clipboard.writeText(detail.nfc_review_url);
@@ -305,6 +308,42 @@ export default function ZoneClientSheet({ clientId, onClose, onChanged }: Props)
             </p>
           )}
         </Section>
+
+        {/* effetto card: delta recensioni dalla prima vendita */}
+        {detail && (
+          <Section title="Effetto card (argomento upsell)">
+            {detail.reviews_at_sale != null ? (
+              <div className="space-y-1.5">
+                <p className="font-ui text-sm font-bold text-success">
+                  <TrendingUp className="mr-1 inline h-4 w-4" />
+                  {detail.reviews - detail.reviews_at_sale >= 0 ? "+" : ""}
+                  {detail.reviews - detail.reviews_at_sale} recensioni dalla vendita{" "}
+                  <span className="font-ui text-xs font-normal text-text2">
+                    ({detail.reviews_at_sale} → {detail.reviews})
+                  </span>
+                </p>
+                <p className="font-ui text-[11px] text-text2">
+                  {detail.sales.length > 0 &&
+                    `prima vendita ${detail.sales[detail.sales.length - 1].sold_at.slice(0, 10)} · `}
+                  conteggio aggiornato{" "}
+                  {detail.reviews_updated_at
+                    ? detail.reviews_updated_at.slice(0, 10)
+                    : "mai"}
+                </p>
+              </div>
+            ) : (
+              <p className="font-ui text-xs text-text2">
+                Ancora nessuna vendita: alla prima vendita salvo le recensioni di
+                partenza e da lì misuro l&apos;effetto della card.
+              </p>
+            )}
+            <div className="mt-2">
+              <NeonButton size="sm" onClick={refreshData} disabled={busy}>
+                <RefreshCw className="h-3.5 w-3.5" /> Aggiorna dati da Google
+              </NeonButton>
+            </div>
+          </Section>
+        )}
 
         {/* stato */}
         <Section title="Stato">

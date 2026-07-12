@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Download, Nfc, Plus, Search, UserPlus } from "lucide-react";
+import { Download, Nfc, Plus, Search, TrendingUp, UserPlus } from "lucide-react";
 import GlassCard from "@/components/ui/spectre/GlassCard";
 import NeonButton from "@/components/ui/spectre/NeonButton";
 import ZoneClientSheet, {
@@ -39,6 +39,8 @@ export default function ZoneRegistry() {
   const [clients, setClients] = useState<ZoneClient[]>([]);
   const [statusFilter, setStatusFilter] = useState<ZoneClientStatus | "tutti">("tutti");
   const [invoiceOnly, setInvoiceOnly] = useState(false);
+  const [upsellOnly, setUpsellOnly] = useState(false);
+  const [upsellMin, setUpsellMin] = useState(20);
   const [q, setQ] = useState("");
   const [cardCode, setCardCode] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
@@ -59,6 +61,7 @@ export default function ZoneRegistry() {
     const params = new URLSearchParams();
     if (statusFilter !== "tutti") params.set("status", statusFilter);
     if (invoiceOnly) params.set("invoice", "richiesta");
+    if (upsellOnly) params.set("upsell_min", String(upsellMin));
     if (q.trim()) params.set("q", q.trim());
     try {
       const res = await fetch(`/api/zone/clients?${params}`, { cache: "no-store" });
@@ -67,7 +70,7 @@ export default function ZoneRegistry() {
     } catch {
       /* rete: lo stato precedente resta visibile */
     }
-  }, [statusFilter, q, invoiceOnly]);
+  }, [statusFilter, q, invoiceOnly, upsellOnly, upsellMin]);
 
   useEffect(() => {
     const t = setTimeout(refresh, q ? 300 : 0); // debounce sulla ricerca
@@ -179,6 +182,34 @@ export default function ZoneRegistry() {
           >
             📄 Richiesta fattura
           </button>
+          <span className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setUpsellOnly((v) => !v)}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 font-ui text-[11px] font-semibold transition-colors",
+                upsellOnly
+                  ? "border-success/50 bg-success/15 text-success"
+                  : "border-border text-text2 hover:text-text",
+              )}
+              title="Clienti venduti con più recensioni guadagnate dalla vendita: da loro torni a vendere"
+            >
+              <TrendingUp className="h-3 w-3" /> Candidati upsell
+            </button>
+            {upsellOnly && (
+              <label className="flex items-center gap-1 font-ui text-[10px] text-text2">
+                ≥
+                <input
+                  type="number"
+                  min={1}
+                  value={upsellMin}
+                  onChange={(e) => setUpsellMin(Math.max(1, Number(e.target.value) || 1))}
+                  className="w-14 rounded-sm border border-border bg-surface px-1.5 py-0.5 font-ui text-[11px] text-text focus:border-accent focus:outline-none"
+                  title="Soglia minima di recensioni guadagnate"
+                />
+              </label>
+            )}
+          </span>
           <a
             href="/api/zone/export?what=clients"
             className="ml-auto inline-flex items-center gap-1 font-ui text-[11px] text-text2 hover:text-text"
@@ -308,6 +339,19 @@ export default function ZoneRegistry() {
                       <span className="text-accent">
                         {" "}
                         · richiama {c.callback_at.slice(0, 10)}
+                      </span>
+                    )}
+                    {c.reviews_at_sale != null && (
+                      <span
+                        className={cn(
+                          c.reviews - c.reviews_at_sale > 0
+                            ? "font-semibold text-success"
+                            : "text-text2",
+                        )}
+                      >
+                        {" "}
+                        · 📈 {c.reviews - c.reviews_at_sale >= 0 ? "+" : ""}
+                        {c.reviews - c.reviews_at_sale} rec ({c.reviews_at_sale}→{c.reviews})
                       </span>
                     )}
                   </p>
