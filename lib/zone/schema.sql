@@ -71,3 +71,13 @@ create index if not exists idx_zone_clients_callback on zone_clients(callback_at
 create index if not exists idx_zone_sales_client on zone_sales(client_id);
 create index if not exists idx_zone_sales_sold_at on zone_sales(sold_at);
 create index if not exists idx_zone_cards_client on zone_cards(client_id);
+
+-- Listino definitivo (prezzi di default: si precompilano nella
+-- vendita, l'incasso resta modificabile sulla singola riga).
+insert or ignore into zone_products (id, name, default_price) values
+  ('prod-card', 'Card singola', 15),
+  ('prod-targhetta', 'Targhetta 10x10 (con biadesivo)', 50),
+  ('prod-targhetta-piedino', 'Targhetta 10x10 con supporto/piedino', 55),
+  ('prod-bundle', 'Bundle 1+1 (1 targhetta + 1 card)', 60),
+  ('prod-bundle-2', 'Bundle 1+2 (1 targhetta + 2 card)', 70),
+  ('prod-bundle-3', 'Bundle 1+3 (1 targhetta + 3 card)', 80);
