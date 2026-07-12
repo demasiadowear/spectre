@@ -47,6 +47,22 @@ const FIELD_MASK = [
   "places.businessStatus",
 ].join(",");
 
+/** Attività morte che Google non marca chiuse ma il cui NOME lo urla
+ *  ("CHIUSO dal 2019", "cessata attività", "non esiste più"): trovato
+ *  sul campo un b&b defunto al #1 con indice 100 — zero recensioni
+ *  recenti = fame massima, proprio perché morto. Parole intere e
+ *  pattern prudenti per non colpire nomi legittimi. */
+const DEAD_NAME_PATTERNS: RegExp[] = [
+  /\bCHIUS[OA]\b/, // urlato dal titolare (case-sensitive: "La Chiusa" resta viva)
+  /\bchius[oa]\s+(dal|da|nel|per sempre|definitivamente)/i,
+  /\b(cessat[oa]|fallit[oa]|inesistente)\b/i,
+  /non esiste|non più attiv|attività cessata|permanently closed|definitivamente chius/i,
+];
+
+function looksDead(name: string): boolean {
+  return DEAD_NAME_PATTERNS.some((re) => re.test(name));
+}
+
 interface NearbyPlace {
   id?: string;
   displayName?: { text?: string };
@@ -216,6 +232,10 @@ export async function huntZone(
       // Serrande abbassate fuori dal giro: se Google marca l'attività
       // come chiusa (temporaneamente o per sempre) non è un prospect.
       if (p.businessStatus && p.businessStatus !== "OPERATIONAL") continue;
+      // …e fuori anche chi è chiuso solo nel nome (Google non sempre
+      // aggiorna businessStatus, il titolare scrive "CHIUSO" nel nome).
+      const name = p.displayName?.text || "";
+      if (looksDead(name)) continue;
       const rating = typeof p.rating === "number" ? p.rating : 0;
       const reviews =
         typeof p.userRatingCount === "number" ? p.userRatingCount : 0;
