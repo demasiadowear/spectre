@@ -75,7 +75,11 @@ export interface MorningBrief {
   stats: BriefStats;
 }
 
-export async function buildMorningBrief(): Promise<MorningBrief> {
+/** Digest pipeline web-agency: NON va più nel brief mattutino
+ *  (sostituito dai blocchi AyroStar) ma resta interrogabile dal
+ *  comando Telegram /brief. Scout/Study continuano a scrivere in DB
+ *  come sempre: questo legge soltanto. */
+export async function buildPipelineBrief(): Promise<MorningBrief> {
   const today = todayRome();
   const [pipeline, intent] = await Promise.all([getPipeline(), getOpenIntent()]);
 
@@ -165,5 +169,106 @@ export async function buildMorningBrief(): Promise<MorningBrief> {
       fissi: fissi.length,
       intent_aperti: intent.length,
     },
+  };
+}
+
+
+// ============================================================
+// Morning brief AYROSTAR (7:00): comodati da rivisitare (con
+// refresh recensioni da Google, best-effort) + alert scorte.
+// Se tutti i blocchi sono vuoti: empty=true e NESSUN messaggio.
+// ============================================================
+
+import { listClients, listProducts, refreshClientReviews } from "@/lib/zone/db";
+import { fetchPlaceRating } from "@/lib/zone/google";
+
+export interface AyroBrief {
+  text: string;
+  empty: boolean;
+  stats: { da_rivisitare: number; scorte_basse: number };
+}
+
+function giorniDa(iso: string | null): number {
+  if (!iso) return 0;
+  const start = new Date(iso.replace(" ", "T") + (iso.includes("Z") ? "" : "Z")).getTime();
+  return Math.max(0, Math.round((Date.now() - start) / 86_400_000));
+}
+
+function fmtGiorno(iso: string | null): string {
+  if (!iso) return "?";
+  const d = iso.slice(0, 10).split("-");
+  return `${d[2]}/${d[1]}`;
+}
+
+export async function buildMorningBrief(): Promise<AyroBrief> {
+  // Comodati attivi scaduti (loan_due_at <= adesso, confronto su
+  // stringhe datetime('now')-compatibili in UTC).
+  const nowIso = new Date().toISOString().slice(0, 19).replace("T", " ");
+  const loans = (await listClients({ loan: "attivo" })).filter(
+    (c) => c.loan_due_at != null && c.loan_due_at <= nowIso,
+  );
+
+  // Refresh best-effort da Google per avere il delta fresco nel
+  // messaggio (senza chiave o su errore restano i numeri salvati).
+  const refreshed = await Promise.all(
+    loans.map(async (c) => {
+      const found = await fetchPlaceRating(c.id);
+      if (!found || found.reviews <= 0) return c;
+      return (await refreshClientReviews(c.id, found.rating, found.reviews)) ?? c;
+    }),
+  );
+  refreshed.sort(
+    (a, b) =>
+      b.reviews - (b.reviews_at_loan ?? b.reviews) - (a.reviews - (a.reviews_at_loan ?? a.reviews)),
+  );
+
+  const products = await listProducts();
+  // Alert solo sui prodotti con soglia configurata: i bundle (che non
+  // hanno stock proprio) e i non tracciati (soglia 0) non fanno rumore.
+  const low = products.filter(
+    (p) => p.stock_soglia > 0 && p.stock_qty <= p.stock_soglia,
+  );
+
+  const lines: string[] = [];
+  const dateLabel = new Date().toLocaleDateString("it-IT", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: "Europe/Rome",
+  });
+
+  if (refreshed.length > 0) {
+    lines.push(`📍 AYROSTAR — DA RIVISITARE (${refreshed.length}):`);
+    for (const c of refreshed) {
+      const base = c.reviews_at_loan ?? c.reviews;
+      const delta = c.reviews - base;
+      lines.push(`• ${c.name}${c.zone_label ? ` — ${c.zone_label}` : ""}`);
+      lines.push(
+        `  comodato dal ${fmtGiorno(c.loan_started_at)} · ${giorniDa(c.loan_started_at)} giorni`,
+      );
+      lines.push(`  ${base} → ${c.reviews} (${delta >= 0 ? "+" : ""}${delta})`);
+    }
+    lines.push("");
+  }
+
+  if (low.length > 0) {
+    lines.push(`⚠️ SCORTE (${low.length} sotto soglia):`);
+    for (const pr of low) {
+      lines.push(
+        `• ${pr.name}: ${pr.stock_qty} pezzi (soglia ${pr.stock_soglia})${pr.fornitore ? ` — ordina da ${pr.fornitore}` : ""}`,
+      );
+    }
+    lines.push("");
+  }
+
+  const empty = refreshed.length === 0 && low.length === 0;
+  const text = empty
+    ? ""
+    : [`☀️ AYROSTAR Morning Brief — ${dateLabel}`, "", ...lines, "— SPECTRE"].join("\n").trim();
+
+  return {
+    text,
+    empty,
+    stats: { da_rivisitare: refreshed.length, scorte_basse: low.length },
   };
 }

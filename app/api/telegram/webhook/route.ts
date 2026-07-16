@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPipeline, getStats } from "@/lib/autopilot/db";
 import { STAGE_LABELS } from "@/components/autopilot/format";
-import { agendaLabel, buildMorningBrief, isDueToday, todayRome } from "@/lib/brief";
+import { agendaLabel, buildPipelineBrief, isDueToday, todayRome } from "@/lib/brief";
 import { sendTelegram } from "@/lib/telegram";
 import { AUTOPILOT_STAGES } from "@/lib/autopilot/constants";
 import { isCronAuthorized } from "@/lib/autopilot/cron-auth";
@@ -168,7 +168,7 @@ export async function POST(req: Request) {
     let sent = false;
     switch (cmd) {
       case "/brief": {
-        const brief = await buildMorningBrief();
+        const brief = await buildPipelineBrief();
         reply = brief.text;
         break;
       }

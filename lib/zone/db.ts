@@ -6,7 +6,9 @@ import type {
   ZoneClient,
   ZoneClientDetail,
   ZoneClientStatus,
+  ZoneLoanStatus,
   ZoneProduct,
+  ZoneReviewSnapshot,
   ZoneSale,
   ZoneStats,
 } from "@/types/zone";
@@ -99,6 +101,25 @@ export async function ensureZoneSchema(): Promise<void> {
       assigned_at text default (datetime('now')),
       notes       text default ''
     );
+    create table if not exists zone_stock_moves (
+      id         integer primary key autoincrement,
+      product_id text not null,
+      delta      integer not null,
+      motivo     text not null default 'rettifica',
+      ref_id     text default '',
+      ts         text default (datetime('now')),
+      notes      text default ''
+    );
+    create table if not exists zone_review_snapshots (
+      id        integer primary key autoincrement,
+      client_id text not null references zone_clients(id) on delete cascade,
+      reviews   integer not null default 0,
+      rating    real not null default 0,
+      taken_at  text default (datetime('now')),
+      source    text not null default 'refresh'
+    );
+    create index if not exists idx_zone_snapshots_client on zone_review_snapshots(client_id, taken_at);
+    create index if not exists idx_zone_moves_product on zone_stock_moves(product_id);
     create index if not exists idx_zone_clients_status on zone_clients(status);
     create index if not exists idx_zone_clients_cap on zone_clients(cap);
     create index if not exists idx_zone_clients_callback on zone_clients(callback_at);
@@ -134,6 +155,15 @@ export async function ensureZoneSchema(): Promise<void> {
   for (const ddl of [
     "alter table zone_clients add column reviews_at_sale integer",
     "alter table zone_clients add column reviews_updated_at text",
+    // Comodato (asse parallelo a invoice_status)
+    "alter table zone_clients add column loan_status text not null default 'nessuno'",
+    "alter table zone_clients add column loan_started_at text",
+    "alter table zone_clients add column loan_due_at text",
+    "alter table zone_clients add column reviews_at_loan integer",
+    // Giacenza sul listino
+    "alter table zone_products add column stock_qty integer not null default 0",
+    "alter table zone_products add column stock_soglia integer not null default 0",
+    "alter table zone_products add column fornitore text default ''",
   ]) {
     try {
       await turso.execute(ddl);
@@ -152,6 +182,15 @@ export async function ensureZoneSchema(): Promise<void> {
     update zone_products set name = 'Bundle 1+1 (1 targhetta + 1 card)', default_price = 60
       where id = 'prod-bundle' and name = 'Bundle' and default_price = 60;
   `);
+  // Seed giacenza iniziale (una volta sola: guard su fornitore vuoto,
+  // così i valori toccati a mano non vengono mai ripristinati).
+  await turso.executeMultiple(`
+    update zone_products set stock_qty = 100, stock_soglia = 20, fornitore = 'Beppe De Bartolo'
+      where id = 'prod-targhetta' and fornitore = '';
+    update zone_products set stock_qty = 0, stock_soglia = 40, fornitore = 'IDColor'
+      where id = 'prod-card' and fornitore = '';
+  `);
+
   // Migrazione link NFC: il vecchio formato g.page (incluso il trucco
   // ",5", oggi 404) viene riscritto nel formato ufficiale writereview,
   // costruito dal place_id (= id cliente). Idempotente.
@@ -200,6 +239,13 @@ function rowToClient(r: Row): ZoneClient {
         ? Number(r.reviews_at_sale)
         : null,
     reviews_updated_at: r.reviews_updated_at ? str(r.reviews_updated_at) : null,
+    loan_status: (str(r.loan_status) || "nessuno") as ZoneLoanStatus,
+    loan_started_at: r.loan_started_at ? str(r.loan_started_at) : null,
+    loan_due_at: r.loan_due_at ? str(r.loan_due_at) : null,
+    reviews_at_loan:
+      typeof r.reviews_at_loan === "number" || typeof r.reviews_at_loan === "bigint"
+        ? Number(r.reviews_at_loan)
+        : null,
     created_at: str(r.created_at),
     updated_at: str(r.updated_at),
   };
@@ -303,6 +349,11 @@ export async function upsertClient(input: UpsertClientInput): Promise<ZoneClient
   });
   const client = await getClient(input.id);
   if (!client) throw new Error("Upsert cliente fallito.");
+  // Storico recensioni: lo scan è uno dei due punti in cui il
+  // conteggio si muove (dedup dentro recordSnapshot).
+  if ((input.reviews ?? 0) > 0) {
+    await recordSnapshot(input.id, input.reviews ?? 0, input.rating ?? 0, "scan");
+  }
   return client;
 }
 
@@ -363,13 +414,18 @@ export async function getClientDetail(id: string): Promise<ZoneClientDetail | nu
   if (!turso) return null;
   const client = await getClient(id);
   if (!client) return null;
-  const [sales, cards] = await Promise.all([
+  const [sales, cards, snaps] = await Promise.all([
     turso.execute({
-      sql: "select * from zone_sales where client_id = ? order by sold_at desc",
+      sql: "select * from zone_sales where client_id = ? order by sold_at desc, id desc",
       args: [id],
     }),
     turso.execute({
       sql: "select * from zone_cards where client_id = ? order by assigned_at desc",
+      args: [id],
+    }),
+    turso.execute({
+      sql: `select * from zone_review_snapshots where client_id = ?
+            order by id desc limit 12`,
       args: [id],
     }),
   ]);
@@ -377,6 +433,14 @@ export async function getClientDetail(id: string): Promise<ZoneClientDetail | nu
     ...client,
     sales: sales.rows.map((r) => rowToSale(r as Row)),
     cards: cards.rows.map((r) => rowToCard(r as Row)),
+    snapshots: (snaps.rows as Row[]).map((r) => ({
+      id: num(r.id),
+      client_id: str(r.client_id),
+      reviews: num(r.reviews),
+      rating: num(r.rating),
+      taken_at: str(r.taken_at),
+      source: (str(r.source) || "refresh") as ZoneReviewSnapshot["source"],
+    })),
   };
 }
 
@@ -390,6 +454,8 @@ export interface ClientFilters {
   /** Candidati upsell: delta recensioni dalla vendita >= soglia.
    *  Ordina per delta decrescente. */
   upsell_min?: number;
+  /** Filtro comodato ('attivo' = pezzi in giro da rivisitare). */
+  loan?: ZoneLoanStatus;
 }
 
 export async function listClients(filters: ClientFilters = {}): Promise<ZoneClient[]> {
@@ -412,6 +478,10 @@ export async function listClients(filters: ClientFilters = {}): Promise<ZoneClie
   if (filters.invoice) {
     where.push("invoice_status = ?");
     args.push(filters.invoice);
+  }
+  if (filters.loan) {
+    where.push("loan_status = ?");
+    args.push(filters.loan);
   }
   if (filters.upsell_min != null) {
     where.push(
@@ -493,7 +563,167 @@ export async function refreshClientReviews(
           where id = ?`,
     args: [rating, rating, reviews, reviews, id],
   });
+  if (reviews > 0) await recordSnapshot(id, reviews, rating, "refresh");
   return getClient(id);
+}
+
+/** Appende uno snapshot allo storico recensioni — dedup: se l'ultimo
+ *  ha stessi reviews+rating non si duplica (i re-scan frequenti non
+ *  sporcano la serie). Best-effort: un errore qui non blocca mai
+ *  l'operazione principale. */
+export async function recordSnapshot(
+  clientId: string,
+  reviews: number,
+  rating: number,
+  source: "scan" | "refresh",
+): Promise<void> {
+  if (!turso) return;
+  try {
+    await ensureZoneSchema();
+    const last = await turso.execute({
+      sql: `select reviews, rating from zone_review_snapshots
+            where client_id = ? order by id desc limit 1`,
+      args: [clientId],
+    });
+    const prev = last.rows[0] as Row | undefined;
+    if (prev && num(prev.reviews) === reviews && num(prev.rating) === rating) return;
+    await turso.execute({
+      sql: `insert into zone_review_snapshots (client_id, reviews, rating, source)
+            values (?, ?, ?, ?)`,
+      args: [clientId, reviews, rating, source],
+    });
+  } catch (err) {
+    console.error("[zone] snapshot fallito:", (err as Error).message);
+  }
+}
+
+// ----- Giacenza ---------------------------------------------------
+
+/** Movimento di magazzino: registra il move E aggiorna stock_qty.
+ *  delta negativo = uscita (vendita/comodato), positivo = carico. */
+export async function addStockMove(
+  productId: string,
+  delta: number,
+  motivo: "vendita" | "comodato" | "rientro" | "carico" | "rettifica",
+  refId = "",
+  notes = "",
+): Promise<void> {
+  if (!turso || !productId || delta === 0) return;
+  await ensureZoneSchema();
+  await turso.execute({
+    sql: `insert into zone_stock_moves (product_id, delta, motivo, ref_id, notes)
+          values (?, ?, ?, ?, ?)`,
+    args: [productId, Math.round(delta), motivo, refId, notes],
+  });
+  await turso.execute({
+    sql: "update zone_products set stock_qty = stock_qty + ? where id = ?",
+    args: [Math.round(delta), productId],
+  });
+}
+
+/** Soglia alert e fornitore di un prodotto (dalla UI Analisi). */
+export async function updateProductStockMeta(
+  productId: string,
+  meta: { stock_soglia?: number; fornitore?: string },
+): Promise<void> {
+  if (!turso) throw new Error("Turso non configurato: il registro Zone richiede il DB.");
+  await ensureZoneSchema();
+  const sets: string[] = [];
+  const args: (string | number)[] = [];
+  if (meta.stock_soglia !== undefined) {
+    sets.push("stock_soglia = ?");
+    args.push(meta.stock_soglia);
+  }
+  if (meta.fornitore !== undefined) {
+    sets.push("fornitore = ?");
+    args.push(meta.fornitore);
+  }
+  if (sets.length === 0) return;
+  args.push(productId);
+  await turso.execute({
+    sql: `update zone_products set ${sets.join(", ")} where id = ?`,
+    args,
+  });
+}
+
+// ----- Comodato ----------------------------------------------------
+
+/** Mette il cliente in comodato: stato+date (scadenza = +15gg),
+ *  baseline recensioni dedicata (mai sovrascritta), scarico giacenza
+ *  del prodotto lasciato, card opzionali marcate 'in_comodato'. */
+export async function startLoan(
+  clientId: string,
+  productId: string,
+  cardCodes: string[] = [],
+): Promise<ZoneClientDetail | null> {
+  if (!turso) throw new Error("Turso non configurato: il registro Zone richiede il DB.");
+  await ensureZoneSchema();
+  const client = await getClient(clientId);
+  if (!client) throw new Error("Cliente non trovato nel registro.");
+  if (client.loan_status === "attivo") {
+    throw new Error("Comodato già attivo su questo cliente.");
+  }
+  await turso.execute({
+    sql: `update zone_clients set
+            loan_status = 'attivo',
+            loan_started_at = datetime('now'),
+            loan_due_at = datetime('now', '+15 days'),
+            reviews_at_loan = coalesce(reviews_at_loan, reviews),
+            updated_at = datetime('now')
+          where id = ?`,
+    args: [clientId],
+  });
+  await addStockMove(productId, -1, "comodato", clientId, `comodato ${client.name}`);
+  for (const code of cardCodes) {
+    const clean = code.trim();
+    if (clean) await assignCard(clean, clientId, "", "comodato", "in_comodato");
+  }
+  return getClientDetail(clientId);
+}
+
+/** Chiude il comodato. 'ritirato': pezzo rientra in giacenza, card
+ *  dismesse. 'convertito': il pezzo resta dal cliente — si storna lo
+ *  scarico comodato così la VENDITA che segue fa il suo scarico senza
+ *  contare il pezzo due volte; le card passano 'attiva'. */
+export async function endLoan(
+  clientId: string,
+  outcome: "ritirato" | "convertito",
+): Promise<ZoneClientDetail | null> {
+  if (!turso) throw new Error("Turso non configurato: il registro Zone richiede il DB.");
+  await ensureZoneSchema();
+  const client = await getClient(clientId);
+  if (!client) throw new Error("Cliente non trovato nel registro.");
+  if (client.loan_status !== "attivo") {
+    throw new Error("Nessun comodato attivo su questo cliente.");
+  }
+  // Il prodotto scaricato al posizionamento: l'ultimo move 'comodato'.
+  const move = await turso.execute({
+    sql: `select product_id, delta from zone_stock_moves
+          where motivo = 'comodato' and ref_id = ?
+          order by id desc limit 1`,
+    args: [clientId],
+  });
+  const m = move.rows[0] as Row | undefined;
+  if (m) {
+    await addStockMove(
+      str(m.product_id),
+      Math.abs(num(m.delta)),
+      outcome === "ritirato" ? "rientro" : "rettifica",
+      clientId,
+      outcome === "ritirato"
+        ? `rientro comodato ${client.name}`
+        : `conversione comodato ${client.name}: lo scarico passa alla vendita`,
+    );
+  }
+  await turso.execute({
+    sql: `update zone_clients set loan_status = ?, updated_at = datetime('now') where id = ?`,
+    args: [outcome, clientId],
+  });
+  await turso.execute({
+    sql: `update zone_cards set status = ? where client_id = ? and status = 'in_comodato'`,
+    args: [outcome === "ritirato" ? "dismessa" : "attiva", clientId],
+  });
+  return getClientDetail(clientId);
 }
 
 // ----- Prodotti --------------------------------------------------
@@ -509,6 +739,9 @@ export async function listProducts(includeInactive = false): Promise<ZoneProduct
     name: str(r.name),
     default_price: num(r.default_price),
     active: num(r.active) === 1,
+    stock_qty: num(r.stock_qty),
+    stock_soglia: num(r.stock_soglia),
+    fornitore: str(r.fornitore),
   }));
 }
 
@@ -577,6 +810,16 @@ export async function addSale(input: AddSaleInput): Promise<ZoneClientDetail | n
     const clean = code.trim();
     if (clean) await assignCard(clean, input.client_id, saleId);
   }
+  // Scarico giacenza del prodotto venduto (se collegato al listino).
+  if (input.product_id) {
+    await addStockMove(
+      input.product_id,
+      -Math.max(1, Math.round(input.qty)),
+      "vendita",
+      saleId,
+      input.product_name,
+    );
+  }
   await turso.execute({
     sql: `update zone_clients set
             status = 'venduto',
@@ -598,34 +841,38 @@ export async function assignCard(
   clientId: string,
   saleId = "",
   notes = "",
+  status: ZoneCardStatus = "attiva",
 ): Promise<void> {
   if (!turso) throw new Error("Turso non configurato: il registro Zone richiede il DB.");
   await ensureZoneSchema();
-  // Una card ATTIVA di un ALTRO cliente non si ruba con un refuso di
-  // codice: errore esplicito (per spostarla davvero: dismissione o
-  // sostituzione dal legittimo proprietario). Ri-assegnare allo stesso
-  // cliente o riattivare una dismessa/sostituita resta permesso.
+  // Una card in mano a un ALTRO cliente (attiva o in comodato) non si
+  // ruba con un refuso di codice: errore esplicito. Ri-assegnare allo
+  // stesso cliente o riattivare una dismessa/sostituita resta permesso.
   const existing = await turso.execute({
     sql: "select client_id, status from zone_cards where code = ? limit 1",
     args: [code],
   });
   const row = existing.rows[0] as Row | undefined;
-  if (row && str(row.status) === "attiva" && str(row.client_id) !== clientId) {
+  if (
+    row &&
+    ["attiva", "in_comodato"].includes(str(row.status)) &&
+    str(row.client_id) !== clientId
+  ) {
     const owner = await getClient(str(row.client_id));
     throw new Error(
-      `Card "${code}" già attiva su ${owner?.name ?? "un altro cliente"}: controlla il codice.`,
+      `Card "${code}" già in mano a ${owner?.name ?? "un altro cliente"}: controlla il codice.`,
     );
   }
   await turso.execute({
     sql: `insert into zone_cards (code, client_id, sale_id, status, notes)
-          values (?, ?, ?, 'attiva', ?)
+          values (?, ?, ?, ?, ?)
           on conflict(code) do update set
             client_id = excluded.client_id,
             sale_id = excluded.sale_id,
-            status = 'attiva',
+            status = excluded.status,
             notes = excluded.notes,
             assigned_at = datetime('now')`,
-    args: [code, clientId, saleId, notes],
+    args: [code, clientId, saleId, status, notes],
   });
 }
 

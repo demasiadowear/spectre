@@ -40,6 +40,7 @@ export default function ZoneRegistry() {
   const [statusFilter, setStatusFilter] = useState<ZoneClientStatus | "tutti">("tutti");
   const [invoiceOnly, setInvoiceOnly] = useState(false);
   const [upsellOnly, setUpsellOnly] = useState(false);
+  const [loanOnly, setLoanOnly] = useState(false);
   const [upsellMin, setUpsellMin] = useState(20);
   const [q, setQ] = useState("");
   const [cardCode, setCardCode] = useState("");
@@ -62,6 +63,7 @@ export default function ZoneRegistry() {
     if (statusFilter !== "tutti") params.set("status", statusFilter);
     if (invoiceOnly) params.set("invoice", "richiesta");
     if (upsellOnly) params.set("upsell_min", String(upsellMin));
+    if (loanOnly) params.set("loan", "attivo");
     if (q.trim()) params.set("q", q.trim());
     try {
       const res = await fetch(`/api/zone/clients?${params}`, { cache: "no-store" });
@@ -70,7 +72,7 @@ export default function ZoneRegistry() {
     } catch {
       /* rete: lo stato precedente resta visibile */
     }
-  }, [statusFilter, q, invoiceOnly, upsellOnly, upsellMin]);
+  }, [statusFilter, q, invoiceOnly, upsellOnly, upsellMin, loanOnly]);
 
   useEffect(() => {
     const t = setTimeout(refresh, q ? 300 : 0); // debounce sulla ricerca
@@ -181,6 +183,19 @@ export default function ZoneRegistry() {
             title="Solo clienti con fattura da emettere"
           >
             📄 Richiesta fattura
+          </button>
+          <button
+            type="button"
+            onClick={() => setLoanOnly((v) => !v)}
+            className={cn(
+              "rounded-full border px-2.5 py-1 font-ui text-[11px] font-semibold transition-colors",
+              loanOnly
+                ? "border-ochre/50 bg-ochre/15 text-ochre"
+                : "border-border text-text2 hover:text-text",
+            )}
+            title="Targhette in comodato in giro (da rivisitare a 15gg)"
+          >
+            🏷 In comodato
           </button>
           <span className="flex items-center gap-1">
             <button
@@ -357,6 +372,21 @@ export default function ZoneRegistry() {
                   </p>
                 </div>
                 <span className="flex shrink-0 items-center gap-1.5">
+                  {c.loan_status === "attivo" && (
+                    <span
+                      className={cn(
+                        "rounded-full border px-2 py-0.5 font-ui text-[10px] font-bold",
+                        c.loan_due_at &&
+                          c.loan_due_at.slice(0, 10) <=
+                            new Date().toISOString().slice(0, 10)
+                          ? "border-danger/50 bg-danger/15 text-danger"
+                          : "border-ochre/40 bg-ochre/15 text-ochre",
+                      )}
+                      title={`Comodato — rivisita ${c.loan_due_at?.slice(0, 10) ?? ""}`}
+                    >
+                      🏷 {c.loan_due_at?.slice(5, 10) ?? "comodato"}
+                    </span>
+                  )}
                   {c.invoice_status === "richiesta" && (
                     <span className="animate-pulse rounded-full border border-danger/50 bg-danger/15 px-2 py-0.5 font-ui text-[10px] font-bold text-danger">
                       📄 FATTURA

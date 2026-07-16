@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { refreshClientReviews } from "@/lib/zone/db";
+import { fetchPlaceRating } from "@/lib/zone/google";
 import type { ApiResponse } from "@/types";
 import type { ZoneClient } from "@/types/zone";
 
@@ -8,9 +9,6 @@ import type { ZoneClient } from "@/types/zone";
 // attuali), senza rifare lo scan di zona. Dietro JWT.
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
-
-const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_PLACES_API_KEY;
-const DETAILS_URL = "https://places.googleapis.com/v1/places";
 
 export async function POST(req: Request) {
   let body: Record<string, unknown>;
@@ -29,7 +27,7 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
-  if (!GOOGLE_PLACES_API_KEY) {
+  if (!process.env.GOOGLE_PLACES_API_KEY) {
     return NextResponse.json<ApiResponse<never>>(
       { success: false, error: "GOOGLE_PLACES_API_KEY mancante." },
       { status: 500 },
@@ -37,27 +35,14 @@ export async function POST(req: Request) {
   }
 
   try {
-    const res = await fetch(`${DETAILS_URL}/${encodeURIComponent(id)}`, {
-      cache: "no-store",
-      headers: {
-        "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY,
-        "X-Goog-FieldMask": "rating,userRatingCount",
-      },
-    });
-    if (!res.ok) {
-      const detail = await res.text().catch(() => "");
-      console.error("[zone/refresh] Details HTTP", res.status, detail.slice(0, 200));
+    const found = await fetchPlaceRating(id);
+    if (!found) {
       return NextResponse.json<ApiResponse<never>>(
-        { success: false, error: `Google non risponde per questa attività (HTTP ${res.status}).` },
+        { success: false, error: "Google non risponde per questa attività: riprova." },
         { status: 502 },
       );
     }
-    const json = (await res.json()) as { rating?: number; userRatingCount?: number };
-    const client = await refreshClientReviews(
-      id,
-      typeof json.rating === "number" ? json.rating : 0,
-      typeof json.userRatingCount === "number" ? json.userRatingCount : 0,
-    );
+    const client = await refreshClientReviews(id, found.rating, found.reviews);
     if (!client) {
       return NextResponse.json<ApiResponse<never>>(
         { success: false, error: "Cliente non trovato nel registro." },

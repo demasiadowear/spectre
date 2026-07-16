@@ -50,6 +50,12 @@ export async function GET(req: Request) {
       q: url.searchParams.get("q") ?? undefined,
       invoice:
         invoice === "richiesta" || invoice === "fatturata" ? invoice : undefined,
+      loan:
+        url.searchParams.get("loan") === "attivo" ||
+        url.searchParams.get("loan") === "ritirato" ||
+        url.searchParams.get("loan") === "convertito"
+          ? (url.searchParams.get("loan") as "attivo" | "ritirato" | "convertito")
+          : undefined,
       upsell_min: (() => {
         const v = Number(url.searchParams.get("upsell_min"));
         return Number.isFinite(v) && v > 0 ? v : undefined;
