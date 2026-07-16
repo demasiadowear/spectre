@@ -32,6 +32,8 @@ export default function ZoneAnalytics() {
   const [moveFor, setMoveFor] = useState<string | null>(null);
   const [moveQty, setMoveQty] = useState("");
   const [moveMotivo, setMoveMotivo] = useState<"carico" | "rettifica">("carico");
+  const [sogliaFor, setSogliaFor] = useState<string | null>(null);
+  const [sogliaVal, setSogliaVal] = useState("");
 
   function flash(msg: string) {
     setToast(msg);
@@ -61,6 +63,24 @@ export default function ZoneAnalytics() {
   useEffect(() => {
     load();
   }, []);
+
+  async function saveSoglia(productId: string) {
+    const v = Math.max(0, Math.round(Number(sogliaVal)));
+    if (!Number.isFinite(v)) return flash("Soglia non valida.");
+    const res = await fetch("/api/zone/stock", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ product_id: productId, stock_soglia: v }),
+    });
+    const json = (await res.json()) as ApiResponse<ZoneProduct[]>;
+    if (json.success && json.data) {
+      setProducts(json.data);
+      setSogliaFor(null);
+      flash(v > 0 ? `Soglia alert: ${v} pezzi.` : "Alert disattivato per questo prodotto.");
+    } else {
+      flash(json.error ?? "Salvataggio soglia fallito.");
+    }
+  }
 
   async function saveMove(productId: string) {
     const qty = Math.round(Number(moveQty.replace(",", ".")));
@@ -153,7 +173,31 @@ export default function ZoneAnalytics() {
                     >
                       {p.stock_qty} pz
                     </span>
-                    <span className="text-text2">soglia {p.stock_soglia}</span>
+                    {sogliaFor === p.id ? (
+                      <span className="flex items-center gap-1">
+                        <input
+                          inputMode="numeric"
+                          value={sogliaVal}
+                          onChange={(e) => setSogliaVal(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && saveSoglia(p.id)}
+                          className="w-14 rounded-sm border border-accent bg-surface px-1.5 py-0.5 font-ui text-[11px] text-text focus:outline-none"
+                          autoFocus
+                        />
+                        <NeonButton size="sm" onClick={() => saveSoglia(p.id)}>ok</NeonButton>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSogliaFor(p.id);
+                          setSogliaVal(String(p.stock_soglia));
+                        }}
+                        className="text-text2 underline decoration-dotted hover:text-text"
+                        title="Cambia soglia alert"
+                      >
+                        soglia {p.stock_soglia}
+                      </button>
+                    )}
                     <button
                       type="button"
                       title="Carico / rettifica"
