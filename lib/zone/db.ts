@@ -191,6 +191,14 @@ export async function ensureZoneSchema(): Promise<void> {
       where id = 'prod-card' and fornitore = '';
   `);
 
+  // Soglia card a riposo: con stock 0 e le 200 card non ancora
+  // arrivate, soglia 40 = alert "ordina da IDColor" ogni mattina.
+  // A zero finché non c'è stock; si rialza a 40 dalla UI al Carico.
+  await turso.execute(
+    `update zone_products set stock_soglia = 0
+     where id = 'prod-card' and stock_soglia = 40 and stock_qty <= 0`,
+  );
+
   // Migrazione link NFC: il vecchio formato g.page (incluso il trucco
   // ",5", oggi 404) viene riscritto nel formato ufficiale writereview,
   // costruito dal place_id (= id cliente). Idempotente.
@@ -599,6 +607,45 @@ export async function recordSnapshot(
 
 // ----- Giacenza ---------------------------------------------------
 
+/** Mappa prodotto -> componenti FISICI da movimentare. I bundle non
+ *  hanno stock proprio: vendere "1 targhetta + 3 card" deve scaricare
+ *  1 targhetta e 3 card, altrimenti la giacenza reale non si muove
+ *  mai e l'alert scorte non scatta. La versione con piedino consuma
+ *  la stessa targhetta 10x10 (il supporto non è tracciato). Prodotti
+ *  non in mappa: movimentano se stessi. */
+const STOCK_COMPONENTS: Record<string, { product_id: string; qty: number }[]> = {
+  "prod-bundle": [
+    { product_id: "prod-targhetta", qty: 1 },
+    { product_id: "prod-card", qty: 1 },
+  ],
+  "prod-bundle-2": [
+    { product_id: "prod-targhetta", qty: 1 },
+    { product_id: "prod-card", qty: 2 },
+  ],
+  "prod-bundle-3": [
+    { product_id: "prod-targhetta", qty: 1 },
+    { product_id: "prod-card", qty: 3 },
+  ],
+  "prod-targhetta-piedino": [{ product_id: "prod-targhetta", qty: 1 }],
+};
+
+/** Esplode un movimento sul prodotto nei suoi componenti fisici.
+ *  units = quante unità del prodotto (positivo); direction -1 uscita,
+ *  +1 rientro/storno. */
+export async function moveStockExploded(
+  productId: string,
+  units: number,
+  direction: 1 | -1,
+  motivo: "vendita" | "comodato" | "rientro" | "carico" | "rettifica",
+  refId = "",
+  notes = "",
+): Promise<void> {
+  const components = STOCK_COMPONENTS[productId] ?? [{ product_id: productId, qty: 1 }];
+  for (const c of components) {
+    await addStockMove(c.product_id, direction * c.qty * Math.max(1, Math.round(units)), motivo, refId, notes);
+  }
+}
+
 /** Movimento di magazzino: registra il move E aggiorna stock_qty.
  *  delta negativo = uscita (vendita/comodato), positivo = carico. */
 export async function addStockMove(
@@ -673,7 +720,7 @@ export async function startLoan(
           where id = ?`,
     args: [clientId],
   });
-  await addStockMove(productId, -1, "comodato", clientId, `comodato ${client.name}`);
+  await moveStockExploded(productId, 1, -1, "comodato", clientId, `comodato ${client.name}`);
   for (const code of cardCodes) {
     const clean = code.trim();
     if (clean) await assignCard(clean, clientId, "", "comodato", "in_comodato");
@@ -696,18 +743,22 @@ export async function endLoan(
   if (client.loan_status !== "attivo") {
     throw new Error("Nessun comodato attivo su questo cliente.");
   }
-  // Il prodotto scaricato al posizionamento: l'ultimo move 'comodato'.
-  const move = await turso.execute({
-    sql: `select product_id, delta from zone_stock_moves
-          where motivo = 'comodato' and ref_id = ?
-          order by id desc limit 1`,
+  // Storna i componenti ancora "fuori" per QUESTO cliente: saldo netto
+  // per prodotto tra scarichi comodato e storni già registrati (rientri
+  // e rettifiche di conversione portano lo stesso ref_id). Robusto ai
+  // timestamp: i cicli precedenti, già chiusi, hanno saldo zero.
+  const moves = await turso.execute({
+    sql: `select product_id, sum(delta) as total from zone_stock_moves
+          where ref_id = ? and motivo in ('comodato', 'rientro', 'rettifica')
+          group by product_id`,
     args: [clientId],
   });
-  const m = move.rows[0] as Row | undefined;
-  if (m) {
+  for (const m of moves.rows as Row[]) {
+    const total = num(m.total);
+    if (total >= 0) continue;
     await addStockMove(
       str(m.product_id),
-      Math.abs(num(m.delta)),
+      Math.abs(total),
       outcome === "ritirato" ? "rientro" : "rettifica",
       clientId,
       outcome === "ritirato"
@@ -810,11 +861,13 @@ export async function addSale(input: AddSaleInput): Promise<ZoneClientDetail | n
     const clean = code.trim();
     if (clean) await assignCard(clean, input.client_id, saleId);
   }
-  // Scarico giacenza del prodotto venduto (se collegato al listino).
+  // Scarico giacenza: il prodotto venduto esploso nei componenti
+  // fisici (bundle -> targhetta + N card).
   if (input.product_id) {
-    await addStockMove(
+    await moveStockExploded(
       input.product_id,
-      -Math.max(1, Math.round(input.qty)),
+      Math.max(1, Math.round(input.qty)),
+      -1,
       "vendita",
       saleId,
       input.product_name,
