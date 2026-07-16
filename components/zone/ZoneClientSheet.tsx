@@ -6,6 +6,7 @@ import {
   Check,
   Copy,
   ExternalLink,
+  Handshake,
   Nfc,
   Phone,
   Plus,
@@ -90,6 +91,10 @@ export default function ZoneClientSheet({ clientId, onClose, onChanged }: Props)
   const [salePrice, setSalePrice] = useState("");
   const [saleCards, setSaleCards] = useState("");
   const [saleNotes, setSaleNotes] = useState("");
+  // form comodato
+  const [loanOpen, setLoanOpen] = useState(false);
+  const [loanProduct, setLoanProduct] = useState("");
+  const [loanCards, setLoanCards] = useState("");
   // form card
   const [newCard, setNewCard] = useState("");
   const [replacing, setReplacing] = useState<string | null>(null);
@@ -177,6 +182,32 @@ export default function ZoneClientSheet({ clientId, onClose, onChanged }: Props)
     }).then((ok) => ok && flash("Scheda salvata."));
 
   const refreshData = () => api("/api/zone/refresh", "POST", { id: clientId });
+
+  async function loanStart() {
+    if (!loanProduct) return flash("Scegli il prodotto lasciato in comodato.");
+    const ok = await api("/api/zone/loan", "POST", {
+      client_id: clientId,
+      action: "start",
+      product_id: loanProduct,
+      card_codes: loanCards.split(/[,\s]+/).filter(Boolean),
+    });
+    if (ok) {
+      setLoanOpen(false);
+      setLoanCards("");
+      flash("Comodato attivo: rivisita tra 15 giorni (nel morning brief).");
+    }
+  }
+
+  const loanEnd = async (outcome: "ritirato" | "convertito") => {
+    const ok = await api("/api/zone/loan", "POST", { client_id: clientId, action: outcome });
+    if (ok) {
+      flash(
+        outcome === "ritirato"
+          ? "Comodato ritirato: pezzo rientrato in giacenza."
+          : "Convertito! Registra ora la vendita qui sotto.",
+      );
+    }
+  };
 
   async function copyNfc() {
     if (!detail?.nfc_review_url) return;
@@ -357,6 +388,105 @@ export default function ZoneClientSheet({ clientId, onClose, onChanged }: Props)
                 <RefreshCw className="h-3.5 w-3.5" /> Aggiorna dati da Google
               </NeonButton>
             </div>
+            {detail.snapshots.length > 0 && (
+              <ul className="mt-2 space-y-0.5 border-t border-surface2 pt-2">
+                {detail.snapshots.map((sn) => (
+                  <li key={sn.id} className="font-ui text-[11px] text-text2">
+                    {sn.taken_at.slice(0, 10)} · <b className="text-text">{sn.reviews}</b> rec
+                    {sn.rating > 0 && ` · ★${sn.rating}`}{" "}
+                    <span className="opacity-60">({sn.source})</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Section>
+        )}
+
+        {/* comodato */}
+        {detail && (
+          <Section title="Comodato (targhetta in prova, rivisita a 15gg)">
+            {detail.loan_status === "attivo" ? (
+              <div className="space-y-2">
+                <p className="font-ui text-xs">
+                  <span
+                    className={cn(
+                      "mr-2 rounded-full border px-2 py-0.5 font-semibold",
+                      detail.loan_due_at &&
+                        detail.loan_due_at.slice(0, 10) <=
+                          new Date().toISOString().slice(0, 10)
+                        ? "border-danger/50 bg-danger/15 text-danger"
+                        : "border-ochre/40 bg-ochre/15 text-ochre",
+                    )}
+                  >
+                    🏷 In comodato
+                  </span>
+                  <span className="text-text2">
+                    dal {detail.loan_started_at?.slice(0, 10) ?? "?"} · rivisita{" "}
+                    {detail.loan_due_at?.slice(0, 10) ?? "?"}
+                  </span>
+                </p>
+                {detail.reviews_at_loan != null && (
+                  <p className="font-ui text-xs font-semibold text-success">
+                    <TrendingUp className="mr-1 inline h-3.5 w-3.5" />
+                    {detail.reviews - detail.reviews_at_loan >= 0 ? "+" : ""}
+                    {detail.reviews - detail.reviews_at_loan} recensioni dal comodato (
+                    {detail.reviews_at_loan} → {detail.reviews})
+                  </p>
+                )}
+                <div className="flex gap-2">
+                  <NeonButton size="sm" variant="green" disabled={busy} onClick={() => loanEnd("convertito")}>
+                    <Check className="h-3.5 w-3.5" /> Convertito in vendita
+                  </NeonButton>
+                  <NeonButton size="sm" disabled={busy} onClick={() => loanEnd("ritirato")}>
+                    Ritirato
+                  </NeonButton>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {detail.loan_status !== "nessuno" && (
+                  <p className="font-ui text-[11px] text-text2">
+                    Ultimo comodato: {detail.loan_status}
+                    {detail.reviews_at_loan != null &&
+                      ` · resa ${detail.reviews - detail.reviews_at_loan >= 0 ? "+" : ""}${detail.reviews - detail.reviews_at_loan} recensioni`}
+                  </p>
+                )}
+                {!loanOpen ? (
+                  <NeonButton size="sm" variant="cyan" disabled={busy} onClick={() => setLoanOpen(true)}>
+                    <Handshake className="h-3.5 w-3.5" /> Metti in comodato
+                  </NeonButton>
+                ) : (
+                  <div className="space-y-2 rounded-sm border border-border p-2.5">
+                    <select
+                      value={loanProduct}
+                      onChange={(e) => setLoanProduct(e.target.value)}
+                      className={inputCls}
+                    >
+                      <option value="">Cosa lasci in prova…</option>
+                      {products.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      placeholder="Codici card lasciate (opzionale, separati da virgola)"
+                      value={loanCards}
+                      onChange={(e) => setLoanCards(e.target.value)}
+                      className={inputCls}
+                    />
+                    <div className="flex gap-2">
+                      <NeonButton size="sm" variant="cyan" disabled={busy} onClick={loanStart}>
+                        <Handshake className="h-3.5 w-3.5" /> Avvia (scade tra 15gg)
+                      </NeonButton>
+                      <NeonButton size="sm" disabled={busy} onClick={() => setLoanOpen(false)}>
+                        Annulla
+                      </NeonButton>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </Section>
         )}
 

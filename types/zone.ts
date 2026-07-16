@@ -97,15 +97,50 @@ export interface ZoneClient {
   reviews_at_sale: number | null;
   /** Ultimo aggiornamento del conteggio recensioni (scan o refresh). */
   reviews_updated_at: string | null;
+  // ----- Comodato (asse parallelo, come invoice_status) -----
+  /** nessuno | attivo | ritirato | convertito */
+  loan_status: ZoneLoanStatus;
+  loan_started_at: string | null;
+  /** Scadenza rivisita: partenza + 15 giorni. */
+  loan_due_at: string | null;
+  /** Recensioni al posizionamento del comodato (mai sovrascritta). */
+  reviews_at_loan: number | null;
   created_at: string;
   updated_at: string;
 }
+
+export type ZoneLoanStatus = "nessuno" | "attivo" | "ritirato" | "convertito";
 
 export interface ZoneProduct {
   id: string;
   name: string;
   default_price: number;
   active: boolean;
+  /** Giacenza pezzi (movimentata da vendite/comodati/carichi). */
+  stock_qty: number;
+  /** Soglia sotto cui scatta l'alert scorte. */
+  stock_soglia: number;
+  fornitore: string;
+}
+
+export interface ZoneStockMove {
+  id: number;
+  product_id: string;
+  /** Negativo = uscita, positivo = carico/rientro. */
+  delta: number;
+  motivo: "vendita" | "comodato" | "rientro" | "carico" | "rettifica";
+  ref_id: string;
+  ts: string;
+  notes: string;
+}
+
+export interface ZoneReviewSnapshot {
+  id: number;
+  client_id: string;
+  reviews: number;
+  rating: number;
+  taken_at: string;
+  source: "scan" | "refresh";
 }
 
 export interface ZoneSale {
@@ -120,7 +155,7 @@ export interface ZoneSale {
   notes: string;
 }
 
-export type ZoneCardStatus = "attiva" | "sostituita" | "dismessa";
+export type ZoneCardStatus = "attiva" | "in_comodato" | "sostituita" | "dismessa";
 
 export interface ZoneCard {
   code: string;
@@ -135,6 +170,8 @@ export interface ZoneCard {
 export interface ZoneClientDetail extends ZoneClient {
   sales: ZoneSale[];
   cards: ZoneCard[];
+  /** Ultimi snapshot recensioni (storico delta), più recenti prima. */
+  snapshots: ZoneReviewSnapshot[];
 }
 
 /** Analisi dai dati salvati. */

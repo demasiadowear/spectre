@@ -19,6 +19,10 @@ export async function GET(req: Request) {
   }
   try {
     const brief = await buildMorningBrief();
+    // Tutti i blocchi vuoti -> nessun messaggio (niente rumore alle 7).
+    if (brief.empty) {
+      return NextResponse.json({ success: true, sent: false, stats: brief.stats, text: "" });
+    }
     const sent = await sendTelegram(brief.text);
     // text nel payload: la chiamata è già autenticata (CRON_SECRET) e
     // serve a verificare dal trigger manuale cosa è arrivato in chat.

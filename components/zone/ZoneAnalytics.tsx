@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Phone, RefreshCw } from "lucide-react";
+import { PackagePlus, Phone, RefreshCw } from "lucide-react";
 import GlassCard from "@/components/ui/spectre/GlassCard";
+import NeonButton from "@/components/ui/spectre/NeonButton";
 import { cn } from "@/lib/utils";
 import type { ApiResponse } from "@/types";
-import type { ZoneStats } from "@/types/zone";
+import type { ZoneProduct, ZoneStats } from "@/types/zone";
 
 // ============================================================
 // ANALISI — i numeri dal registro: fatturato, conversione, zone
@@ -24,9 +25,20 @@ function Tile({ label, value, accent }: { label: string; value: string; accent?:
 
 export default function ZoneAnalytics() {
   const [stats, setStats] = useState<ZoneStats | null>(null);
+  const [products, setProducts] = useState<ZoneProduct[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  // form movimenti (un prodotto alla volta)
+  const [moveFor, setMoveFor] = useState<string | null>(null);
+  const [moveQty, setMoveQty] = useState("");
+  const [moveMotivo, setMoveMotivo] = useState<"carico" | "rettifica">("carico");
 
-  const load = () =>
+  function flash(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  }
+
+  const load = () => {
     fetch("/api/zone/stats", { cache: "no-store" })
       .then((r) => r.json())
       .then((res: ApiResponse<ZoneStats>) => {
@@ -38,10 +50,38 @@ export default function ZoneAnalytics() {
         }
       })
       .catch(() => setError("Errore di rete."));
+    fetch("/api/zone/products", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((res: ApiResponse<ZoneProduct[]>) => {
+        if (res.success && res.data) setProducts(res.data);
+      })
+      .catch(() => {});
+  };
 
   useEffect(() => {
     load();
   }, []);
+
+  async function saveMove(productId: string) {
+    const qty = Math.round(Number(moveQty.replace(",", ".")));
+    if (!Number.isFinite(qty) || qty === 0) return flash("Quantità non valida.");
+    // carico = sempre positivo; rettifica = col segno che scrivi
+    const delta = moveMotivo === "carico" ? Math.abs(qty) : qty;
+    const res = await fetch("/api/zone/stock", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ product_id: productId, delta, motivo: moveMotivo }),
+    });
+    const json = (await res.json()) as ApiResponse<ZoneProduct[]>;
+    if (json.success && json.data) {
+      setProducts(json.data);
+      setMoveFor(null);
+      setMoveQty("");
+      flash(`${moveMotivo === "carico" ? "Carico" : "Rettifica"} registrato.`);
+    } else {
+      flash(json.error ?? "Movimento fallito.");
+    }
+  }
 
   if (error) {
     return (
@@ -78,6 +118,91 @@ export default function ZoneAnalytics() {
         <Tile label="Card attive in giro" value={String(stats.cards_active)} />
         <Tile label="Da richiamare" value={String(stats.by_status.da_richiamare)} accent={stats.by_status.da_richiamare > 0 ? "text-accent" : undefined} />
       </div>
+
+      {toast && (
+        <p className="font-ui text-xs text-accent" role="status">
+          {toast}
+        </p>
+      )}
+
+      {/* giacenza */}
+      <GlassCard className="p-4">
+        <h3 className="mb-2 font-ui text-[10px] uppercase tracking-[0.18em] text-text2">
+          Giacenza (alert sotto soglia)
+        </h3>
+        <ul className="space-y-2">
+          {products.map((p) => {
+            const low = p.stock_soglia > 0 && p.stock_qty <= p.stock_soglia;
+            return (
+              <li key={p.id} className="font-ui text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="min-w-0 truncate text-text">
+                    {p.name}
+                    {p.fornitore && (
+                      <span className="text-text2"> · {p.fornitore}</span>
+                    )}
+                  </span>
+                  <span className="flex shrink-0 items-center gap-2">
+                    <span
+                      className={cn(
+                        "rounded-full border px-2 py-0.5 font-bold",
+                        low
+                          ? "border-danger/50 bg-danger/15 text-danger"
+                          : "border-success/40 text-success",
+                      )}
+                    >
+                      {p.stock_qty} pz
+                    </span>
+                    <span className="text-text2">soglia {p.stock_soglia}</span>
+                    <button
+                      type="button"
+                      title="Carico / rettifica"
+                      onClick={() => {
+                        setMoveFor(moveFor === p.id ? null : p.id);
+                        setMoveQty("");
+                        setMoveMotivo("carico");
+                      }}
+                      className="text-text2 hover:text-text"
+                    >
+                      <PackagePlus className="h-4 w-4" />
+                    </button>
+                  </span>
+                </div>
+                {low && (
+                  <p className="mt-0.5 font-ui text-[10px] font-semibold text-danger">
+                    ⚠ sotto soglia{p.fornitore ? ` — ordina da ${p.fornitore}` : ""}
+                  </p>
+                )}
+                {moveFor === p.id && (
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <select
+                      value={moveMotivo}
+                      onChange={(e) => setMoveMotivo(e.target.value as "carico" | "rettifica")}
+                      className="rounded-sm border border-border bg-surface px-1.5 py-1 font-ui text-[11px] text-text focus:border-accent focus:outline-none"
+                    >
+                      <option value="carico">Carico (arrivo ordine)</option>
+                      <option value="rettifica">Rettifica (±)</option>
+                    </select>
+                    <input
+                      inputMode="numeric"
+                      placeholder={moveMotivo === "carico" ? "quanti pezzi" : "es. -3 o 5"}
+                      value={moveQty}
+                      onChange={(e) => setMoveQty(e.target.value)}
+                      className="w-24 rounded-sm border border-border bg-surface px-1.5 py-1 font-ui text-[11px] text-text focus:border-accent focus:outline-none"
+                    />
+                    <NeonButton size="sm" onClick={() => saveMove(p.id)}>
+                      Salva
+                    </NeonButton>
+                  </div>
+                )}
+              </li>
+            );
+          })}
+          {products.length === 0 && (
+            <li className="font-ui text-xs text-text2">Listino vuoto.</li>
+          )}
+        </ul>
+      </GlassCard>
 
       {/* zone che rendono */}
       <GlassCard className="p-4">
