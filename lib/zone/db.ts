@@ -127,12 +127,17 @@ export async function ensureZoneSchema(): Promise<void> {
     create index if not exists idx_zone_sales_sold_at on zone_sales(sold_at);
     create index if not exists idx_zone_cards_client on zone_cards(client_id);
     insert or ignore into zone_products (id, name, default_price) values
-      ('prod-card', 'Card singola', 15),
-      ('prod-targhetta', 'Targhetta 10x10 (con biadesivo)', 50),
-      ('prod-targhetta-piedino', 'Targhetta 10x10 con supporto/piedino', 55),
-      ('prod-bundle', 'Bundle 1+1 (1 targhetta + 1 card)', 60),
-      ('prod-bundle-2', 'Bundle 1+2 (1 targhetta + 2 card)', 70),
-      ('prod-bundle-3', 'Bundle 1+3 (1 targhetta + 3 card)', 80);
+      ('prod-card', 'Card singola', 20),
+      ('prod-card-2', '2 card', 35),
+      ('prod-card-3', '3 card', 50),
+      ('prod-targhetta', 'Targhetta forex 10x10 (biadesivo + supporto inclusi)', 35),
+      ('prod-bundle', 'Bundle forex + 1 card', 45),
+      ('prod-bundle-2', 'Bundle forex + 2 card', 55),
+      ('prod-bundle-3', 'Bundle forex + 3 card', 65),
+      ('prod-plexi', 'Targhetta premium plexi 10x15 (piedino incluso)', 60),
+      ('prod-bundle-plexi', 'Bundle plexi + 1 card', 75),
+      ('prod-bundle-plexi-2', 'Bundle plexi + 2 card', 90),
+      ('prod-bundle-plexi-3', 'Bundle plexi + 3 card', 100);
   `);
   // Migrazione fatturazione: colonne aggiunte ai DB esistenti, una
   // per una ("duplicate column" = già migrata, si ignora).
@@ -170,10 +175,9 @@ export async function ensureZoneSchema(): Promise<void> {
     } catch { /* colonna già presente */ }
   }
 
-  // Migrazione listino: i 3 prodotti del seed provvisorio (card 10 /
-  // targhetta 40 / bundle 60) diventano il listino definitivo — SOLO
-  // se hanno ancora nome+prezzo originali: una modifica manuale di
-  // Puccio non viene mai sovrascritta. Idempotente.
+  // Migrazione listino: catena v1 -> v2 -> v3, ogni passo guardato
+  // sui valori del passo precedente (una modifica manuale non viene
+  // mai sovrascritta). Idempotente.
   await turso.executeMultiple(`
     update zone_products set name = 'Card singola', default_price = 15
       where id = 'prod-card' and name = 'Card NFC singola' and default_price = 10;
@@ -181,6 +185,30 @@ export async function ensureZoneSchema(): Promise<void> {
       where id = 'prod-targhetta' and name = 'Targhetta da banco' and default_price = 40;
     update zone_products set name = 'Bundle 1+1 (1 targhetta + 1 card)', default_price = 60
       where id = 'prod-bundle' and name = 'Bundle' and default_price = 60;
+  `);
+  // Listino v3 (sostituzione richiesta da Puccio): rinomina/riprezza i
+  // prodotti forex, ritira la variante piedino (supporto ora incluso),
+  // aggiunge multipack card e linea plexi.
+  await turso.executeMultiple(`
+    update zone_products set name = 'Card singola', default_price = 20
+      where id = 'prod-card' and default_price = 15;
+    update zone_products set name = 'Targhetta forex 10x10 (biadesivo + supporto inclusi)', default_price = 35
+      where id = 'prod-targhetta' and default_price = 50;
+    update zone_products set name = 'Bundle forex + 1 card', default_price = 45
+      where id = 'prod-bundle' and default_price = 60;
+    update zone_products set name = 'Bundle forex + 2 card', default_price = 55
+      where id = 'prod-bundle-2' and default_price = 70;
+    update zone_products set name = 'Bundle forex + 3 card', default_price = 65
+      where id = 'prod-bundle-3' and default_price = 80;
+    update zone_products set active = 0
+      where id = 'prod-targhetta-piedino' and name = 'Targhetta 10x10 con supporto/piedino';
+    insert or ignore into zone_products (id, name, default_price) values
+      ('prod-card-2', '2 card', 35),
+      ('prod-card-3', '3 card', 50),
+      ('prod-plexi', 'Targhetta premium plexi 10x15 (piedino incluso)', 60),
+      ('prod-bundle-plexi', 'Bundle plexi + 1 card', 75),
+      ('prod-bundle-plexi-2', 'Bundle plexi + 2 card', 90),
+      ('prod-bundle-plexi-3', 'Bundle plexi + 3 card', 100);
   `);
   // Seed giacenza iniziale (una volta sola: guard su fornitore vuoto,
   // così i valori toccati a mano non vengono mai ripristinati).
@@ -614,6 +642,10 @@ export async function recordSnapshot(
  *  la stessa targhetta 10x10 (il supporto non è tracciato). Prodotti
  *  non in mappa: movimentano se stessi. */
 const STOCK_COMPONENTS: Record<string, { product_id: string; qty: number }[]> = {
+  // multipack card -> card fisiche
+  "prod-card-2": [{ product_id: "prod-card", qty: 2 }],
+  "prod-card-3": [{ product_id: "prod-card", qty: 3 }],
+  // bundle forex -> targhetta forex + card
   "prod-bundle": [
     { product_id: "prod-targhetta", qty: 1 },
     { product_id: "prod-card", qty: 1 },
@@ -626,6 +658,20 @@ const STOCK_COMPONENTS: Record<string, { product_id: string; qty: number }[]> = 
     { product_id: "prod-targhetta", qty: 1 },
     { product_id: "prod-card", qty: 3 },
   ],
+  // bundle plexi -> targhetta plexi (stock proprio) + card
+  "prod-bundle-plexi": [
+    { product_id: "prod-plexi", qty: 1 },
+    { product_id: "prod-card", qty: 1 },
+  ],
+  "prod-bundle-plexi-2": [
+    { product_id: "prod-plexi", qty: 1 },
+    { product_id: "prod-card", qty: 2 },
+  ],
+  "prod-bundle-plexi-3": [
+    { product_id: "prod-plexi", qty: 1 },
+    { product_id: "prod-card", qty: 3 },
+  ],
+  // variante piedino ritirata (v3): storicamente consumava una forex
   "prod-targhetta-piedino": [{ product_id: "prod-targhetta", qty: 1 }],
 };
 
