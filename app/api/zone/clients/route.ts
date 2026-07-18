@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   ZONE_STATUSES,
+  deleteClient,
   getClientDetail,
   listClients,
   setBaselineNow,
@@ -169,6 +170,34 @@ export async function PATCH(req: Request) {
       );
     }
     return NextResponse.json<ApiResponse<ZoneClient>>({ success: true, data: client });
+  } catch (err) {
+    return NextResponse.json<ApiResponse<never>>(
+      { success: false, error: (err as Error).message },
+      { status: 500 },
+    );
+  }
+}
+
+export async function DELETE(req: Request) {
+  const id = new URL(req.url).searchParams.get("id")?.trim();
+  if (!id) {
+    return NextResponse.json<ApiResponse<never>>(
+      { success: false, error: "Parametro obbligatorio: id." },
+      { status: 400 },
+    );
+  }
+  try {
+    const res = await deleteClient(id);
+    if (!res) {
+      return NextResponse.json<ApiResponse<never>>(
+        { success: false, error: "Cliente non trovato nel registro." },
+        { status: 404 },
+      );
+    }
+    return NextResponse.json<ApiResponse<{ sales: number; cards: number }>>({
+      success: true,
+      data: { sales: res.sales, cards: res.cards },
+    });
   } catch (err) {
     return NextResponse.json<ApiResponse<never>>(
       { success: false, error: (err as Error).message },

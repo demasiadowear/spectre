@@ -151,8 +151,8 @@ export default function ZoneRegistry() {
   return (
     <div className="space-y-4">
       {/* toolbar */}
-      <GlassCard className="space-y-3 px-4 py-3">
-        <div className="flex flex-wrap items-center gap-2">
+      <GlassCard className="space-y-3 px-3 py-3 sm:px-4">
+        <div className="flex flex-wrap items-center gap-1.5">
           {FILTER_STATUSES.map((s) => (
             <button
               key={s}
@@ -240,28 +240,28 @@ export default function ZoneRegistry() {
             <Download className="h-3.5 w-3.5" /> CSV vendite
           </a>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text2" />
+            <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-text2" />
             <input
-              placeholder="Cerca nome, indirizzo, referente, note…"
+              placeholder="Cerca nome, indirizzo, referente…"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              className={cn(inputCls, "w-full pl-7")}
+              className={cn(inputCls, "min-h-[44px] w-full pl-8 text-sm sm:text-xs")}
             />
           </div>
           <div className="flex items-center gap-1.5">
-            <Nfc className="h-3.5 w-3.5 text-text2" />
+            <Nfc className="h-4 w-4 shrink-0 text-text2" />
             <input
               placeholder="Codice card…"
               value={cardCode}
               onChange={(e) => setCardCode(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && lookupCard()}
-              className={cn(inputCls, "w-32")}
+              className={cn(inputCls, "min-h-[44px] flex-1 text-sm sm:w-32 sm:flex-none sm:text-xs")}
               title="Ricerca inversa: da codice card al cliente"
             />
           </div>
-          <NeonButton size="sm" onClick={() => setAddOpen((v) => !v)}>
+          <NeonButton size="sm" onClick={() => setAddOpen((v) => !v)} className="min-h-[44px] justify-center">
             <UserPlus className="h-3.5 w-3.5" /> Aggiungi cliente
           </NeonButton>
         </div>
@@ -332,7 +332,7 @@ export default function ZoneRegistry() {
               <button
                 type="button"
                 onClick={() => setOpenId(c.id)}
-                className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left transition-colors hover:bg-surface2"
+                className="flex w-full items-center justify-between gap-3 min-h-[52px] px-4 py-3 text-left transition-colors hover:bg-surface2"
               >
                 <div className="min-w-0">
                   <p className="truncate font-ui text-sm font-semibold text-text">
