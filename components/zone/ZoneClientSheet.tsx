@@ -11,6 +11,7 @@ import {
   Phone,
   Plus,
   RefreshCw,
+  Trash2,
   TrendingUp,
   X,
 } from "lucide-react";
@@ -147,6 +148,7 @@ export default function ZoneClientSheet({ clientId, previewLead, onClose, onChan
   const [loanProduct, setLoanProduct] = useState("");
   const [loanCards, setLoanCards] = useState("");
   const [loanDays, setLoanDays] = useState("15");
+  const [confirmDelete, setConfirmDelete] = useState(false);
   // form card
   const [newCard, setNewCard] = useState("");
   const [replacing, setReplacing] = useState<string | null>(null);
@@ -260,6 +262,24 @@ export default function ZoneClientSheet({ clientId, previewLead, onClose, onChan
   const patchClient = (fields: Record<string, unknown>) =>
     api("/api/zone/clients", "PATCH", { id: clientId, ...fields });
 
+  async function doDelete() {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/zone/clients?id=${encodeURIComponent(clientId)}`, {
+        method: "DELETE",
+      });
+      const json = (await res.json()) as ApiResponse<unknown>;
+      if (!json.success) {
+        flash(`Errore: ${json.error ?? "eliminazione fallita"}`);
+        return;
+      }
+      onChanged();
+      onClose();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const setStatus = (status: ZoneClientStatus) =>
     api("/api/zone/clients", "PATCH", {
       id: clientId,
@@ -363,7 +383,7 @@ export default function ZoneClientSheet({ clientId, previewLead, onClose, onChan
   return createPortal(
     <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={onClose}>
       <aside
-        className="flex h-full w-full max-w-md flex-col overflow-y-auto border-l border-border bg-surface shadow-2xl"
+        className="flex h-full w-full flex-col overflow-y-auto border-l border-border bg-surface shadow-2xl sm:max-w-md"
         onClick={(e) => e.stopPropagation()}
       >
         {/* header */}
@@ -688,7 +708,7 @@ export default function ZoneClientSheet({ clientId, previewLead, onClose, onChan
             )}
           </ul>
           <div className="space-y-2 rounded-sm border border-border p-2.5">
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <select
                 value={saleProduct}
                 onChange={(e) => {
@@ -696,7 +716,7 @@ export default function ZoneClientSheet({ clientId, previewLead, onClose, onChan
                   const p = products.find((x) => x.id === e.target.value);
                   if (p && p.default_price > 0) setSalePrice(String(p.default_price));
                 }}
-                className={cn(inputCls, "flex-1")}
+                className={cn(inputCls, "min-h-[44px] flex-1 text-sm")}
               >
                 <option value="">Prodotto…</option>
                 {products.map((p) => (
@@ -706,36 +726,38 @@ export default function ZoneClientSheet({ clientId, previewLead, onClose, onChan
                   </option>
                 ))}
               </select>
-              <input
-                type="number"
-                min={1}
-                value={saleQty}
-                onChange={(e) => setSaleQty(Math.max(1, Number(e.target.value)))}
-                className={cn(inputCls, "w-16")}
-                title="Quantità"
-              />
-              <input
-                inputMode="decimal"
-                placeholder="€ tot"
-                value={salePrice}
-                onChange={(e) => setSalePrice(e.target.value)}
-                className={cn(inputCls, "w-20")}
-                title="Incasso totale"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  value={saleQty}
+                  onChange={(e) => setSaleQty(Math.max(1, Number(e.target.value)))}
+                  className={cn(inputCls, "min-h-[44px] w-16 text-sm")}
+                  title="Quantità"
+                />
+                <input
+                  inputMode="decimal"
+                  placeholder="€ tot"
+                  value={salePrice}
+                  onChange={(e) => setSalePrice(e.target.value)}
+                  className={cn(inputCls, "min-h-[44px] flex-1 text-sm sm:w-20 sm:flex-none")}
+                  title="Incasso totale"
+                />
+              </div>
             </div>
             <input
               placeholder="Codici card (separati da virgola) — opzionale"
               value={saleCards}
               onChange={(e) => setSaleCards(e.target.value)}
-              className={inputCls}
+              className={cn(inputCls, "min-h-[44px] text-sm")}
             />
             <input
               placeholder="Note vendita — opzionale"
               value={saleNotes}
               onChange={(e) => setSaleNotes(e.target.value)}
-              className={inputCls}
+              className={cn(inputCls, "min-h-[44px] text-sm")}
             />
-            <NeonButton size="sm" variant="amber" onClick={addSale} disabled={busy}>
+            <NeonButton size="sm" variant="amber" onClick={addSale} disabled={busy} className="min-h-[44px] w-full justify-center">
               <Plus className="h-3.5 w-3.5" /> Registra vendita
             </NeonButton>
           </div>
@@ -850,6 +872,67 @@ export default function ZoneClientSheet({ clientId, previewLead, onClose, onChan
             </NeonButton>
           </div>
         </Section>
+
+        {/* elimina dal registro */}
+        {inRegistry && detail && (
+          <section className="border-t border-surface2 px-5 py-4">
+            {!confirmDelete ? (
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-sm border border-danger/40 px-3 py-2 font-ui text-xs font-semibold text-danger hover:bg-danger/10"
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Elimina dal Registro
+              </button>
+            ) : (
+              <div className="space-y-2 rounded-sm border border-danger/50 bg-danger/10 p-3">
+                <p className="font-ui text-xs font-semibold text-danger">
+                  Sicuro? Questa azione è irreversibile.
+                </p>
+                <p className="font-ui text-[11px] text-text2">
+                  Elimini <b className="text-text">{detail.name}</b> e tutto il
+                  collegato:
+                  {detail.sales.length > 0 || detail.cards.length > 0 ? (
+                    <>
+                      {" "}
+                      {detail.sales.length > 0 && (
+                        <b className="text-text">{detail.sales.length} vendite</b>
+                      )}
+                      {detail.sales.length > 0 && detail.cards.length > 0 && " e "}
+                      {detail.cards.length > 0 && (
+                        <b className="text-text">
+                          {detail.cards.length} card (i codici non saranno più
+                          rintracciabili)
+                        </b>
+                      )}
+                      .
+                    </>
+                  ) : (
+                    " nessuna vendita o card associata."
+                  )}
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={doDelete}
+                    className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-sm border border-danger bg-danger/20 px-3 py-2 font-ui text-xs font-bold text-danger hover:bg-danger/30"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Elimina definitivamente
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setConfirmDelete(false)}
+                    className="min-h-[44px] rounded-sm border border-border px-3 py-2 font-ui text-xs font-semibold text-text2 hover:text-text"
+                  >
+                    Annulla
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
       </aside>
     </div>,
     document.body,

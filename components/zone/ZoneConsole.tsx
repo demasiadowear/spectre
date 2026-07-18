@@ -407,20 +407,22 @@ export default function ZoneConsole() {
   return (
     <div className="space-y-4">
       {/* comandi zona */}
-      <GlassCard className="flex flex-wrap items-center gap-3 px-4 py-3">
-        <NeonButton size="sm" variant="cyan" onClick={useMyPosition}>
-          <LocateFixed className="h-3.5 w-3.5" /> La mia posizione
-        </NeonButton>
+      <GlassCard className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 sm:px-4">
+        <div className="flex items-center gap-2">
+          <NeonButton size="sm" variant="cyan" onClick={useMyPosition} className="min-h-[44px]">
+            <LocateFixed className="h-3.5 w-3.5" /> La mia posizione
+          </NeonButton>
+        </div>
         <span className="flex items-center gap-1.5">
           <input
-            placeholder="…o via / CAP (es. Via Argiro Bari, 70121)"
+            placeholder="…o via / CAP"
             value={addr}
             onChange={(e) => setAddr(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && goToAddress()}
-            className="w-56 rounded-sm border border-border bg-surface px-2 py-1.5 font-ui text-xs text-text placeholder:text-text2/60 focus:border-accent focus:outline-none"
+            className="min-h-[44px] w-full min-w-0 flex-1 rounded-sm border border-border bg-surface px-3 py-2 font-ui text-sm text-text placeholder:text-text2/60 focus:border-accent focus:outline-none sm:w-52 sm:flex-none sm:text-xs"
           />
-          <NeonButton size="sm" disabled={addrBusy || !addr.trim()} onClick={goToAddress}>
-            <MapPin className="h-3.5 w-3.5" /> {addrBusy ? "Cerco…" : "Vai"}
+          <NeonButton size="sm" disabled={addrBusy || !addr.trim()} onClick={goToAddress} className="min-h-[44px] shrink-0">
+            <MapPin className="h-3.5 w-3.5" /> {addrBusy ? "…" : "Vai"}
           </NeonButton>
         </span>
         <label className="flex items-center gap-2 font-ui text-xs text-text2">
@@ -432,15 +434,15 @@ export default function ZoneConsole() {
             step={100}
             value={radius}
             onChange={(e) => setRadius(Number(e.target.value))}
-            className="w-36 accent-accent"
+            className="h-6 flex-1 accent-accent sm:w-36 sm:flex-none"
           />
-          <span className="w-14 font-semibold text-text">{fmtRadius(radius)}</span>
+          <span className="w-14 shrink-0 font-semibold text-text">{fmtRadius(radius)}</span>
         </label>
         <button
           type="button"
           onClick={() => setFiltersOpen((v) => !v)}
           className={cn(
-            "inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1.5 font-ui text-xs font-semibold transition-colors",
+            "inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-sm border px-3 py-2 font-ui text-xs font-semibold transition-colors",
             filtersOpen || activeFilters > 0
               ? "border-accent/60 bg-accent/10 text-accent"
               : "border-border text-text2 hover:text-text",
@@ -454,6 +456,7 @@ export default function ZoneConsole() {
           variant="amber"
           disabled={!center || busy}
           onClick={hunt}
+          className="min-h-[44px] w-full justify-center sm:ml-auto sm:w-auto"
         >
           <Crosshair className="h-3.5 w-3.5" />
           {busy ? "Scansione zona…" : "Cerca in zona"}
@@ -567,11 +570,11 @@ export default function ZoneConsole() {
       <div className="grid gap-4 lg:grid-cols-[1fr_400px]">
         {/* mappa */}
         <GlassCard className="overflow-hidden p-0">
-          <div ref={containerRef} className="h-[320px] w-full lg:h-[560px]" />
+          <div ref={containerRef} className="h-[300px] w-full sm:h-[380px] lg:h-[560px]" />
         </GlassCard>
 
         {/* lista giro */}
-        <GlassCard className="flex max-h-[560px] flex-col p-4">
+        <GlassCard className="flex flex-col p-4 lg:max-h-[560px]">
           <div className="mb-3 flex items-center justify-between gap-2">
             <div className="font-ui text-xs text-text2">
               {result ? (
@@ -684,9 +687,9 @@ export default function ZoneConsole() {
                           e.stopPropagation();
                           importLead(l);
                         }}
-                        className="inline-flex items-center gap-1 rounded-sm border border-accent/50 bg-accent/10 px-2 py-1 font-semibold text-accent hover:bg-accent/20"
+                        className="inline-flex min-h-[40px] items-center gap-1 rounded-sm border border-accent/50 bg-accent/10 px-3 py-2 font-semibold text-accent hover:bg-accent/20"
                       >
-                        <Plus className="h-3 w-3" /> Registro
+                        <Plus className="h-3.5 w-3.5" /> Registro
                       </button>
                     )}
                     {l.nfc_review_url && (
@@ -696,18 +699,18 @@ export default function ZoneConsole() {
                           e.stopPropagation();
                           copyNfc(l);
                         }}
-                        className="inline-flex items-center gap-1 rounded-sm border border-success/50 bg-success/10 px-2 py-1 font-semibold text-success hover:bg-success/20"
+                        className="inline-flex min-h-[40px] items-center gap-1 rounded-sm border border-success/50 bg-success/10 px-3 py-2 font-semibold text-success hover:bg-success/20"
                       >
-                        <Nfc className="h-3 w-3" /> Copia NFC
+                        <Nfc className="h-3.5 w-3.5" /> Copia NFC
                       </button>
                     )}
                     {l.phone && (
                       <a
                         href={`tel:${l.phone.replace(/\s/g, "")}`}
                         onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center gap-1 text-accent hover:underline"
+                        className="inline-flex min-h-[40px] items-center gap-1 text-accent hover:underline"
                       >
-                        <Phone className="h-3 w-3" /> {l.phone}
+                        <Phone className="h-3.5 w-3.5" /> {l.phone}
                       </a>
                     )}
                     <a

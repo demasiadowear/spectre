@@ -684,6 +684,34 @@ export async function recordSnapshot(
   }
 }
 
+/** Cancella un cliente e TUTTO il collegato (vendite, card, snapshot):
+ *  delete espliciti in ordine — non ci si affida al cascade FK, che in
+ *  libSQL richiede PRAGMA foreign_keys attivo. Le card spariscono con
+ *  lui, così la ricerca inversa per codice non punta più a un fantasma.
+ *  I movimenti di giacenza NON si toccano (lo scarico è già avvenuto,
+ *  lo storico magazzino resta). Ritorna cosa è stato rimosso. */
+export async function deleteClient(
+  id: string,
+): Promise<{ deleted: boolean; sales: number; cards: number } | null> {
+  if (!turso) throw new Error("Turso non configurato: il registro Zone richiede il DB.");
+  await ensureZoneSchema();
+  const client = await getClient(id);
+  if (!client) return null;
+  const [sales, cards] = await Promise.all([
+    turso.execute({ sql: "select count(*) as n from zone_sales where client_id = ?", args: [id] }),
+    turso.execute({ sql: "select count(*) as n from zone_cards where client_id = ?", args: [id] }),
+  ]);
+  await turso.execute({ sql: "delete from zone_review_snapshots where client_id = ?", args: [id] });
+  await turso.execute({ sql: "delete from zone_cards where client_id = ?", args: [id] });
+  await turso.execute({ sql: "delete from zone_sales where client_id = ?", args: [id] });
+  await turso.execute({ sql: "delete from zone_clients where id = ?", args: [id] });
+  return {
+    deleted: true,
+    sales: num((sales.rows[0] as Row).n),
+    cards: num((cards.rows[0] as Row).n),
+  };
+}
+
 // ----- Giacenza ---------------------------------------------------
 
 /** Mappa prodotto -> componenti FISICI da movimentare. I bundle non
