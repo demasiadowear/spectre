@@ -44,6 +44,7 @@ export async function POST(req: Request) {
         Array.isArray(body.card_codes)
           ? body.card_codes.filter((c): c is string => typeof c === "string")
           : [],
+        typeof body.days === "number" && Number.isFinite(body.days) ? body.days : 15,
       );
     } else {
       detail = await endLoan(clientId, action as "ritirato" | "convertito");
