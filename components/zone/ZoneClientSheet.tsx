@@ -21,6 +21,7 @@ import type { ApiResponse } from "@/types";
 import type {
   ZoneClientDetail,
   ZoneClientStatus,
+  ZoneLead,
   ZoneProduct,
 } from "@/types/zone";
 
@@ -56,9 +57,58 @@ const STATUSES: ZoneClientStatus[] = [
 
 interface Props {
   clientId: string;
+  /** Dati del risultato di scan: permette di aprire la scheda COMPLETA
+   *  anche se il lead NON è in Registro. Il salvataggio avviene solo
+   *  col bottone dedicato o alla prima azione (stato/vendita/…). */
+  previewLead?: ZoneLead | null;
   onClose: () => void;
   /** Notifica il padre che il cliente è cambiato (per il refresh lista). */
   onChanged: () => void;
+}
+
+/** Scheda "vergine" costruita dal risultato scan (niente DB). */
+function detailFromLead(l: ZoneLead): ZoneClientDetail {
+  return {
+    id: l.id,
+    name: l.name,
+    category: l.category,
+    address: l.address,
+    cap: /\b(\d{5})\b/.exec(l.address)?.[1] ?? "",
+    phone: l.phone,
+    lat: l.lat,
+    lng: l.lng,
+    maps_url: l.maps_url,
+    nfc_review_url: l.nfc_review_url ?? "",
+    rating: l.rating,
+    reviews: l.reviews,
+    zone_label: "",
+    status: "da_visitare",
+    callback_at: null,
+    referent: "",
+    notes: "",
+    fatt_ragione_sociale: "",
+    fatt_piva: "",
+    fatt_cf: "",
+    fatt_indirizzo: "",
+    fatt_cap: "",
+    fatt_citta: "",
+    fatt_email: "",
+    fatt_pec: "",
+    fatt_sdi: "",
+    fatt_telefono: "",
+    invoice_status: "",
+    reviews_at_sale: null,
+    reviews_updated_at: null,
+    loan_status: "nessuno",
+    loan_started_at: null,
+    loan_due_at: null,
+    reviews_at_loan: null,
+    created_at: "",
+    updated_at: "",
+    sales: [],
+    cards: [],
+    snapshots: [],
+  };
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -75,8 +125,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 const inputCls =
   "w-full rounded-sm border border-border bg-surface px-2 py-1.5 font-ui text-xs text-text placeholder:text-text2/60 focus:border-accent focus:outline-none";
 
-export default function ZoneClientSheet({ clientId, onClose, onChanged }: Props) {
+export default function ZoneClientSheet({ clientId, previewLead, onClose, onChanged }: Props) {
   const [detail, setDetail] = useState<ZoneClientDetail | null>(null);
+  const [inRegistry, setInRegistry] = useState(true);
   const [products, setProducts] = useState<ZoneProduct[]>([]);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -95,6 +146,7 @@ export default function ZoneClientSheet({ clientId, onClose, onChanged }: Props)
   const [loanOpen, setLoanOpen] = useState(false);
   const [loanProduct, setLoanProduct] = useState("");
   const [loanCards, setLoanCards] = useState("");
+  const [loanDays, setLoanDays] = useState("15");
   // form card
   const [newCard, setNewCard] = useState("");
   const [replacing, setReplacing] = useState<string | null>(null);
@@ -111,13 +163,23 @@ export default function ZoneClientSheet({ clientId, onClose, onChanged }: Props)
     });
     const json = (await res.json()) as ApiResponse<ZoneClientDetail>;
     if (json.success && json.data) {
+      setInRegistry(true);
       setDetail(json.data);
       setCallback(json.data.callback_at ? json.data.callback_at.slice(0, 10) : "");
       setReferent(json.data.referent);
       setNotes(json.data.notes);
       setZoneLabel(json.data.zone_label);
+    } else if (previewLead) {
+      // non in registro: scheda completa dai dati dello scan, il
+      // salvataggio arriva dopo (bottone o prima azione)
+      setInRegistry(false);
+      setDetail(detailFromLead(previewLead));
+      setCallback("");
+      setReferent("");
+      setNotes("");
+      setZoneLabel("");
     }
-  }, [clientId]);
+  }, [clientId, previewLead]);
 
   useEffect(() => {
     setDetail(null);
@@ -136,6 +198,31 @@ export default function ZoneClientSheet({ clientId, onClose, onChanged }: Props)
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  /** Salva il lead nel Registro dai dati dello scan (upsert). */
+  const saveToRegistry = useCallback(async (): Promise<boolean> => {
+    if (!previewLead) return false;
+    const res = await fetch("/api/zone/clients", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: previewLead.id,
+        name: previewLead.name,
+        category: previewLead.category,
+        address: previewLead.address,
+        phone: previewLead.phone,
+        lat: previewLead.lat,
+        lng: previewLead.lng,
+        maps_url: previewLead.maps_url,
+        nfc_review_url: previewLead.nfc_review_url ?? "",
+        rating: previewLead.rating,
+        reviews: previewLead.reviews,
+      }),
+    });
+    const json = (await res.json()) as ApiResponse<unknown>;
+    if (json.success) setInRegistry(true);
+    return json.success;
+  }, [previewLead]);
+
   async function api(
     url: string,
     method: string,
@@ -143,6 +230,15 @@ export default function ZoneClientSheet({ clientId, onClose, onChanged }: Props)
   ): Promise<boolean> {
     setBusy(true);
     try {
+      // Scheda aperta da scan, lead non ancora salvato: la prima
+      // azione concreta lo mette in Registro da sola.
+      if (!inRegistry) {
+        const saved = await saveToRegistry();
+        if (!saved) {
+          flash("Errore: salvataggio nel Registro fallito, riprova.");
+          return false;
+        }
+      }
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
@@ -185,16 +281,18 @@ export default function ZoneClientSheet({ clientId, onClose, onChanged }: Props)
 
   async function loanStart() {
     if (!loanProduct) return flash("Scegli il prodotto lasciato in comodato.");
+    const days = Math.min(365, Math.max(1, Math.round(Number(loanDays)) || 15));
     const ok = await api("/api/zone/loan", "POST", {
       client_id: clientId,
       action: "start",
       product_id: loanProduct,
+      days,
       card_codes: loanCards.split(/[,\s]+/).filter(Boolean),
     });
     if (ok) {
       setLoanOpen(false);
       setLoanCards("");
-      flash("Comodato attivo: rivisita tra 15 giorni (nel morning brief).");
+      flash(`Comodato attivo: rivisita tra ${days} giorni (nel morning brief).`);
     }
   }
 
@@ -321,6 +419,31 @@ export default function ZoneClientSheet({ clientId, onClose, onChanged }: Props)
           </p>
         )}
 
+        {!inRegistry && (
+          <div className="mx-5 mb-2 flex items-center justify-between gap-2 rounded-sm border border-ochre/40 bg-ochre/10 px-3 py-2">
+            <p className="font-ui text-[11px] text-ochre">
+              Non ancora nel Registro: si salva col bottone o alla prima azione.
+            </p>
+            <NeonButton
+              size="sm"
+              variant="amber"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                const ok = await saveToRegistry();
+                setBusy(false);
+                if (ok) {
+                  await load();
+                  onChanged();
+                  flash("Salvato nel Registro.");
+                }
+              }}
+            >
+              <Plus className="h-3.5 w-3.5" /> Salva nel Registro
+            </NeonButton>
+          </div>
+        )}
+
         {/* LINK NFC — il gesto principale in negozio */}
         <Section title="Link recensioni per NFC (un tap → form recensione)">
           {detail?.nfc_review_url ? (
@@ -404,7 +527,7 @@ export default function ZoneClientSheet({ clientId, onClose, onChanged }: Props)
 
         {/* comodato */}
         {detail && (
-          <Section title="Comodato (targhetta in prova, rivisita a 15gg)">
+          <Section title="Comodato (targhetta in prova)">
             {detail.loan_status === "attivo" ? (
               <div className="space-y-2">
                 <p className="font-ui text-xs">
@@ -469,6 +592,18 @@ export default function ZoneClientSheet({ clientId, onClose, onChanged }: Props)
                         </option>
                       ))}
                     </select>
+                    <label className="flex items-center gap-2 font-ui text-[11px] text-text2">
+                      Rivisita tra
+                      <input
+                        type="number"
+                        min={1}
+                        max={365}
+                        value={loanDays}
+                        onChange={(e) => setLoanDays(e.target.value)}
+                        className="w-16 rounded-sm border border-border bg-surface px-1.5 py-1 text-text focus:border-accent focus:outline-none"
+                      />
+                      giorni
+                    </label>
                     <input
                       placeholder="Codici card lasciate (opzionale, separati da virgola)"
                       value={loanCards}
@@ -477,7 +612,7 @@ export default function ZoneClientSheet({ clientId, onClose, onChanged }: Props)
                     />
                     <div className="flex gap-2">
                       <NeonButton size="sm" variant="cyan" disabled={busy} onClick={loanStart}>
-                        <Handshake className="h-3.5 w-3.5" /> Avvia (scade tra 15gg)
+                        <Handshake className="h-3.5 w-3.5" /> Avvia comodato
                       </NeonButton>
                       <NeonButton size="sm" disabled={busy} onClick={() => setLoanOpen(false)}>
                         Annulla

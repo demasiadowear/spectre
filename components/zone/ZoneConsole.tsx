@@ -8,12 +8,13 @@ import {
   Download,
   ExternalLink,
   LocateFixed,
+  MapPin,
   Nfc,
   Phone,
   Plus,
   SlidersHorizontal,
 } from "lucide-react";
-import { STATUS_CHIP, STATUS_LABEL } from "@/components/zone/ZoneClientSheet";
+import ZoneClientSheet, { STATUS_CHIP, STATUS_LABEL } from "@/components/zone/ZoneClientSheet";
 import { ZONE_CATEGORY_LABELS } from "@/lib/zone/categories";
 import GlassCard from "@/components/ui/spectre/GlassCard";
 import NeonButton from "@/components/ui/spectre/NeonButton";
@@ -83,6 +84,13 @@ export default function ZoneConsole() {
   const [revMax, setRevMax] = useState("");
   const [ratMin, setRatMin] = useState("");
   const [ratMax, setRatMax] = useState("");
+  // filtro rapido per fascia sui risultati (client-side, tempo reale)
+  const [tierFilter, setTierFilter] = useState<OpportunityTier | "tutti">("tutti");
+  // ricerca del centro per via/CAP
+  const [addr, setAddr] = useState("");
+  const [addrBusy, setAddrBusy] = useState(false);
+  // scheda completa aperta da un risultato (anche se NON in registro)
+  const [sheetLead, setSheetLead] = useState<ZoneLead | null>(null);
 
   const activeFilters =
     cats.length + [revMin, revMax, ratMin, ratMax].filter(Boolean).length;
@@ -159,6 +167,20 @@ export default function ZoneConsole() {
     })();
   }, [mapReady, center, radius]);
 
+  const visibleLeads = useMemo(
+    () =>
+      (result?.leads ?? []).filter(
+        (l) => tierFilter === "tutti" || l.tier === tierFilter,
+      ),
+    [result, tierFilter],
+  );
+
+  const tierCountsAll = useMemo(() => {
+    const c = { caldo: 0, tiepido: 0, gia_a_posto: 0 };
+    for (const l of result?.leads ?? []) c[l.tier]++;
+    return c;
+  }, [result]);
+
   // Pin dei risultati, colorati per attenzione. Il selezionato è più grande.
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
@@ -168,7 +190,9 @@ export default function ZoneConsole() {
       if (!map) return;
       markersRef.current.forEach((m) => m.remove());
       markersRef.current.clear();
-      for (const lead of result?.leads ?? []) {
+      const esc = (t: string) =>
+        t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      for (const lead of visibleLeads) {
         if (lead.lat == null || lead.lng == null) continue;
         const selected = lead.id === selectedId;
         const marker = L.circleMarker([lead.lat, lead.lng], {
@@ -179,12 +203,24 @@ export default function ZoneConsole() {
           fillOpacity: 0.85,
         })
           .addTo(map)
-          .bindTooltip(`${lead.name} · ${lead.score}`, { direction: "top" })
+          // popup con le stesse info della riga in lista
+          .bindPopup(
+            `<div style="font-size:12px;line-height:1.5;min-width:170px">
+               <b>${esc(lead.name)}</b><br/>
+               ★${lead.rating} (${lead.reviews} recensioni) · indice ${lead.score}<br/>
+               <span style="opacity:.75">${esc(lead.category)}</span><br/>
+               <span style="opacity:.75">${esc(lead.address)}</span>
+             </div>`,
+          )
           .on("click", () => setSelectedId(lead.id));
         markersRef.current.set(lead.id, marker);
       }
+      // La selezione ricostruisce i marker (stile evidenziato): il
+      // popup del selezionato va riaperto sull'istanza nuova, sia che
+      // il click arrivi dal pin sia dalla riga in lista.
+      if (selectedId) markersRef.current.get(selectedId)?.openPopup();
     })();
-  }, [mapReady, result, selectedId]);
+  }, [mapReady, visibleLeads, selectedId]);
 
   const useMyPosition = useCallback(() => {
     if (!navigator.geolocation) {
@@ -288,6 +324,36 @@ export default function ZoneConsole() {
     flash(`Link NFC di ${l.name} copiato: incollalo su NFC Tools.`);
   }
 
+  // Ricerca centro per via o CAP: Text Search (stessa API della
+  // ricerca clienti) -> primo risultato -> centro del giro.
+  async function goToAddress() {
+    const q = addr.trim();
+    if (!q) return;
+    setAddrBusy(true);
+    try {
+      const query = /^\d{5}$/.test(q) ? `${q} Italia` : q;
+      const res = await fetch("/api/zone/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ q: query, city: "" }),
+      });
+      const json = (await res.json()) as ApiResponse<ZoneLead[]>;
+      const hit = json.success ? json.data?.find((c) => c.lat != null && c.lng != null) : null;
+      if (!hit) {
+        flash(`Indirizzo non trovato: "${q}". Prova con via e città.`);
+        return;
+      }
+      const c: [number, number] = [hit.lat!, hit.lng!];
+      setCenter(c);
+      mapRef.current?.setView(c, 15);
+      flash(`Centro fissato: ${hit.address || hit.name}`);
+    } catch {
+      flash("Errore di rete nella ricerca indirizzo.");
+    } finally {
+      setAddrBusy(false);
+    }
+  }
+
   const selectLead = useCallback((lead: ZoneLead) => {
     setSelectedId(lead.id);
     if (lead.lat != null && lead.lng != null) {
@@ -297,13 +363,13 @@ export default function ZoneConsole() {
 
   const listText = useMemo(() => {
     if (!result) return "";
-    return result.leads
+    return visibleLeads
       .map(
         (l, i) =>
           `${i + 1}. ${l.name} [${l.score}] — ★${l.rating} (${l.reviews} rec.) — ${l.address}${l.phone ? ` — ${l.phone}` : ""}`,
       )
       .join("\n");
-  }, [result]);
+  }, [result, visibleLeads]);
 
   async function copyList() {
     if (!listText) return;
@@ -314,7 +380,7 @@ export default function ZoneConsole() {
   function downloadCsv() {
     if (!result) return;
     const header = "nome;indice;voto;recensioni;categoria;indirizzo;telefono;maps";
-    const rows = result.leads.map((l) =>
+    const rows = visibleLeads.map((l) =>
       [
         l.name,
         String(l.score),
@@ -338,12 +404,6 @@ export default function ZoneConsole() {
     URL.revokeObjectURL(a.href);
   }
 
-  const tierCounts = useMemo(() => {
-    const c = { caldo: 0, tiepido: 0, gia_a_posto: 0 };
-    for (const l of result?.leads ?? []) c[l.tier]++;
-    return c;
-  }, [result]);
-
   return (
     <div className="space-y-4">
       {/* comandi zona */}
@@ -351,6 +411,18 @@ export default function ZoneConsole() {
         <NeonButton size="sm" variant="cyan" onClick={useMyPosition}>
           <LocateFixed className="h-3.5 w-3.5" /> La mia posizione
         </NeonButton>
+        <span className="flex items-center gap-1.5">
+          <input
+            placeholder="…o via / CAP (es. Via Argiro Bari, 70121)"
+            value={addr}
+            onChange={(e) => setAddr(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && goToAddress()}
+            className="w-56 rounded-sm border border-border bg-surface px-2 py-1.5 font-ui text-xs text-text placeholder:text-text2/60 focus:border-accent focus:outline-none"
+          />
+          <NeonButton size="sm" disabled={addrBusy || !addr.trim()} onClick={goToAddress}>
+            <MapPin className="h-3.5 w-3.5" /> {addrBusy ? "Cerco…" : "Vai"}
+          </NeonButton>
+        </span>
         <label className="flex items-center gap-2 font-ui text-xs text-text2">
           Raggio
           <input
@@ -503,12 +575,28 @@ export default function ZoneConsole() {
           <div className="mb-3 flex items-center justify-between gap-2">
             <div className="font-ui text-xs text-text2">
               {result ? (
-                <>
-                  <b className="text-text">{result.count}</b> attività ·{" "}
-                  <span className="text-success">{tierCounts.caldo} caldi</span> ·{" "}
-                  <span className="text-ochre">{tierCounts.tiepido} tiepidi</span> ·{" "}
-                  {tierCounts.gia_a_posto} già a posto
-                </>
+                <span className="flex flex-wrap items-center gap-1.5">
+                  {(
+                    [
+                      { id: "tutti", label: `Tutti (${result.count})`, cls: "border-accent/60 bg-accent/10 text-accent" },
+                      { id: "caldo", label: `Caldi (${tierCountsAll.caldo})`, cls: TIER_CHIP.caldo },
+                      { id: "tiepido", label: `Tiepidi (${tierCountsAll.tiepido})`, cls: TIER_CHIP.tiepido },
+                      { id: "gia_a_posto", label: `A posto (${tierCountsAll.gia_a_posto})`, cls: TIER_CHIP.gia_a_posto },
+                    ] as const
+                  ).map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setTierFilter(t.id as OpportunityTier | "tutti")}
+                      className={cn(
+                        "rounded-full border px-2 py-0.5 font-ui text-[10px] font-semibold transition-colors",
+                        tierFilter === t.id ? t.cls : "border-border text-text2 hover:text-text",
+                      )}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </span>
               ) : (
                 "Nessuna scansione: fissa il centro e cerca."
               )}
@@ -536,13 +624,16 @@ export default function ZoneConsole() {
           </div>
 
           <ul ref={listRef} className="flex-1 space-y-2 overflow-y-auto pr-1">
-            {(result?.leads ?? []).map((l, i) => (
+            {visibleLeads.map((l, i) => (
               <li key={l.id}>
                 <div
                   role="button"
                   tabIndex={0}
-                  onClick={() => selectLead(l)}
-                  onKeyDown={(e) => e.key === "Enter" && selectLead(l)}
+                  onClick={() => {
+                    selectLead(l);
+                    setSheetLead(l);
+                  }}
+                  onKeyDown={(e) => e.key === "Enter" && setSheetLead(l)}
                   className={cn(
                     "w-full cursor-pointer rounded-sm border px-3 py-2 text-left transition-colors",
                     l.id === selectedId
@@ -637,9 +728,39 @@ export default function ZoneConsole() {
                 Nessuna attività trovata nel cerchio: allarga il raggio.
               </li>
             )}
+            {result && result.count > 0 && visibleLeads.length === 0 && (
+              <li className="font-ui text-xs text-text2">
+                Nessuna attività in questa fascia: cambia filtro.
+              </li>
+            )}
           </ul>
         </GlassCard>
       </div>
+
+      {/* scheda completa dal risultato — anche se NON in registro */}
+      {sheetLead && (
+        <ZoneClientSheet
+          clientId={sheetLead.id}
+          previewLead={sheetLead}
+          onClose={() => setSheetLead(null)}
+          onChanged={() => {
+            // dopo un'azione dalla scheda il lead è (o resta) in registro:
+            // accendi il badge sul risultato senza rifare lo scan
+            setResult((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    leads: prev.leads.map((x) =>
+                      x.id === sheetLead.id
+                        ? { ...x, saved_status: x.saved_status ?? "da_visitare" }
+                        : x,
+                    ),
+                  }
+                : prev,
+            );
+          }}
+        />
+      )}
     </div>
   );
 }

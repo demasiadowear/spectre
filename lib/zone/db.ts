@@ -127,17 +127,17 @@ export async function ensureZoneSchema(): Promise<void> {
     create index if not exists idx_zone_sales_sold_at on zone_sales(sold_at);
     create index if not exists idx_zone_cards_client on zone_cards(client_id);
     insert or ignore into zone_products (id, name, default_price) values
-      ('prod-card', 'Card singola', 20),
-      ('prod-card-2', '2 card', 35),
-      ('prod-card-3', '3 card', 50),
-      ('prod-targhetta', 'Targhetta forex 10x10 (biadesivo + supporto inclusi)', 35),
-      ('prod-bundle', 'Bundle forex + 1 card', 45),
-      ('prod-bundle-2', 'Bundle forex + 2 card', 55),
-      ('prod-bundle-3', 'Bundle forex + 3 card', 65),
-      ('prod-plexi', 'Targhetta premium plexi 10x15 (piedino incluso)', 60),
-      ('prod-bundle-plexi', 'Bundle plexi + 1 card', 75),
+      ('prod-card', 'Card singola', 25),
+      ('prod-card-2', '2 card', 45),
+      ('prod-card-3', '3 card', 60),
+      ('prod-targhetta', 'Targhetta forex 10x10 (biadesivo + supporto inclusi)', 40),
+      ('prod-bundle', 'Bundle forex + 1 card', 55),
+      ('prod-bundle-2', 'Bundle forex + 2 card', 65),
+      ('prod-bundle-3', 'Bundle forex + 3 card', 75),
+      ('prod-plexi', 'Targhetta premium plexi 10x15 (piedino incluso)', 65),
+      ('prod-bundle-plexi', 'Bundle plexi + 1 card', 80),
       ('prod-bundle-plexi-2', 'Bundle plexi + 2 card', 90),
-      ('prod-bundle-plexi-3', 'Bundle plexi + 3 card', 100);
+      ('prod-bundle-plexi-3', 'Bundle plexi + 3 card', 99);
   `);
   // Migrazione fatturazione: colonne aggiunte ai DB esistenti, una
   // per una ("duplicate column" = già migrata, si ignora).
@@ -210,6 +210,21 @@ export async function ensureZoneSchema(): Promise<void> {
       ('prod-bundle-plexi-2', 'Bundle plexi + 2 card', 90),
       ('prod-bundle-plexi-3', 'Bundle plexi + 3 card', 100);
   `);
+  // Listino v4 (CONGELATO, IVA inclusa — regime forfettario): solo
+  // ritocco prezzi, guardato sui valori v3.
+  await turso.executeMultiple(`
+    update zone_products set default_price = 25 where id = 'prod-card' and default_price = 20;
+    update zone_products set default_price = 45 where id = 'prod-card-2' and default_price = 35;
+    update zone_products set default_price = 60 where id = 'prod-card-3' and default_price = 50;
+    update zone_products set default_price = 40 where id = 'prod-targhetta' and default_price = 35;
+    update zone_products set default_price = 55 where id = 'prod-bundle' and default_price = 45;
+    update zone_products set default_price = 65 where id = 'prod-bundle-2' and default_price = 55;
+    update zone_products set default_price = 75 where id = 'prod-bundle-3' and default_price = 65;
+    update zone_products set default_price = 65 where id = 'prod-plexi' and default_price = 60;
+    update zone_products set default_price = 80 where id = 'prod-bundle-plexi' and default_price = 75;
+    update zone_products set default_price = 99 where id = 'prod-bundle-plexi-3' and default_price = 100;
+  `);
+
   // Seed giacenza iniziale (una volta sola: guard su fornitore vuoto,
   // così i valori toccati a mano non vengono mai ripristinati).
   await turso.executeMultiple(`
@@ -235,6 +250,42 @@ export async function ensureZoneSchema(): Promise<void> {
      set nfc_review_url = 'https://search.google.com/local/writereview?placeid=' || id
      where nfc_review_url = '' or nfc_review_url like 'https://g.page/%'`,
   );
+  // Giacenza iniziale dichiarata da Puccio (17/07): forex 99, card 200
+  // (plexi resta 0, arrivano mer/gio: carico a mano dalla UI). UNA
+  // volta sola: marker nei movimenti, e come rettifiche tracciate —
+  // il valore assoluto si raggiunge col delta dal valore corrente.
+  const initMarker = await turso.execute(
+    "select 1 from zone_stock_moves where notes = 'giacenza iniziale 2026-07' limit 1",
+  );
+  if (initMarker.rows.length === 0) {
+    for (const [pid, target] of [["prod-targhetta", 99], ["prod-card", 200]] as const) {
+      const cur = await turso.execute({
+        sql: "select stock_qty from zone_products where id = ?",
+        args: [pid],
+      });
+      const current = Number((cur.rows[0] as Row | undefined)?.stock_qty) || 0;
+      const delta = target - current;
+      if (delta !== 0) {
+        await turso.execute({
+          sql: `insert into zone_stock_moves (product_id, delta, motivo, ref_id, notes)
+                values (?, ?, 'rettifica', '', 'giacenza iniziale 2026-07')`,
+          args: [pid, delta],
+        });
+        await turso.execute({
+          sql: "update zone_products set stock_qty = stock_qty + ? where id = ?",
+          args: [delta, pid],
+        });
+      } else {
+        // marker comunque, così la migrazione non riparte mai
+        await turso.execute({
+          sql: `insert into zone_stock_moves (product_id, delta, motivo, ref_id, notes)
+                values (?, 0, 'rettifica', '', 'giacenza iniziale 2026-07')`,
+          args: [pid],
+        });
+      }
+    }
+  }
+
   schemaEnsured = true;
 }
 
@@ -748,6 +799,7 @@ export async function startLoan(
   clientId: string,
   productId: string,
   cardCodes: string[] = [],
+  days = 15,
 ): Promise<ZoneClientDetail | null> {
   if (!turso) throw new Error("Turso non configurato: il registro Zone richiede il DB.");
   await ensureZoneSchema();
@@ -756,15 +808,16 @@ export async function startLoan(
   if (client.loan_status === "attivo") {
     throw new Error("Comodato già attivo su questo cliente.");
   }
+  const d = Math.min(365, Math.max(1, Math.round(days)));
   await turso.execute({
     sql: `update zone_clients set
             loan_status = 'attivo',
             loan_started_at = datetime('now'),
-            loan_due_at = datetime('now', '+15 days'),
+            loan_due_at = datetime('now', ?),
             reviews_at_loan = coalesce(reviews_at_loan, reviews),
             updated_at = datetime('now')
           where id = ?`,
-    args: [clientId],
+    args: [`+${d} days`, clientId],
   });
   await moveStockExploded(productId, 1, -1, "comodato", clientId, `comodato ${client.name}`);
   for (const code of cardCodes) {
