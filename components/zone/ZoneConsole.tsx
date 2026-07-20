@@ -181,6 +181,60 @@ export default function ZoneConsole() {
     return c;
   }, [result]);
 
+  // Link Google Maps con indicazioni verso l'attività. Origine
+  // omessa: Google Maps parte dalla posizione corrente del telefono
+  // ("dalla mia posizione") senza chiedere permessi alla nostra app.
+  const navHref = useCallback((lead: ZoneLead) => {
+    const dest =
+      lead.lat != null && lead.lng != null
+        ? `${lead.lat},${lead.lng}`
+        : encodeURIComponent(lead.address || lead.name);
+    const pid = encodeURIComponent(lead.id);
+    return `https://www.google.com/maps/dir/?api=1&destination=${dest}&destination_place_id=${pid}&travelmode=driving`;
+  }, []);
+
+  // Contenuto del popup come DOM reale: info + Naviga + Copia NFC,
+  // con click veri (bottoni Leaflet-in-stringa non li avrebbero).
+  const buildPopup = useCallback(
+    (L: typeof import("leaflet"), lead: ZoneLead): HTMLElement => {
+      const el = L.DomUtil.create("div", "");
+      el.style.cssText = "font-size:12px;line-height:1.45;min-width:200px";
+      const esc = (t: string) =>
+        t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      el.innerHTML = `
+        <b style="font-size:13px">${esc(lead.name)}</b><br/>
+        <span style="opacity:.7">${esc(lead.category)}</span> · indice <b>${lead.score}</b><br/>
+        ★${lead.rating} (${lead.reviews} recensioni)<br/>
+        <span style="opacity:.7">${esc(lead.address)}</span>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <a data-nav href="${navHref(lead)}" target="_blank" rel="noreferrer"
+             style="flex:1;min-height:40px;display:inline-flex;align-items:center;justify-content:center;gap:4px;
+                    border-radius:4px;border:1px solid #2563eb;background:#2563eb;color:#fff;
+                    font-weight:700;text-decoration:none;padding:8px">➤ Naviga</a>
+          <button data-nfc type="button" ${lead.nfc_review_url ? "" : "disabled"}
+             style="flex:1;min-height:40px;display:inline-flex;align-items:center;justify-content:center;gap:4px;
+                    border-radius:4px;border:1px solid #16a34a;background:rgba(22,163,74,.12);color:#16a34a;
+                    font-weight:700;padding:8px;cursor:pointer;${lead.nfc_review_url ? "" : "opacity:.4;cursor:not-allowed"}">
+             ⧉ Copia NFC</button>
+        </div>`;
+      const nfcBtn = el.querySelector<HTMLButtonElement>("[data-nfc]");
+      if (nfcBtn && lead.nfc_review_url) {
+        L.DomEvent.on(nfcBtn, "click", (e) => {
+          L.DomEvent.stop(e);
+          void copyNfc(lead);
+        });
+      }
+      // il link Naviga apre da solo (target _blank); fermo solo il
+      // bubbling per non far scattare la selezione del marker sotto.
+      const nav = el.querySelector<HTMLAnchorElement>("[data-nav]");
+      if (nav) L.DomEvent.on(nav, "click", (e) => L.DomEvent.stopPropagation(e));
+      return el;
+    },
+    // copyNfc usa solo flash+clipboard: stabile, fuori dalle deps a ragion veduta.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [navHref],
+  );
+
   // Pin dei risultati, colorati per attenzione. Il selezionato è più grande.
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
@@ -190,8 +244,6 @@ export default function ZoneConsole() {
       if (!map) return;
       markersRef.current.forEach((m) => m.remove());
       markersRef.current.clear();
-      const esc = (t: string) =>
-        t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
       for (const lead of visibleLeads) {
         if (lead.lat == null || lead.lng == null) continue;
         const selected = lead.id === selectedId;
@@ -203,15 +255,13 @@ export default function ZoneConsole() {
           fillOpacity: 0.85,
         })
           .addTo(map)
-          // popup con le stesse info della riga in lista
-          .bindPopup(
-            `<div style="font-size:12px;line-height:1.5;min-width:170px">
-               <b>${esc(lead.name)}</b><br/>
-               ★${lead.rating} (${lead.reviews} recensioni) · indice ${lead.score}<br/>
-               <span style="opacity:.75">${esc(lead.category)}</span><br/>
-               <span style="opacity:.75">${esc(lead.address)}</span>
-             </div>`,
-          )
+          // Popup-scheda operativa: info + bottoni Naviga / Copia NFC.
+          // Costruito come DOM (non stringa) per agganciare i click veri.
+          .bindPopup(buildPopup(L, lead), {
+            minWidth: 210,
+            closeButton: true,
+            autoPan: true,
+          })
           .on("click", () => setSelectedId(lead.id));
         markersRef.current.set(lead.id, marker);
       }
@@ -220,7 +270,7 @@ export default function ZoneConsole() {
       // il click arrivi dal pin sia dalla riga in lista.
       if (selectedId) markersRef.current.get(selectedId)?.openPopup();
     })();
-  }, [mapReady, visibleLeads, selectedId]);
+  }, [mapReady, visibleLeads, selectedId, buildPopup]);
 
   const useMyPosition = useCallback(() => {
     if (!navigator.geolocation) {
