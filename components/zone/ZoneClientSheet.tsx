@@ -137,10 +137,10 @@ export default function ZoneClientSheet({ clientId, previewLead, onClose, onChan
   const [referent, setReferent] = useState("");
   const [notes, setNotes] = useState("");
   const [zoneLabel, setZoneLabel] = useState("");
-  // form vendita
-  const [saleProduct, setSaleProduct] = useState("");
-  const [saleQty, setSaleQty] = useState(1);
-  const [salePrice, setSalePrice] = useState("");
+  // form vendita multi-riga: prodotto × qty × prezzo manuale + omaggio
+  type SaleRow = { product_id: string; qty: string; price: string; omaggio: boolean };
+  const emptyRow = (): SaleRow => ({ product_id: "", qty: "1", price: "", omaggio: false });
+  const [saleRows, setSaleRows] = useState<SaleRow[]>([emptyRow()]);
   const [saleCards, setSaleCards] = useState("");
   const [saleNotes, setSaleNotes] = useState("");
   // form comodato
@@ -193,6 +193,36 @@ export default function ZoneClientSheet({ clientId, previewLead, onClose, onChan
       })
       .catch(() => {});
   }, [clientId, load]);
+
+  // Nel form vendita solo i prodotti FISICI (la quantità sostituisce
+  // i pacchetti fissi): card, forex, plexi.
+  const PHYSICAL = ["prod-card", "prod-targhetta", "prod-plexi"];
+  const saleProducts = products.filter((p) => PHYSICAL.includes(p.id));
+
+  // Righe vendita raggruppate per group_id (le vendite vecchie a riga
+  // singola hanno group_id vuoto: ognuna resta un gruppo a sé).
+  const groupedSales = (() => {
+    const order: string[] = [];
+    const map = new Map<string, ZoneClientDetail["sales"]>();
+    for (const row of detail?.sales ?? []) {
+      const key = row.group_id || row.id;
+      if (!map.has(key)) {
+        map.set(key, []);
+        order.push(key);
+      }
+      map.get(key)!.push(row);
+    }
+    return order.map((key) => {
+      const rows = map.get(key)!;
+      return {
+        key,
+        rows,
+        sold_at: rows[0].sold_at,
+        notes: rows.find((r) => r.notes)?.notes ?? "",
+        total: rows.reduce((sum, r) => sum + (r.omaggio ? 0 : r.price), 0),
+      };
+    });
+  })();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -333,23 +363,42 @@ export default function ZoneClientSheet({ clientId, previewLead, onClose, onChan
     flash("Link NFC copiato: incollalo su NFC Tools.");
   }
 
+  const setRow = (i: number, patch: Partial<SaleRow>) =>
+    setSaleRows((rows) => rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  const addRow = () => setSaleRows((rows) => [...rows, emptyRow()]);
+  const removeRow = (i: number) =>
+    setSaleRows((rows) => (rows.length > 1 ? rows.filter((_, j) => j !== i) : rows));
+
+  // Totale live (gli omaggi pesano 0).
+  const saleTotal = saleRows.reduce((sum, r) => {
+    if (r.omaggio) return sum;
+    const p = Number(r.price.replace(",", "."));
+    return sum + (Number.isFinite(p) ? p : 0);
+  }, 0);
+
   async function addSale() {
-    const product = products.find((p) => p.id === saleProduct);
-    if (!product) return flash("Scegli un prodotto.");
-    const price = Number(salePrice.replace(",", "."));
-    if (!Number.isFinite(price) || price < 0) return flash("Prezzo non valido.");
+    const lines = saleRows
+      .filter((r) => r.product_id)
+      .map((r) => {
+        const prod = products.find((p) => p.id === r.product_id);
+        const qty = Math.max(1, Math.round(Number(r.qty) || 1));
+        const price = r.omaggio ? 0 : Number(r.price.replace(",", "."));
+        return { product_id: r.product_id, product_name: prod?.name ?? "", qty, price, omaggio: r.omaggio };
+      });
+    if (lines.length === 0) return flash("Aggiungi almeno un prodotto.");
+    for (const l of lines) {
+      if (!l.omaggio && (!Number.isFinite(l.price) || l.price < 0)) {
+        return flash(`Prezzo non valido per "${l.product_name}".`);
+      }
+    }
     const ok = await api("/api/zone/sales", "POST", {
       client_id: clientId,
-      product_id: product.id,
-      product_name: product.name,
-      qty: saleQty,
-      price,
+      lines,
       notes: saleNotes,
       card_codes: saleCards.split(/[,\s]+/).filter(Boolean),
     });
     if (ok) {
-      setSaleQty(1);
-      setSalePrice("");
+      setSaleRows([emptyRow()]);
       setSaleCards("");
       setSaleNotes("");
       flash("Vendita registrata ✓");
@@ -687,64 +736,116 @@ export default function ZoneClientSheet({ clientId, previewLead, onClose, onChan
 
         {/* vendite */}
         <Section title={`Vendite (${detail?.sales.length ?? 0})`}>
-          <ul className="mb-3 space-y-1.5">
-            {(detail?.sales ?? []).map((s) => (
-              <li
-                key={s.id}
-                className="flex items-baseline justify-between gap-2 font-ui text-xs"
-              >
-                <span className="text-text">
-                  {s.product_name}
-                  {s.qty > 1 && ` ×${s.qty}`}
-                  {s.notes && <span className="text-text2"> · {s.notes}</span>}
-                </span>
-                <span className="shrink-0 text-text2">
-                  <b className="text-success">€{s.price}</b> · {s.sold_at.slice(0, 10)}
-                </span>
-              </li>
+          <div className="mb-3 space-y-2">
+            {groupedSales.map((g) => (
+              <div key={g.key} className="rounded-sm border border-surface2 p-2">
+                <div className="mb-1 flex items-center justify-between font-ui text-[10px] text-text2">
+                  <span>{g.sold_at.slice(0, 10)}</span>
+                  <span>
+                    Totale <b className="text-success">€{g.total}</b>
+                  </span>
+                </div>
+                <ul className="space-y-0.5">
+                  {g.rows.map((s) => (
+                    <li key={s.id} className="flex items-baseline justify-between gap-2 font-ui text-xs">
+                      <span className="text-text">
+                        {s.product_name}
+                        {s.qty > 1 && ` ×${s.qty}`}
+                        {s.omaggio && (
+                          <span className="ml-1 rounded-full border border-ochre/40 bg-ochre/10 px-1.5 py-0.5 text-[9px] font-semibold text-ochre">
+                            omaggio
+                          </span>
+                        )}
+                      </span>
+                      <span className="shrink-0 text-text2">
+                        {s.omaggio ? "€0" : <b className="text-success">€{s.price}</b>}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                {g.notes && (
+                  <p className="mt-1 font-ui text-[10px] text-text2">{g.notes}</p>
+                )}
+              </div>
             ))}
             {detail?.sales.length === 0 && (
-              <li className="font-ui text-xs text-text2">Nessuna vendita ancora.</li>
+              <p className="font-ui text-xs text-text2">Nessuna vendita ancora.</p>
             )}
-          </ul>
+          </div>
           <div className="space-y-2 rounded-sm border border-border p-2.5">
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <select
-                value={saleProduct}
-                onChange={(e) => {
-                  setSaleProduct(e.target.value);
-                  const p = products.find((x) => x.id === e.target.value);
-                  if (p && p.default_price > 0) setSalePrice(String(p.default_price));
-                }}
-                className={cn(inputCls, "min-h-[44px] flex-1 text-sm")}
-              >
-                <option value="">Prodotto…</option>
-                {products.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                    {p.default_price > 0 ? ` (€${p.default_price})` : ""}
-                  </option>
-                ))}
-              </select>
-              <div className="flex gap-2">
-                <input
-                  type="number"
-                  min={1}
-                  value={saleQty}
-                  onChange={(e) => setSaleQty(Math.max(1, Number(e.target.value)))}
-                  className={cn(inputCls, "min-h-[44px] w-16 text-sm")}
-                  title="Quantità"
-                />
-                <input
-                  inputMode="decimal"
-                  placeholder="€ tot"
-                  value={salePrice}
-                  onChange={(e) => setSalePrice(e.target.value)}
-                  className={cn(inputCls, "min-h-[44px] flex-1 text-sm sm:w-20 sm:flex-none")}
-                  title="Incasso totale"
-                />
+            {saleRows.map((row, i) => (
+              <div key={i} className="space-y-1.5 rounded-sm bg-surface2/40 p-2">
+                <div className="flex gap-2">
+                  <select
+                    value={row.product_id}
+                    onChange={(e) => {
+                      const prod = saleProducts.find((x) => x.id === e.target.value);
+                      setRow(i, {
+                        product_id: e.target.value,
+                        // prefill del prezzo unitario di listino: resta editabile
+                        price:
+                          !row.omaggio && prod && prod.default_price > 0
+                            ? String(prod.default_price)
+                            : row.price,
+                      });
+                    }}
+                    className={cn(inputCls, "min-h-[44px] flex-1 text-sm")}
+                  >
+                    <option value="">Prodotto…</option>
+                    {saleProducts.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                  {saleRows.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeRow(i)}
+                      className="min-h-[44px] rounded-sm border border-border px-2 text-text2 hover:text-danger"
+                      title="Togli riga"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    value={row.qty}
+                    onChange={(e) => setRow(i, { qty: e.target.value })}
+                    className={cn(inputCls, "min-h-[44px] w-16 text-sm")}
+                    title="Quantità"
+                  />
+                  <input
+                    inputMode="decimal"
+                    placeholder={row.omaggio ? "omaggio (€0)" : "€ totale riga"}
+                    value={row.omaggio ? "" : row.price}
+                    disabled={row.omaggio}
+                    onChange={(e) => setRow(i, { price: e.target.value })}
+                    className={cn(inputCls, "min-h-[44px] flex-1 text-sm disabled:opacity-40")}
+                    title="Incasso della riga (lo decidi tu)"
+                  />
+                  <label className="flex min-h-[44px] shrink-0 items-center gap-1 font-ui text-[11px] text-text2">
+                    <input
+                      type="checkbox"
+                      checked={row.omaggio}
+                      onChange={(e) => setRow(i, { omaggio: e.target.checked })}
+                      className="h-4 w-4 accent-ochre"
+                    />
+                    omaggio
+                  </label>
+                </div>
               </div>
-            </div>
+            ))}
+            <button
+              type="button"
+              onClick={addRow}
+              className="inline-flex min-h-[40px] items-center gap-1 rounded-sm border border-border px-3 py-2 font-ui text-xs font-semibold text-text2 hover:text-text"
+            >
+              <Plus className="h-3.5 w-3.5" /> Aggiungi prodotto
+            </button>
             <input
               placeholder="Codici card (separati da virgola) — opzionale"
               value={saleCards}
@@ -757,6 +858,11 @@ export default function ZoneClientSheet({ clientId, previewLead, onClose, onChan
               onChange={(e) => setSaleNotes(e.target.value)}
               className={cn(inputCls, "min-h-[44px] text-sm")}
             />
+            <div className="flex items-center justify-between gap-2 font-ui text-xs">
+              <span className="text-text2">
+                Totale vendita: <b className="text-success">€{saleTotal.toLocaleString("it-IT")}</b>
+              </span>
+            </div>
             <NeonButton size="sm" variant="amber" onClick={addSale} disabled={busy} className="min-h-[44px] w-full justify-center">
               <Plus className="h-3.5 w-3.5" /> Registra vendita
             </NeonButton>

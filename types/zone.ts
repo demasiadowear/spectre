@@ -149,8 +149,12 @@ export interface ZoneSale {
   product_id: string;
   product_name: string;
   qty: number;
-  /** Incasso totale della riga (€). */
+  /** Incasso della riga (€). Omaggio => 0. */
   price: number;
+  /** True = omaggio: prezzo 0 ma pezzo scaricato dalla giacenza. */
+  omaggio: boolean;
+  /** Raggruppa le righe di UNA stessa vendita. */
+  group_id: string;
   sold_at: string;
   notes: string;
 }

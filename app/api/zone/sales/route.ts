@@ -1,13 +1,16 @@
 import { NextResponse } from "next/server";
-import { addSale } from "@/lib/zone/db";
+import { addSale, type SaleLine } from "@/lib/zone/db";
 import type { ApiResponse } from "@/types";
 import type { ZoneClientDetail } from "@/types/zone";
 
-// POST /api/zone/sales — registra una vendita (e le card assegnate);
-// il cliente passa a "venduto". Dietro JWT.
+// POST /api/zone/sales — registra una vendita multi-riga (prodotto ×
+// quantità × prezzo manuale, con flag omaggio) e le card assegnate;
+// il cliente passa a "venduto". Ogni riga scarica la giacenza. JWT.
 export const dynamic = "force-dynamic";
 
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
+const num = (v: unknown): number =>
+  typeof v === "number" && Number.isFinite(v) ? v : NaN;
 
 export async function POST(req: Request) {
   let body: Record<string, unknown>;
@@ -20,21 +23,51 @@ export async function POST(req: Request) {
     );
   }
   const clientId = str(body.client_id).trim();
-  const productName = str(body.product_name).trim();
-  const price = typeof body.price === "number" && Number.isFinite(body.price) ? body.price : null;
-  if (!clientId || !productName || price === null || price < 0) {
+  if (!clientId) {
     return NextResponse.json<ApiResponse<never>>(
-      { success: false, error: "Campi obbligatori: client_id, product_name, price (≥ 0)." },
+      { success: false, error: "Campo obbligatorio: client_id." },
       { status: 400 },
     );
   }
+
+  // Normalizza le righe. Retrocompat: se arriva il vecchio formato a
+  // singolo prodotto (product_name/qty/price), lo avvolge in una riga.
+  const rawLines = Array.isArray(body.lines)
+    ? (body.lines as Record<string, unknown>[])
+    : [{ product_id: body.product_id, product_name: body.product_name, qty: body.qty, price: body.price, omaggio: body.omaggio }];
+
+  const lines: SaleLine[] = [];
+  for (const l of rawLines) {
+    const name = str(l.product_name).trim();
+    if (!name) continue;
+    const qty = num(l.qty);
+    const omaggio = l.omaggio === true;
+    const price = omaggio ? 0 : num(l.price);
+    if (!Number.isFinite(qty) || qty < 1) {
+      return NextResponse.json<ApiResponse<never>>(
+        { success: false, error: `Quantità non valida per "${name}".` },
+        { status: 400 },
+      );
+    }
+    if (!omaggio && (!Number.isFinite(price) || price < 0)) {
+      return NextResponse.json<ApiResponse<never>>(
+        { success: false, error: `Prezzo non valido per "${name}".` },
+        { status: 400 },
+      );
+    }
+    lines.push({ product_id: str(l.product_id), product_name: name, qty, price, omaggio });
+  }
+  if (lines.length === 0) {
+    return NextResponse.json<ApiResponse<never>>(
+      { success: false, error: "La vendita deve avere almeno una riga (prodotto + quantità)." },
+      { status: 400 },
+    );
+  }
+
   try {
     const detail = await addSale({
       client_id: clientId,
-      product_id: str(body.product_id),
-      product_name: productName,
-      qty: typeof body.qty === "number" ? body.qty : 1,
-      price,
+      lines,
       sold_at: str(body.sold_at) || undefined,
       notes: str(body.notes),
       card_codes: Array.isArray(body.card_codes)
