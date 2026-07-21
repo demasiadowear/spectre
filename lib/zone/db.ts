@@ -89,6 +89,8 @@ export async function ensureZoneSchema(): Promise<void> {
       product_name text not null,
       qty          integer not null default 1,
       price        real not null default 0,
+      omaggio      integer not null default 0,
+      group_id     text default '',
       sold_at      text default (datetime('now')),
       notes        text default '',
       created_at   text default (datetime('now'))
@@ -169,6 +171,9 @@ export async function ensureZoneSchema(): Promise<void> {
     "alter table zone_products add column stock_qty integer not null default 0",
     "alter table zone_products add column stock_soglia integer not null default 0",
     "alter table zone_products add column fornitore text default ''",
+    // Vendite multi-riga: righe raggruppate + flag omaggio.
+    "alter table zone_sales add column omaggio integer not null default 0",
+    "alter table zone_sales add column group_id text default ''",
   ]) {
     try {
       await turso.execute(ddl);
@@ -346,6 +351,8 @@ function rowToSale(r: Row): ZoneSale {
     product_name: str(r.product_name),
     qty: num(r.qty),
     price: num(r.price),
+    omaggio: num(r.omaggio) === 1,
+    group_id: str(r.group_id),
     sold_at: str(r.sold_at),
     notes: str(r.notes),
   };
@@ -949,12 +956,19 @@ export async function upsertProduct(p: {
 
 // ----- Vendite ---------------------------------------------------
 
-export interface AddSaleInput {
-  client_id: string;
+export interface SaleLine {
   product_id?: string;
   product_name: string;
   qty: number;
+  /** Incasso della riga (€). Omaggio => 0 ma il pezzo si scarica lo stesso. */
   price: number;
+  omaggio?: boolean;
+}
+
+export interface AddSaleInput {
+  client_id: string;
+  /** Righe della vendita (>=1). Ogni riga scarica la giacenza. */
+  lines: SaleLine[];
   sold_at?: string;
   notes?: string;
   /** Codici card da assegnare al cliente insieme alla vendita. */
@@ -969,36 +983,43 @@ export async function addSale(input: AddSaleInput): Promise<ZoneClientDetail | n
   if (!(await getClient(input.client_id))) {
     throw new Error("Cliente non trovato nel registro: importalo prima di registrare la vendita.");
   }
-  const saleId = `sale-${randomUUID().slice(0, 12)}`;
-  await turso.execute({
-    sql: `insert into zone_sales (id, client_id, product_id, product_name, qty, price, sold_at, notes)
-          values (?, ?, ?, ?, ?, ?, coalesce(?, datetime('now')), ?)`,
-    args: [
-      saleId,
-      input.client_id,
-      input.product_id ?? "",
-      input.product_name,
-      Math.max(1, Math.round(input.qty)),
-      input.price,
-      input.sold_at ?? null,
-      input.notes ?? "",
-    ],
-  });
+  const lines = (input.lines ?? []).filter((l) => l.product_name.trim() !== "");
+  if (lines.length === 0) throw new Error("La vendita deve avere almeno una riga.");
+  // Un group_id condiviso: le righe sono UNA vendita (raggruppate in
+  // rilettura). sold_at unico per tutte le righe del gruppo.
+  const groupId = `sale-${randomUUID().slice(0, 12)}`;
+  const soldAt = input.sold_at ?? null;
+  let firstRowId = "";
+  for (const line of lines) {
+    const rowId = `row-${randomUUID().slice(0, 12)}`;
+    if (!firstRowId) firstRowId = rowId;
+    const qty = Math.max(1, Math.round(line.qty));
+    const price = line.omaggio ? 0 : line.price;
+    await turso.execute({
+      sql: `insert into zone_sales
+              (id, client_id, product_id, product_name, qty, price, omaggio, group_id, sold_at, notes)
+            values (?, ?, ?, ?, ?, ?, ?, ?, coalesce(?, datetime('now')), ?)`,
+      args: [
+        rowId,
+        input.client_id,
+        line.product_id ?? "",
+        line.product_name,
+        qty,
+        price,
+        line.omaggio ? 1 : 0,
+        groupId,
+        soldAt,
+        input.notes ?? "",
+      ],
+    });
+    // Scarico giacenza SEMPRE, anche per gli omaggi (pezzo consegnato).
+    if (line.product_id) {
+      await moveStockExploded(line.product_id, qty, -1, "vendita", groupId, line.product_name);
+    }
+  }
   for (const code of input.card_codes ?? []) {
     const clean = code.trim();
-    if (clean) await assignCard(clean, input.client_id, saleId);
-  }
-  // Scarico giacenza: il prodotto venduto esploso nei componenti
-  // fisici (bundle -> targhetta + N card).
-  if (input.product_id) {
-    await moveStockExploded(
-      input.product_id,
-      Math.max(1, Math.round(input.qty)),
-      -1,
-      "vendita",
-      saleId,
-      input.product_name,
-    );
+    if (clean) await assignCard(clean, input.client_id, firstRowId);
   }
   await turso.execute({
     sql: `update zone_clients set
