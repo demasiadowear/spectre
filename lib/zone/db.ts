@@ -1035,6 +1035,69 @@ export async function addSale(input: AddSaleInput): Promise<ZoneClientDetail | n
   return getClientDetail(input.client_id);
 }
 
+/** Modifica una riga vendita già registrata (correzione a mano dei
+ *  totali). Aggiorna prezzo/omaggio; se cambia la quantità riallinea
+ *  la giacenza dei componenti (delta esploso). Ritorna la scheda. */
+export async function editSaleRow(
+  rowId: string,
+  patch: { price?: number; qty?: number; omaggio?: boolean },
+): Promise<ZoneClientDetail | null> {
+  if (!turso) throw new Error("Turso non configurato: il registro Zone richiede il DB.");
+  await ensureZoneSchema();
+  const cur = await turso.execute({
+    sql: "select * from zone_sales where id = ? limit 1",
+    args: [rowId],
+  });
+  const row = cur.rows[0] as Row | undefined;
+  if (!row) return null;
+  const clientId = str(row.client_id);
+  const productId = str(row.product_id);
+  const oldQty = num(row.qty);
+  const newQty = patch.qty != null ? Math.max(1, Math.round(patch.qty)) : oldQty;
+  const omaggio = patch.omaggio != null ? patch.omaggio : num(row.omaggio) === 1;
+  const price = omaggio ? 0 : patch.price != null ? patch.price : num(row.price);
+
+  await turso.execute({
+    sql: `update zone_sales set qty = ?, price = ?, omaggio = ? where id = ?`,
+    args: [newQty, price, omaggio ? 1 : 0, rowId],
+  });
+  // Riallinea giacenza se la quantità cambia: se aumenta scarica di
+  // più (delta negativo), se diminuisce rientra (delta positivo).
+  if (productId && newQty !== oldQty) {
+    const diff = newQty - oldQty; // >0 = più venduto
+    await moveStockExploded(
+      productId,
+      Math.abs(diff),
+      diff > 0 ? -1 : 1,
+      "rettifica",
+      rowId,
+      `correzione quantità vendita (${oldQty} -> ${newQty})`,
+    );
+  }
+  return getClientDetail(clientId);
+}
+
+/** Elimina una riga vendita (correzione): restituisce i pezzi alla
+ *  giacenza e ritorna la scheda aggiornata. */
+export async function deleteSaleRow(rowId: string): Promise<ZoneClientDetail | null> {
+  if (!turso) throw new Error("Turso non configurato: il registro Zone richiede il DB.");
+  await ensureZoneSchema();
+  const cur = await turso.execute({
+    sql: "select * from zone_sales where id = ? limit 1",
+    args: [rowId],
+  });
+  const row = cur.rows[0] as Row | undefined;
+  if (!row) return null;
+  const clientId = str(row.client_id);
+  const productId = str(row.product_id);
+  const qty = num(row.qty);
+  if (productId && qty > 0) {
+    await moveStockExploded(productId, qty, 1, "rientro", rowId, "vendita annullata");
+  }
+  await turso.execute({ sql: "delete from zone_sales where id = ?", args: [rowId] });
+  return getClientDetail(clientId);
+}
+
 // ----- Card ------------------------------------------------------
 
 export async function assignCard(
