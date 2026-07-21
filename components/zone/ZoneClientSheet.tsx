@@ -8,6 +8,7 @@ import {
   ExternalLink,
   Handshake,
   Nfc,
+  Pencil,
   Phone,
   Plus,
   RefreshCw,
@@ -138,8 +139,8 @@ export default function ZoneClientSheet({ clientId, previewLead, onClose, onChan
   const [notes, setNotes] = useState("");
   const [zoneLabel, setZoneLabel] = useState("");
   // form vendita multi-riga: prodotto × qty × prezzo manuale + omaggio
-  type SaleRow = { product_id: string; qty: string; price: string; omaggio: boolean };
-  const emptyRow = (): SaleRow => ({ product_id: "", qty: "1", price: "", omaggio: false });
+  type SaleRow = { product_id: string; qty: string; price: string; omaggio: boolean; priceEdited: boolean };
+  const emptyRow = (): SaleRow => ({ product_id: "", qty: "1", price: "", omaggio: false, priceEdited: false });
   const [saleRows, setSaleRows] = useState<SaleRow[]>([emptyRow()]);
   const [saleCards, setSaleCards] = useState("");
   const [saleNotes, setSaleNotes] = useState("");
@@ -363,8 +364,39 @@ export default function ZoneClientSheet({ clientId, previewLead, onClose, onChan
     flash("Link NFC copiato: incollalo su NFC Tools.");
   }
 
+  // Prezzo suggerito = prezzo di listino UNITARIO × quantità: un
+  // TOTALE coerente (non il prezzo di 1 pezzo). Resta modificabile e
+  // si ferma di aggiornarsi appena l'utente scrive il totale a mano.
+  const suggestPrice = (productId: string, qty: string): string => {
+    const prod = saleProducts.find((x) => x.id === productId);
+    const q = Math.max(1, Math.round(Number(qty) || 1));
+    return prod && prod.default_price > 0 ? String(prod.default_price * q) : "";
+  };
   const setRow = (i: number, patch: Partial<SaleRow>) =>
     setSaleRows((rows) => rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+
+  // Correzione di una riga già salvata (prezzo/quantità).
+  const [editSaleId, setEditSaleId] = useState<string | null>(null);
+  const [editPrice, setEditPrice] = useState("");
+  const [editQty, setEditQty] = useState("1");
+  async function saveSaleEdit(rowId: string, omaggio: boolean) {
+    const body: Record<string, unknown> = { id: rowId, qty: Math.max(1, Math.round(Number(editQty) || 1)) };
+    if (!omaggio) {
+      const price = Number(editPrice.replace(",", "."));
+      if (!Number.isFinite(price) || price < 0) return flash("Prezzo non valido.");
+      body.price = price;
+    }
+    if (await api("/api/zone/sales", "PATCH", body)) {
+      setEditSaleId(null);
+      flash("Vendita corretta ✓");
+    }
+  }
+  async function deleteSaleRow(rowId: string) {
+    if (await api(`/api/zone/sales?id=${encodeURIComponent(rowId)}`, "DELETE", {})) {
+      setEditSaleId(null);
+      flash("Riga vendita annullata.");
+    }
+  }
   const addRow = () => setSaleRows((rows) => [...rows, emptyRow()]);
   const removeRow = (i: number) =>
     setSaleRows((rows) => (rows.length > 1 ? rows.filter((_, j) => j !== i) : rows));
@@ -747,19 +779,69 @@ export default function ZoneClientSheet({ clientId, previewLead, onClose, onChan
                 </div>
                 <ul className="space-y-0.5">
                   {g.rows.map((s) => (
-                    <li key={s.id} className="flex items-baseline justify-between gap-2 font-ui text-xs">
-                      <span className="text-text">
-                        {s.product_name}
-                        {s.qty > 1 && ` ×${s.qty}`}
-                        {s.omaggio && (
-                          <span className="ml-1 rounded-full border border-ochre/40 bg-ochre/10 px-1.5 py-0.5 text-[9px] font-semibold text-ochre">
-                            omaggio
-                          </span>
-                        )}
-                      </span>
-                      <span className="shrink-0 text-text2">
-                        {s.omaggio ? "€0" : <b className="text-success">€{s.price}</b>}
-                      </span>
+                    <li key={s.id} className="font-ui text-xs">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="text-text">
+                          {s.product_name}
+                          {s.qty > 1 && ` ×${s.qty}`}
+                          {s.omaggio && (
+                            <span className="ml-1 rounded-full border border-ochre/40 bg-ochre/10 px-1.5 py-0.5 text-[9px] font-semibold text-ochre">
+                              omaggio
+                            </span>
+                          )}
+                        </span>
+                        <span className="flex shrink-0 items-center gap-2 text-text2">
+                          {s.omaggio ? "€0" : <b className="text-success">€{s.price}</b>}
+                          <button
+                            type="button"
+                            title="Correggi"
+                            onClick={() => {
+                              setEditSaleId(editSaleId === s.id ? null : s.id);
+                              setEditPrice(String(s.price));
+                              setEditQty(String(s.qty));
+                            }}
+                            className="text-text2 hover:text-text"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                        </span>
+                      </div>
+                      {editSaleId === s.id && (
+                        <div className="mt-1.5 flex flex-wrap items-center gap-2 rounded-sm border border-accent/40 bg-accent/5 p-2">
+                          <label className="flex items-center gap-1 text-[11px] text-text2">
+                            qty
+                            <input
+                              type="number"
+                              min={1}
+                              value={editQty}
+                              onChange={(e) => setEditQty(e.target.value)}
+                              className={cn(inputCls, "min-h-[40px] w-14 text-sm")}
+                            />
+                          </label>
+                          {!s.omaggio && (
+                            <label className="flex flex-1 items-center gap-1 text-[11px] text-text2">
+                              € tot
+                              <input
+                                inputMode="decimal"
+                                value={editPrice}
+                                onChange={(e) => setEditPrice(e.target.value)}
+                                className={cn(inputCls, "min-h-[40px] flex-1 text-sm")}
+                              />
+                            </label>
+                          )}
+                          <NeonButton size="sm" onClick={() => saveSaleEdit(s.id, s.omaggio)} disabled={busy}>
+                            Salva
+                          </NeonButton>
+                          <button
+                            type="button"
+                            onClick={() => deleteSaleRow(s.id)}
+                            disabled={busy}
+                            className="min-h-[40px] rounded-sm border border-danger/40 px-2 text-[11px] font-semibold text-danger hover:bg-danger/10"
+                          >
+                            Annulla riga
+                          </button>
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -779,13 +861,13 @@ export default function ZoneClientSheet({ clientId, previewLead, onClose, onChan
                   <select
                     value={row.product_id}
                     onChange={(e) => {
-                      const prod = saleProducts.find((x) => x.id === e.target.value);
                       setRow(i, {
                         product_id: e.target.value,
-                        // prefill del prezzo unitario di listino: resta editabile
+                        // prefill = totale suggerito (unità × qty), finché
+                        // non scrivi tu il totale (priceEdited).
                         price:
-                          !row.omaggio && prod && prod.default_price > 0
-                            ? String(prod.default_price)
+                          !row.omaggio && !row.priceEdited
+                            ? suggestPrice(e.target.value, row.qty)
                             : row.price,
                       });
                     }}
@@ -814,7 +896,15 @@ export default function ZoneClientSheet({ clientId, previewLead, onClose, onChan
                     type="number"
                     min={1}
                     value={row.qty}
-                    onChange={(e) => setRow(i, { qty: e.target.value })}
+                    onChange={(e) =>
+                      setRow(i, {
+                        qty: e.target.value,
+                        price:
+                          !row.omaggio && !row.priceEdited
+                            ? suggestPrice(row.product_id, e.target.value)
+                            : row.price,
+                      })
+                    }
                     className={cn(inputCls, "min-h-[44px] w-16 text-sm")}
                     title="Quantità"
                   />
@@ -823,9 +913,9 @@ export default function ZoneClientSheet({ clientId, previewLead, onClose, onChan
                     placeholder={row.omaggio ? "omaggio (€0)" : "€ totale riga"}
                     value={row.omaggio ? "" : row.price}
                     disabled={row.omaggio}
-                    onChange={(e) => setRow(i, { price: e.target.value })}
+                    onChange={(e) => setRow(i, { price: e.target.value, priceEdited: true })}
                     className={cn(inputCls, "min-h-[44px] flex-1 text-sm disabled:opacity-40")}
-                    title="Incasso della riga (lo decidi tu)"
+                    title="Totale della riga — lo decidi tu, ha sempre priorità sul listino"
                   />
                   <label className="flex min-h-[44px] shrink-0 items-center gap-1 font-ui text-[11px] text-text2">
                     <input

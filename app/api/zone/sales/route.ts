@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { addSale, type SaleLine } from "@/lib/zone/db";
+import { addSale, deleteSaleRow, editSaleRow, type SaleLine } from "@/lib/zone/db";
 import type { ApiResponse } from "@/types";
 import type { ZoneClientDetail } from "@/types/zone";
 
@@ -77,6 +77,84 @@ export async function POST(req: Request) {
     if (!detail) {
       return NextResponse.json<ApiResponse<never>>(
         { success: false, error: "Cliente non trovato nel registro." },
+        { status: 404 },
+      );
+    }
+    return NextResponse.json<ApiResponse<ZoneClientDetail>>({ success: true, data: detail });
+  } catch (err) {
+    return NextResponse.json<ApiResponse<never>>(
+      { success: false, error: (err as Error).message },
+      { status: 500 },
+    );
+  }
+}
+
+// PATCH /api/zone/sales — corregge una riga vendita (prezzo/qty/
+// omaggio). Body: { id, price?, qty?, omaggio? }.
+export async function PATCH(req: Request) {
+  let body: Record<string, unknown>;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json<ApiResponse<never>>(
+      { success: false, error: "Body JSON non valido." },
+      { status: 400 },
+    );
+  }
+  const id = str(body.id).trim();
+  if (!id) {
+    return NextResponse.json<ApiResponse<never>>(
+      { success: false, error: "Campo obbligatorio: id (riga vendita)." },
+      { status: 400 },
+    );
+  }
+  const omaggio = body.omaggio === true ? true : body.omaggio === false ? false : undefined;
+  const price =
+    typeof body.price === "number" && Number.isFinite(body.price) && body.price >= 0
+      ? body.price
+      : undefined;
+  const qty =
+    typeof body.qty === "number" && Number.isFinite(body.qty) && body.qty >= 1
+      ? Math.round(body.qty)
+      : undefined;
+  if (price === undefined && qty === undefined && omaggio === undefined) {
+    return NextResponse.json<ApiResponse<never>>(
+      { success: false, error: "Niente da modificare (price/qty/omaggio)." },
+      { status: 400 },
+    );
+  }
+  try {
+    const detail = await editSaleRow(id, { price, qty, omaggio });
+    if (!detail) {
+      return NextResponse.json<ApiResponse<never>>(
+        { success: false, error: "Riga vendita non trovata." },
+        { status: 404 },
+      );
+    }
+    return NextResponse.json<ApiResponse<ZoneClientDetail>>({ success: true, data: detail });
+  } catch (err) {
+    return NextResponse.json<ApiResponse<never>>(
+      { success: false, error: (err as Error).message },
+      { status: 500 },
+    );
+  }
+}
+
+// DELETE /api/zone/sales?id=<rowId> — annulla una riga vendita
+// (i pezzi rientrano in giacenza).
+export async function DELETE(req: Request) {
+  const id = new URL(req.url).searchParams.get("id")?.trim();
+  if (!id) {
+    return NextResponse.json<ApiResponse<never>>(
+      { success: false, error: "Parametro obbligatorio: id." },
+      { status: 400 },
+    );
+  }
+  try {
+    const detail = await deleteSaleRow(id);
+    if (!detail) {
+      return NextResponse.json<ApiResponse<never>>(
+        { success: false, error: "Riga vendita non trovata." },
         { status: 404 },
       );
     }
