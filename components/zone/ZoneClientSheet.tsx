@@ -33,6 +33,10 @@ import type {
 // sostituisci), referente e note.
 // ============================================================
 
+/** Euro con decimali solo se servono: €90, €15,34. */
+const eur = (n: number): string =>
+  `€${n.toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+
 export const STATUS_LABEL: Record<ZoneClientStatus, string> = {
   da_visitare: "Da visitare",
   visitato: "Visitato",
@@ -215,12 +219,18 @@ export default function ZoneClientSheet({ clientId, previewLead, onClose, onChan
     }
     return order.map((key) => {
       const rows = map.get(key)!;
+      const total = rows.reduce((sum, r) => sum + (r.omaggio ? 0 : r.price), 0);
+      // Costo = costo unitario storicizzato × qty (anche gli omaggi
+      // pesano). Utile = ricavo − costo del gruppo.
+      const cost = rows.reduce((sum, r) => sum + r.unit_cost * r.qty, 0);
       return {
         key,
         rows,
         sold_at: rows[0].sold_at,
         notes: rows.find((r) => r.notes)?.notes ?? "",
-        total: rows.reduce((sum, r) => sum + (r.omaggio ? 0 : r.price), 0),
+        total,
+        cost,
+        profit: total - cost,
       };
     });
   })();
@@ -773,8 +783,17 @@ export default function ZoneClientSheet({ clientId, previewLead, onClose, onChan
               <div key={g.key} className="rounded-sm border border-surface2 p-2">
                 <div className="mb-1 flex items-center justify-between font-ui text-[10px] text-text2">
                   <span>{g.sold_at.slice(0, 10)}</span>
-                  <span>
-                    Totale <b className="text-success">€{g.total}</b>
+                  <span className="flex items-center gap-2">
+                    <span>
+                      Totale <b className="text-success">{eur(g.total)}</b>
+                    </span>
+                    <span>
+                      costo <b className="text-danger">{eur(g.cost)}</b>
+                    </span>
+                    <span>
+                      utile{" "}
+                      <b className={g.profit >= 0 ? "text-accent" : "text-danger"}>{eur(g.profit)}</b>
+                    </span>
                   </span>
                 </div>
                 <ul className="space-y-0.5">
@@ -791,7 +810,7 @@ export default function ZoneClientSheet({ clientId, previewLead, onClose, onChan
                           )}
                         </span>
                         <span className="flex shrink-0 items-center gap-2 text-text2">
-                          {s.omaggio ? "€0" : <b className="text-success">€{s.price}</b>}
+                          {s.omaggio ? "€0" : <b className="text-success">{eur(s.price)}</b>}
                           <button
                             type="button"
                             title="Correggi"
@@ -806,6 +825,25 @@ export default function ZoneClientSheet({ clientId, previewLead, onClose, onChan
                           </button>
                         </span>
                       </div>
+                      {/* costo storicizzato + margine reale della riga */}
+                      {(() => {
+                        const rowCost = s.unit_cost * s.qty;
+                        const rowMargin = (s.omaggio ? 0 : s.price) - rowCost;
+                        const rowRev = s.omaggio ? 0 : s.price;
+                        const marginPct = rowRev > 0 ? Math.round((rowMargin / rowRev) * 100) : null;
+                        return (
+                          <div className="mt-0.5 flex flex-wrap gap-x-2 font-ui text-[10px] text-text2">
+                            <span>costo {eur(rowCost)}</span>
+                            <span>
+                              margine{" "}
+                              <b className={rowMargin >= 0 ? "text-accent" : "text-danger"}>
+                                {eur(rowMargin)}
+                              </b>
+                              {marginPct !== null && ` (${marginPct}%)`}
+                            </span>
+                          </div>
+                        );
+                      })()}
                       {editSaleId === s.id && (
                         <div className="mt-1.5 flex flex-wrap items-center gap-2 rounded-sm border border-accent/40 bg-accent/5 p-2">
                           <label className="flex items-center gap-1 text-[11px] text-text2">

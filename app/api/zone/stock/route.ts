@@ -63,6 +63,10 @@ export async function PATCH(req: Request) {
       stock_soglia:
         typeof body.stock_soglia === "number" ? Math.max(0, Math.round(body.stock_soglia)) : undefined,
       fornitore: typeof body.fornitore === "string" ? body.fornitore : undefined,
+      unit_cost:
+        typeof body.unit_cost === "number" && Number.isFinite(body.unit_cost) && body.unit_cost >= 0
+          ? Math.round(body.unit_cost * 100) / 100
+          : undefined,
     });
     const products = await listProducts(true);
     return NextResponse.json<ApiResponse<ZoneProduct[]>>({ success: true, data: products });
