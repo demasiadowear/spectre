@@ -34,6 +34,8 @@ export default function ZoneAnalytics() {
   const [moveMotivo, setMoveMotivo] = useState<"carico" | "rettifica">("carico");
   const [sogliaFor, setSogliaFor] = useState<string | null>(null);
   const [sogliaVal, setSogliaVal] = useState("");
+  const [costFor, setCostFor] = useState<string | null>(null);
+  const [costVal, setCostVal] = useState("");
 
   function flash(msg: string) {
     setToast(msg);
@@ -82,6 +84,24 @@ export default function ZoneAnalytics() {
     }
   }
 
+  async function saveCost(productId: string) {
+    const v = Math.round(Number(costVal.replace(",", ".")) * 100) / 100;
+    if (!Number.isFinite(v) || v < 0) return flash("Costo non valido.");
+    const res = await fetch("/api/zone/stock", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ product_id: productId, unit_cost: v }),
+    });
+    const json = (await res.json()) as ApiResponse<ZoneProduct[]>;
+    if (json.success && json.data) {
+      setProducts(json.data);
+      setCostFor(null);
+      flash(`Costo aggiornato: €${v.toLocaleString("it-IT", { minimumFractionDigits: 2 })}. Le vendite passate mantengono il costo di allora.`);
+    } else {
+      flash(json.error ?? "Salvataggio costo fallito.");
+    }
+  }
+
   async function saveMove(productId: string) {
     const qty = Math.round(Number(moveQty.replace(",", ".")));
     if (!Number.isFinite(qty) || qty === 0) return flash("Quantità non valida.");
@@ -115,6 +135,8 @@ export default function ZoneAnalytics() {
   }
 
   const fmtEuro = (n: number) => `€${n.toLocaleString("it-IT")}`;
+  const fmtEuro2 = (n: number) =>
+    `€${n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
     <div className="space-y-4">
@@ -131,9 +153,19 @@ export default function ZoneAnalytics() {
         </button>
       </div>
 
-      {/* KPI */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Tile label="Fatturato" value={fmtEuro(stats.revenue_total)} accent="text-success" />
+      {/* KPI economici: fatturato · costi · utile reale */}
+      <div className="grid grid-cols-3 gap-3">
+        <Tile label="Fatturato" value={fmtEuro2(stats.revenue_total)} accent="text-success" />
+        <Tile label="Costi (omaggi inclusi)" value={fmtEuro2(stats.cost_total)} accent="text-danger" />
+        <Tile
+          label={`Utile reale · ${stats.margin_pct}%`}
+          value={fmtEuro2(stats.profit_total)}
+          accent={stats.profit_total >= 0 ? "text-accent" : "text-danger"}
+        />
+      </div>
+
+      {/* KPI operativi */}
+      <div className="grid grid-cols-3 gap-3">
         <Tile label="Conversione visite → vendite" value={`${stats.conversion_pct}%`} />
         <Tile label="Card attive in giro" value={String(stats.cards_active)} />
         <Tile label="Da richiamare" value={String(stats.by_status.da_richiamare)} accent={stats.by_status.da_richiamare > 0 ? "text-accent" : undefined} />
@@ -211,6 +243,36 @@ export default function ZoneAnalytics() {
                       <PackagePlus className="h-4 w-4" />
                     </button>
                   </span>
+                </div>
+                {/* costo unitario (anagrafica) */}
+                <div className="mt-0.5 flex items-center gap-1 font-ui text-[10px] text-text2">
+                  <span>costo unitario:</span>
+                  {costFor === p.id ? (
+                    <span className="flex items-center gap-1">
+                      <span>€</span>
+                      <input
+                        inputMode="decimal"
+                        value={costVal}
+                        onChange={(e) => setCostVal(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && saveCost(p.id)}
+                        className="w-16 rounded-sm border border-accent bg-surface px-1.5 py-0.5 text-[11px] text-text focus:outline-none"
+                        autoFocus
+                      />
+                      <NeonButton size="sm" onClick={() => saveCost(p.id)}>ok</NeonButton>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCostFor(p.id);
+                        setCostVal(p.unit_cost ? String(p.unit_cost) : "");
+                      }}
+                      className="font-semibold text-text underline decoration-dotted hover:text-accent"
+                      title="Modifica il costo unitario (le vendite passate restano invariate)"
+                    >
+                      {p.unit_cost > 0 ? fmtEuro2(p.unit_cost) : "— imposta"}
+                    </button>
+                  )}
                 </div>
                 {low && (
                   <p className="mt-0.5 font-ui text-[10px] font-semibold text-danger">

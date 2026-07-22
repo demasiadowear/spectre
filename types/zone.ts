@@ -121,6 +121,9 @@ export interface ZoneProduct {
   /** Soglia sotto cui scatta l'alert scorte. */
   stock_soglia: number;
   fornitore: string;
+  /** Costo unitario di acquisto (€). Editabile in anagrafica: cambia
+   *  se cambiano i fornitori. Sui bundle è derivato dai componenti. */
+  unit_cost: number;
 }
 
 export interface ZoneStockMove {
@@ -151,6 +154,10 @@ export interface ZoneSale {
   qty: number;
   /** Incasso della riga (€). Omaggio => 0. */
   price: number;
+  /** Costo unitario STORICIZZATO al salvataggio (€): il costo di
+   *  allora resta fisso anche se domani cambia il costo in anagrafica.
+   *  Costo totale riga = unit_cost × qty (anche per gli omaggi). */
+  unit_cost: number;
   /** True = omaggio: prezzo 0 ma pezzo scaricato dalla giacenza. */
   omaggio: boolean;
   /** Raggruppa le righe di UNA stessa vendita. */
@@ -183,6 +190,12 @@ export interface ZoneStats {
   clients_total: number;
   by_status: Record<ZoneClientStatus, number>;
   revenue_total: number;
+  /** Somma dei costi di tutto il venduto (omaggi inclusi). */
+  cost_total: number;
+  /** Utile reale = fatturato − costi. */
+  profit_total: number;
+  /** Margine % sul fatturato (0 se fatturato 0). */
+  margin_pct: number;
   sales_count: number;
   cards_active: number;
   /** Conversione visitati->venduti: venduto / (visitato+venduto+non_interessato). */

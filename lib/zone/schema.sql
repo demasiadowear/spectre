@@ -37,6 +37,7 @@ create table if not exists zone_products (
   name          text not null unique,
   default_price real not null default 0,
   active        integer not null default 1,     -- 0 = ritirato (resta nelle vendite passate)
+  unit_cost     real not null default 0,        -- costo unitario acquisto (€), editabile in anagrafica
   created_at    text default (datetime('now'))
 );
 
@@ -49,6 +50,7 @@ create table if not exists zone_sales (
   product_name text not null,
   qty          integer not null default 1,
   price        real not null default 0,         -- incasso totale riga (€)
+  unit_cost    real not null default 0,         -- costo unitario STORICIZZATO al salvataggio (€)
   sold_at      text default (datetime('now')),
   notes        text default '',
   created_at   text default (datetime('now'))

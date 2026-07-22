@@ -174,10 +174,44 @@ export async function ensureZoneSchema(): Promise<void> {
     // Vendite multi-riga: righe raggruppate + flag omaggio.
     "alter table zone_sales add column omaggio integer not null default 0",
     "alter table zone_sales add column group_id text default ''",
+    // Costo & margine reale: costo unitario in anagrafica + costo
+    // storicizzato sulla riga vendita (fisso al salvataggio).
+    "alter table zone_products add column unit_cost real not null default 0",
+    "alter table zone_sales add column unit_cost real not null default 0",
   ]) {
     try {
       await turso.execute(ddl);
     } catch { /* colonna già presente */ }
+  }
+
+  // Costi unitari di acquisto (una volta sola, guard su 0 così una
+  // modifica manuale dei costi non viene mai ripristinata). I bundle
+  // NON hanno costo proprio: è derivato dai componenti fisici a runtime.
+  await turso.executeMultiple(`
+    update zone_products set unit_cost = 1.26 where id = 'prod-card' and unit_cost = 0;
+    update zone_products set unit_cost = 1.37 where id = 'prod-targhetta' and unit_cost = 0;
+    update zone_products set unit_cost = 2.52 where id = 'prod-plexi' and unit_cost = 0;
+  `);
+
+  // Backfill del costo storicizzato sulle vendite già registrate: le
+  // righe senza costo (unit_cost = 0) prendono il costo ESPLOSO del
+  // prodotto di allora, così lo storico margini è corretto da subito.
+  // Guard su unit_cost = 0 → idempotente e non tocca le righe già fatte.
+  const costRows = await turso.execute("select id, unit_cost from zone_products");
+  const costMap: Record<string, number> = {};
+  for (const r of costRows.rows as Row[]) costMap[str(r.id)] = num(r.unit_cost);
+  const soldProducts = await turso.execute(
+    "select distinct product_id from zone_sales where unit_cost = 0 and product_id != ''",
+  );
+  for (const r of soldProducts.rows as Row[]) {
+    const pid = str(r.product_id);
+    const unit = explodedUnitCost(costMap, pid);
+    if (unit > 0) {
+      await turso.execute({
+        sql: "update zone_sales set unit_cost = ? where product_id = ? and unit_cost = 0",
+        args: [unit, pid],
+      });
+    }
   }
 
   // Migrazione listino: catena v1 -> v2 -> v3, ogni passo guardato
@@ -351,6 +385,7 @@ function rowToSale(r: Row): ZoneSale {
     product_name: str(r.product_name),
     qty: num(r.qty),
     price: num(r.price),
+    unit_cost: num(r.unit_cost),
     omaggio: num(r.omaggio) === 1,
     group_id: str(r.group_id),
     sold_at: str(r.sold_at),
@@ -761,6 +796,18 @@ const STOCK_COMPONENTS: Record<string, { product_id: string; qty: number }[]> = 
   "prod-targhetta-piedino": [{ product_id: "prod-targhetta", qty: 1 }],
 };
 
+/** Costo unitario ESPLOSO di un prodotto: sui bundle è la somma dei
+ *  costi dei componenti fisici (1 forex + 2 card…), sugli altri il
+ *  costo proprio. costMap = { product_id: unit_cost }. Così basta
+ *  aggiornare il costo di card/forex/plexi e i bundle si adeguano. */
+export function explodedUnitCost(costMap: Record<string, number>, productId: string): number {
+  const components = STOCK_COMPONENTS[productId];
+  if (components) {
+    return components.reduce((sum, c) => sum + c.qty * (costMap[c.product_id] ?? 0), 0);
+  }
+  return costMap[productId] ?? 0;
+}
+
 /** Esplode un movimento sul prodotto nei suoi componenti fisici.
  *  units = quante unità del prodotto (positivo); direction -1 uscita,
  *  +1 rientro/storno. */
@@ -800,10 +847,12 @@ export async function addStockMove(
   });
 }
 
-/** Soglia alert e fornitore di un prodotto (dalla UI Analisi). */
+/** Soglia alert, fornitore e costo unitario di un prodotto (dalla UI
+ *  Analisi). Il costo tocca solo l'anagrafica: le vendite passate
+ *  hanno il costo già storicizzato e non cambiano. */
 export async function updateProductStockMeta(
   productId: string,
-  meta: { stock_soglia?: number; fornitore?: string },
+  meta: { stock_soglia?: number; fornitore?: string; unit_cost?: number },
 ): Promise<void> {
   if (!turso) throw new Error("Turso non configurato: il registro Zone richiede il DB.");
   await ensureZoneSchema();
@@ -816,6 +865,10 @@ export async function updateProductStockMeta(
   if (meta.fornitore !== undefined) {
     sets.push("fornitore = ?");
     args.push(meta.fornitore);
+  }
+  if (meta.unit_cost !== undefined) {
+    sets.push("unit_cost = ?");
+    args.push(meta.unit_cost);
   }
   if (sets.length === 0) return;
   args.push(productId);
@@ -927,6 +980,7 @@ export async function listProducts(includeInactive = false): Promise<ZoneProduct
     stock_qty: num(r.stock_qty),
     stock_soglia: num(r.stock_soglia),
     fornitore: str(r.fornitore),
+    unit_cost: num(r.unit_cost),
   }));
 }
 
@@ -985,6 +1039,12 @@ export async function addSale(input: AddSaleInput): Promise<ZoneClientDetail | n
   }
   const lines = (input.lines ?? []).filter((l) => l.product_name.trim() !== "");
   if (lines.length === 0) throw new Error("La vendita deve avere almeno una riga.");
+  // Costi correnti dall'anagrafica: il costo unitario viene
+  // STORICIZZATO sulla riga (fisso al salvataggio, anche per gli
+  // omaggi che sono un costo reale senza ricavo).
+  const costRows = await turso.execute("select id, unit_cost from zone_products");
+  const costMap: Record<string, number> = {};
+  for (const r of costRows.rows as Row[]) costMap[str(r.id)] = num(r.unit_cost);
   // Un group_id condiviso: le righe sono UNA vendita (raggruppate in
   // rilettura). sold_at unico per tutte le righe del gruppo.
   const groupId = `sale-${randomUUID().slice(0, 12)}`;
@@ -995,10 +1055,11 @@ export async function addSale(input: AddSaleInput): Promise<ZoneClientDetail | n
     if (!firstRowId) firstRowId = rowId;
     const qty = Math.max(1, Math.round(line.qty));
     const price = line.omaggio ? 0 : line.price;
+    const unitCost = line.product_id ? explodedUnitCost(costMap, line.product_id) : 0;
     await turso.execute({
       sql: `insert into zone_sales
-              (id, client_id, product_id, product_name, qty, price, omaggio, group_id, sold_at, notes)
-            values (?, ?, ?, ?, ?, ?, ?, ?, coalesce(?, datetime('now')), ?)`,
+              (id, client_id, product_id, product_name, qty, price, unit_cost, omaggio, group_id, sold_at, notes)
+            values (?, ?, ?, ?, ?, ?, ?, ?, ?, coalesce(?, datetime('now')), ?)`,
       args: [
         rowId,
         input.client_id,
@@ -1006,6 +1067,7 @@ export async function addSale(input: AddSaleInput): Promise<ZoneClientDetail | n
         line.product_name,
         qty,
         price,
+        unitCost,
         line.omaggio ? 1 : 0,
         groupId,
         soldAt,
@@ -1201,6 +1263,9 @@ export async function zoneStats(): Promise<ZoneStats> {
       da_richiamare: 0,
     },
     revenue_total: 0,
+    cost_total: 0,
+    profit_total: 0,
+    margin_pct: 0,
     sales_count: 0,
     cards_active: 0,
     conversion_pct: 0,
@@ -1212,7 +1277,9 @@ export async function zoneStats(): Promise<ZoneStats> {
 
   const [statusRes, salesRes, cardsRes, zoneRes, callbackRes] = await Promise.all([
     turso.execute("select status, count(*) as n from zone_clients group by status"),
-    turso.execute("select count(*) as n, coalesce(sum(price), 0) as revenue from zone_sales"),
+    turso.execute(
+      "select count(*) as n, coalesce(sum(price), 0) as revenue, coalesce(sum(unit_cost * qty), 0) as cost from zone_sales",
+    ),
     turso.execute("select count(*) as n from zone_cards where status = 'attiva'"),
     turso.execute(`
       select
@@ -1239,6 +1306,10 @@ export async function zoneStats(): Promise<ZoneStats> {
   }
   stats.sales_count = num((salesRes.rows[0] as Row)?.n);
   stats.revenue_total = num((salesRes.rows[0] as Row)?.revenue);
+  stats.cost_total = Math.round(num((salesRes.rows[0] as Row)?.cost) * 100) / 100;
+  stats.profit_total = Math.round((stats.revenue_total - stats.cost_total) * 100) / 100;
+  stats.margin_pct =
+    stats.revenue_total > 0 ? Math.round((stats.profit_total / stats.revenue_total) * 100) : 0;
   stats.cards_active = num((cardsRes.rows[0] as Row)?.n);
   const decided =
     stats.by_status.visitato + stats.by_status.venduto + stats.by_status.non_interessato;
