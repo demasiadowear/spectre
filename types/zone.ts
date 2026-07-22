@@ -197,6 +197,8 @@ export interface ZoneStats {
   /** Margine % sul fatturato (0 se fatturato 0). */
   margin_pct: number;
   sales_count: number;
+  /** Card fisiche consegnate ai clienti (ricavate dalle vendite,
+   *  omaggi inclusi) — non dai codici card registrati a mano. */
   cards_active: number;
   /** Conversione visitati->venduti: venduto / (visitato+venduto+non_interessato). */
   conversion_pct: number;

@@ -16,9 +16,18 @@ import type { ZoneProduct, ZoneStats } from "@/types/zone";
 
 function Tile({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
-    <GlassCard className="px-4 py-3">
+    <GlassCard className="min-w-0 px-4 py-3">
       <p className="font-ui text-[10px] uppercase tracking-widest text-text2">{label}</p>
-      <p className={cn("font-display text-2xl font-bold text-text", accent)}>{value}</p>
+      {/* nowrap + tabular-nums: l'importo resta su una riga e non viene
+          troncato; se lo spazio è poco rimpicciolisce invece di tagliare. */}
+      <p
+        className={cn(
+          "font-display text-xl font-bold tabular-nums text-text sm:text-2xl [overflow-wrap:anywhere]",
+          accent,
+        )}
+      >
+        {value}
+      </p>
     </GlassCard>
   );
 }
@@ -153,8 +162,10 @@ export default function ZoneAnalytics() {
         </button>
       </div>
 
-      {/* KPI economici: fatturato · costi · utile reale */}
-      <div className="grid grid-cols-3 gap-3">
+      {/* KPI economici: fatturato · costi · utile reale. Su mobile a
+          piena larghezza (1 colonna) così l'importo non viene mai
+          troncato; da sm in su tornano affiancati. */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Tile label="Fatturato" value={fmtEuro2(stats.revenue_total)} accent="text-success" />
         <Tile label="Costi (omaggi inclusi)" value={fmtEuro2(stats.cost_total)} accent="text-danger" />
         <Tile
@@ -167,7 +178,7 @@ export default function ZoneAnalytics() {
       {/* KPI operativi */}
       <div className="grid grid-cols-3 gap-3">
         <Tile label="Conversione visite → vendite" value={`${stats.conversion_pct}%`} />
-        <Tile label="Card attive in giro" value={String(stats.cards_active)} />
+        <Tile label="Card consegnate (in giro)" value={String(stats.cards_active)} />
         <Tile label="Da richiamare" value={String(stats.by_status.da_richiamare)} accent={stats.by_status.da_richiamare > 0 ? "text-accent" : undefined} />
       </div>
 

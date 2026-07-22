@@ -130,16 +130,8 @@ export async function ensureZoneSchema(): Promise<void> {
     create index if not exists idx_zone_cards_client on zone_cards(client_id);
     insert or ignore into zone_products (id, name, default_price) values
       ('prod-card', 'Card singola', 25),
-      ('prod-card-2', '2 card', 45),
-      ('prod-card-3', '3 card', 60),
       ('prod-targhetta', 'Targhetta forex 10x10 (biadesivo + supporto inclusi)', 40),
-      ('prod-bundle', 'Bundle forex + 1 card', 55),
-      ('prod-bundle-2', 'Bundle forex + 2 card', 65),
-      ('prod-bundle-3', 'Bundle forex + 3 card', 75),
-      ('prod-plexi', 'Targhetta premium plexi 10x15 (piedino incluso)', 65),
-      ('prod-bundle-plexi', 'Bundle plexi + 1 card', 80),
-      ('prod-bundle-plexi-2', 'Bundle plexi + 2 card', 90),
-      ('prod-bundle-plexi-3', 'Bundle plexi + 3 card', 99);
+      ('prod-plexi', 'Targhetta premium plexi 10x15 (piedino incluso)', 65);
   `);
   // Migrazione fatturazione: colonne aggiunte ai DB esistenti, una
   // per una ("duplicate column" = già migrata, si ignora).
@@ -193,6 +185,19 @@ export async function ensureZoneSchema(): Promise<void> {
     update zone_products set unit_cost = 2.52 where id = 'prod-plexi' and unit_cost = 0;
   `);
 
+  // Pulizia anagrafica: i bundle e i multipack card sono stati tolti dal
+  // form vendita (le vendite ora usano solo i 3 pezzi fisici) ma erano
+  // rimasti come voci fantasma a 0 pz in giacenza. Rimossi del tutto —
+  // resta solo Card singola / Targhetta forex / Targhetta plexi. Le
+  // vendite storiche non ne risentono (nome e costo sono già sulla riga).
+  await turso.executeMultiple(`
+    delete from zone_products where id in (
+      'prod-card-2', 'prod-card-3',
+      'prod-bundle', 'prod-bundle-2', 'prod-bundle-3',
+      'prod-bundle-plexi', 'prod-bundle-plexi-2', 'prod-bundle-plexi-3'
+    );
+  `);
+
   // Backfill del costo storicizzato sulle vendite già registrate: le
   // righe senza costo (unit_cost = 0) prendono il costo ESPLOSO del
   // prodotto di allora, così lo storico margini è corretto da subito.
@@ -242,12 +247,7 @@ export async function ensureZoneSchema(): Promise<void> {
     update zone_products set active = 0
       where id = 'prod-targhetta-piedino' and name = 'Targhetta 10x10 con supporto/piedino';
     insert or ignore into zone_products (id, name, default_price) values
-      ('prod-card-2', '2 card', 35),
-      ('prod-card-3', '3 card', 50),
-      ('prod-plexi', 'Targhetta premium plexi 10x15 (piedino incluso)', 60),
-      ('prod-bundle-plexi', 'Bundle plexi + 1 card', 75),
-      ('prod-bundle-plexi-2', 'Bundle plexi + 2 card', 90),
-      ('prod-bundle-plexi-3', 'Bundle plexi + 3 card', 100);
+      ('prod-plexi', 'Targhetta premium plexi 10x15 (piedino incluso)', 60);
   `);
   // Listino v4 (CONGELATO, IVA inclusa — regime forfettario): solo
   // ritocco prezzi, guardato sui valori v3.
@@ -808,6 +808,20 @@ export function explodedUnitCost(costMap: Record<string, number>, productId: str
   return costMap[productId] ?? 0;
 }
 
+/** Quante card FISICHE contiene un'unità di prodotto: la card singola
+ *  vale 1, i (vecchi) multipack/bundle il numero di card che esplodono,
+ *  forex/plexi da soli 0. Serve a contare le "card in giro" dalle
+ *  vendite, a prescindere dal fatto che il codice card sia stato
+ *  registrato a mano (campo opzionale). */
+export function cardPiecesOf(productId: string): number {
+  if (productId === "prod-card") return 1;
+  const comps = STOCK_COMPONENTS[productId];
+  if (!comps) return 0;
+  return comps
+    .filter((c) => c.product_id === "prod-card")
+    .reduce((sum, c) => sum + c.qty, 0);
+}
+
 /** Esplode un movimento sul prodotto nei suoi componenti fisici.
  *  units = quante unità del prodotto (positivo); direction -1 uscita,
  *  +1 rientro/storno. */
@@ -1280,7 +1294,10 @@ export async function zoneStats(): Promise<ZoneStats> {
     turso.execute(
       "select count(*) as n, coalesce(sum(price), 0) as revenue, coalesce(sum(unit_cost * qty), 0) as cost from zone_sales",
     ),
-    turso.execute("select count(*) as n from zone_cards where status = 'attiva'"),
+    // Card in giro = card fisiche consegnate, ricavate DALLE VENDITE
+    // (esplose per prodotto), non dai codici card registrati a mano:
+    // così il contatore si muove a ogni vendita di card, omaggi inclusi.
+    turso.execute("select product_id, coalesce(sum(qty), 0) as q from zone_sales group by product_id"),
     turso.execute(`
       select
         case when c.zone_label != '' then c.zone_label else coalesce(nullif(c.cap, ''), 'senza zona') end as zone,
@@ -1310,7 +1327,10 @@ export async function zoneStats(): Promise<ZoneStats> {
   stats.profit_total = Math.round((stats.revenue_total - stats.cost_total) * 100) / 100;
   stats.margin_pct =
     stats.revenue_total > 0 ? Math.round((stats.profit_total / stats.revenue_total) * 100) : 0;
-  stats.cards_active = num((cardsRes.rows[0] as Row)?.n);
+  stats.cards_active = (cardsRes.rows as Row[]).reduce(
+    (sum, r) => sum + cardPiecesOf(str(r.product_id)) * num(r.q),
+    0,
+  );
   const decided =
     stats.by_status.visitato + stats.by_status.venduto + stats.by_status.non_interessato;
   stats.conversion_pct = decided > 0 ? Math.round((stats.by_status.venduto / decided) * 100) : 0;
