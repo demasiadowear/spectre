@@ -7,6 +7,7 @@ import {
   Copy,
   ExternalLink,
   Handshake,
+  MessageCircle,
   Nfc,
   Pencil,
   Phone,
@@ -36,6 +37,26 @@ import type {
 /** Euro con decimali solo se servono: €90, €15,34. */
 const eur = (n: number): string =>
   `€${n.toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+
+/** Numero pronto per wa.me: solo cifre, con prefisso internazionale.
+ *  Un cellulare IT nazionale sono 10 cifre che iniziano per 3 (anche
+ *  "39x…", quindi va gestito PRIMA del prefisso paese 39): prende il
+ *  39. I numeri già col prefisso (39…, 00…, altri paesi) restano. */
+function waDigits(raw: string): string {
+  let d = raw.replace(/\D/g, "");
+  if (d.startsWith("00")) d = d.slice(2);
+  if (d.length === 10 && d.startsWith("3")) return `39${d}`; // cellulare IT nazionale
+  if (d.startsWith("39")) return d; // già col prefisso paese
+  if (d.startsWith("3") || d.startsWith("0")) return `39${d}`; // altro numero IT nazionale
+  return d; // altro paese, già col suo prefisso
+}
+
+/** Data italiana GG/MM/AAAA da un timestamp ISO/SQL. */
+function itDate(iso: string): string {
+  const s = iso.slice(0, 10);
+  const [y, m, d] = s.split("-");
+  return d && m && y ? `${d}/${m}/${y}` : s;
+}
 
 export const STATUS_LABEL: Record<ZoneClientStatus, string> = {
   da_visitare: "Da visitare",
@@ -81,6 +102,7 @@ function detailFromLead(l: ZoneLead): ZoneClientDetail {
     address: l.address,
     cap: /\b(\d{5})\b/.exec(l.address)?.[1] ?? "",
     phone: l.phone,
+    whatsapp: l.phone,
     lat: l.lat,
     lng: l.lng,
     maps_url: l.maps_url,
@@ -142,6 +164,10 @@ export default function ZoneClientSheet({ clientId, previewLead, onClose, onChan
   const [referent, setReferent] = useState("");
   const [notes, setNotes] = useState("");
   const [zoneLabel, setZoneLabel] = useState("");
+  // report recensioni WhatsApp
+  const [waNumber, setWaNumber] = useState("");
+  const [waMsg, setWaMsg] = useState<string | null>(null);
+  const [waBusy, setWaBusy] = useState(false);
   // form vendita multi-riga: prodotto × qty × prezzo manuale + omaggio
   type SaleRow = { product_id: string; qty: string; price: string; omaggio: boolean; priceEdited: boolean };
   const emptyRow = (): SaleRow => ({ product_id: "", qty: "1", price: "", omaggio: false, priceEdited: false });
@@ -176,6 +202,9 @@ export default function ZoneClientSheet({ clientId, previewLead, onClose, onChan
       setReferent(json.data.referent);
       setNotes(json.data.notes);
       setZoneLabel(json.data.zone_label);
+      // WhatsApp: usa il numero dedicato o, se vuoto, precompila dal
+      // telefono Maps (lo confermo/aggiusto e si salva alla prima azione).
+      setWaNumber(json.data.whatsapp || json.data.phone || "");
     } else if (previewLead) {
       // non in registro: scheda completa dai dati dello scan, il
       // salvataggio arriva dopo (bottone o prima azione)
@@ -339,6 +368,78 @@ export default function ZoneClientSheet({ clientId, previewLead, onClose, onChan
     }).then((ok) => ok && flash("Scheda salvata."));
 
   const refreshData = () => api("/api/zone/refresh", "POST", { id: clientId });
+
+  // Report recensioni WhatsApp: aggiorna i dati Google, calcola il
+  // delta dalla PRIMA vendita e genera il messaggio precompilato (poi
+  // editabile). Se il delta è <= 0 avvisa prima di generare.
+  async function buildWaReport() {
+    if (!detail) return;
+    if (!waDigits(waNumber)) {
+      flash("Inserisci il numero WhatsApp del cliente.");
+      return;
+    }
+    if (detail.reviews_at_sale == null) {
+      flash("Nessuna baseline: registra la prima vendita o imposta la baseline a oggi.");
+      return;
+    }
+    if (detail.sales.length === 0) {
+      flash("Nessuna vendita registrata: non c'è una data d'acquisto per il report.");
+      return;
+    }
+    setWaBusy(true);
+    try {
+      // Refresh dati Google del singolo cliente (recensioni + rating).
+      const res = await fetch("/api/zone/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: clientId }),
+      });
+      const json = (await res.json()) as ApiResponse<{ reviews: number; rating: number }>;
+      if (!json.success || !json.data) {
+        flash(`Refresh Google fallito: ${json.error ?? "riprova"}`);
+        return;
+      }
+      const baseline = detail.reviews_at_sale;
+      const current = json.data.reviews;
+      const rating = json.data.rating;
+      const delta = current - baseline;
+      // Data della PRIMA vendita (le vendite arrivano ordinate desc).
+      const firstSale = detail.sales[detail.sales.length - 1].sold_at;
+
+      if (delta <= 0) {
+        const ok = window.confirm(
+          `Attenzione: il delta recensioni è ${delta} (da ${baseline} a ${current}). ` +
+            `Nessuna crescita da mostrare. Vuoi generare comunque il messaggio?`,
+        );
+        if (!ok) return;
+      }
+
+      const ratingTxt = rating > 0 ? rating.toLocaleString("it-IT", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : "n/d";
+      const sign = delta >= 0 ? "+" : "";
+      const msg =
+        `Ciao ${detail.name}! Da AYROMEX, il report delle tue recensioni Google ` +
+        `da quando usi le nostre card: sei passato da ${baseline} a ${current} recensioni ` +
+        `(${sign}${delta}) dal ${itDate(firstSale)}. Valutazione media: ${ratingTxt}★. Continua così!`;
+      setWaMsg(msg);
+
+      // Salva il numero WhatsApp se cambiato + ricarica i dati freschi.
+      if (waNumber.trim() && waNumber.trim() !== (detail.whatsapp || "")) {
+        await patchClient({ whatsapp: waNumber.trim() });
+      } else {
+        await load();
+      }
+    } catch {
+      flash("Errore di rete durante il report.");
+    } finally {
+      setWaBusy(false);
+    }
+  }
+
+  function openWa() {
+    if (!waMsg) return;
+    const url = `https://wa.me/${waDigits(waNumber)}?text=${encodeURIComponent(waMsg)}`;
+    window.open(url, "_blank", "noopener");
+  }
 
   async function loanStart() {
     if (!loanProduct) return flash("Scegli il prodotto lasciato in comodato.");
@@ -621,6 +722,52 @@ export default function ZoneClientSheet({ clientId, previewLead, onClose, onChan
               <NeonButton size="sm" onClick={refreshData} disabled={busy}>
                 <RefreshCw className="h-3.5 w-3.5" /> Aggiorna dati da Google
               </NeonButton>
+            </div>
+
+            {/* Report recensioni via WhatsApp (aggancio upsell) */}
+            <div className="mt-3 space-y-2 border-t border-surface2 pt-3">
+              <label className="block font-ui text-[11px] text-text2">
+                WhatsApp cliente
+                <input
+                  inputMode="tel"
+                  placeholder="es. 391 234 5678"
+                  value={waNumber}
+                  onChange={(e) => setWaNumber(e.target.value)}
+                  className={cn(inputCls, "mt-1")}
+                />
+              </label>
+              <NeonButton size="sm" variant="green" onClick={buildWaReport} disabled={waBusy || busy}>
+                <MessageCircle className="h-3.5 w-3.5" />
+                {waBusy ? "Aggiorno da Google…" : "Invia report WhatsApp"}
+              </NeonButton>
+              {waMsg !== null && (
+                <div className="space-y-2 rounded-sm border border-success/40 bg-success/5 p-2">
+                  <p className="font-ui text-[10px] uppercase tracking-widest text-text2">
+                    Messaggio (modificalo prima di inviare)
+                  </p>
+                  <textarea
+                    value={waMsg}
+                    onChange={(e) => setWaMsg(e.target.value)}
+                    rows={5}
+                    className={cn(inputCls, "text-xs leading-relaxed")}
+                  />
+                  <div className="flex items-center gap-2">
+                    <NeonButton size="sm" variant="green" onClick={openWa} disabled={!waDigits(waNumber)}>
+                      <MessageCircle className="h-3.5 w-3.5" /> Apri WhatsApp
+                    </NeonButton>
+                    <button
+                      type="button"
+                      onClick={() => setWaMsg(null)}
+                      className="font-ui text-[11px] text-text2 hover:text-text"
+                    >
+                      chiudi
+                    </button>
+                  </div>
+                  <p className="font-ui text-[10px] text-text2">
+                    Si apre WhatsApp col testo già pronto: l&apos;invio lo premi tu.
+                  </p>
+                </div>
+              )}
             </div>
             {detail.snapshots.length > 0 && (
               <ul className="mt-2 space-y-0.5 border-t border-surface2 pt-2">

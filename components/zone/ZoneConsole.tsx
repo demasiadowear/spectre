@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
 import {
+  Bookmark,
   Copy,
   Crosshair,
   Download,
@@ -12,7 +13,9 @@ import {
   Nfc,
   Phone,
   Plus,
+  RotateCw,
   SlidersHorizontal,
+  Trash2,
 } from "lucide-react";
 import ZoneClientSheet, { STATUS_CHIP, STATUS_LABEL } from "@/components/zone/ZoneClientSheet";
 import { ZONE_CATEGORY_LABELS } from "@/lib/zone/categories";
@@ -20,7 +23,14 @@ import GlassCard from "@/components/ui/spectre/GlassCard";
 import NeonButton from "@/components/ui/spectre/NeonButton";
 import { cn } from "@/lib/utils";
 import type { ApiResponse } from "@/types";
-import type { OpportunityTier, ZoneHuntResult, ZoneLead } from "@/types/zone";
+import type {
+  OpportunityTier,
+  ZoneHuntResult,
+  ZoneLead,
+  ZoneSavedSearch,
+  ZoneSavedSearchFull,
+  ZoneSearchFilters,
+} from "@/types/zone";
 
 // ============================================================
 // ZONE — pianifica il giro porta-a-porta delle card NFC recensioni.
@@ -91,6 +101,11 @@ export default function ZoneConsole() {
   const [addrBusy, setAddrBusy] = useState(false);
   // scheda completa aperta da un risultato (anche se NON in registro)
   const [sheetLead, setSheetLead] = useState<ZoneLead | null>(null);
+  // cache ricerche zona (risparmio API): elenco persistente + quale è
+  // attualmente caricata (per mostrare "Aggiorna").
+  const [saved, setSaved] = useState<ZoneSavedSearch[]>([]);
+  const [savedOpen, setSavedOpen] = useState(true);
+  const [activeSavedId, setActiveSavedId] = useState<string | null>(null);
 
   const activeFilters =
     cats.length + [revMin, revMax, ratMin, ratMax].filter(Boolean).length;
@@ -288,40 +303,187 @@ export default function ZoneConsole() {
     );
   }, []);
 
+  // Filtri correnti dalla UI (serializzabili per la cache).
+  const currentFilters = useCallback(
+    (): ZoneSearchFilters => ({
+      categories: cats,
+      reviews_min: revMin !== "" ? Number(revMin) : undefined,
+      reviews_max: revMax !== "" ? Number(revMax) : undefined,
+      rating_min: ratMin !== "" ? Number(ratMin) : undefined,
+      rating_max: ratMax !== "" ? Number(ratMax) : undefined,
+    }),
+    [cats, revMin, revMax, ratMin, ratMax],
+  );
+
+  // Etichetta ricerca: via/CAP digitato, altrimenti il CAP prevalente
+  // tra i risultati, altrimenti le coordinate del centro.
+  function deriveLabel(lat: number, lng: number, r: ZoneHuntResult): string {
+    if (addr.trim()) return addr.trim();
+    const caps = new Map<string, number>();
+    for (const l of r.leads) {
+      const m = /\b(\d{5})\b/.exec(l.address);
+      if (m) caps.set(m[1], (caps.get(m[1]) ?? 0) + 1);
+    }
+    let best = "";
+    let bestN = 0;
+    for (const [cap, n] of Array.from(caps.entries())) {
+      if (n > bestN) {
+        best = cap;
+        bestN = n;
+      }
+    }
+    return best || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+  }
+
+  // La chiamata API vera e propria (spende quota Google). Ritorna i
+  // risultati o null in caso d'errore (già segnalato).
+  const runHunt = useCallback(
+    async (lat: number, lng: number, r: number, f: ZoneSearchFilters): Promise<ZoneHuntResult | null> => {
+      const res = await fetch("/api/hunt/zone", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lat, lng, radius: r, ...f }),
+      });
+      const json = (await res.json()) as ApiResponse<ZoneHuntResult>;
+      if (!json.success || !json.data) {
+        setError(json.error ?? "Caccia zona fallita.");
+        return null;
+      }
+      return json.data;
+    },
+    [],
+  );
+
+  const loadSaved = useCallback(async () => {
+    try {
+      const res = await fetch("/api/zone/searches", { cache: "no-store" });
+      const json = (await res.json()) as ApiResponse<ZoneSavedSearch[]>;
+      if (json.success && json.data) setSaved(json.data);
+    } catch {
+      /* la cache è un extra: un errore qui non blocca la Caccia */
+    }
+  }, []);
+
+  // Carica l'elenco delle ricerche salvate all'apertura (cache API):
+  // riaprendo SPECTRE la ricerca è già lì, zero chiamate a Google.
+  useEffect(() => {
+    loadSaved();
+  }, [loadSaved]);
+
+  // Ogni ricerca viene salvata in automatico (persistente su DB): se
+  // riapro SPECTRE la ritrovo, zero API. Best-effort: se il salvataggio
+  // fallisce la ricerca resta comunque visibile a schermo.
+  const persistSearch = useCallback(
+    async (lat: number, lng: number, r: number, f: ZoneSearchFilters, res: ZoneHuntResult) => {
+      try {
+        const save = await fetch("/api/zone/searches", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ label: deriveLabel(lat, lng, res), lat, lng, radius: r, filters: f, result: res }),
+        });
+        const json = (await save.json()) as ApiResponse<ZoneSavedSearch[]>;
+        if (json.success && json.data) {
+          setSaved(json.data);
+          // la riga appena salvata (dedup su centro+raggio) è quella attiva
+          const mine = json.data.find(
+            (s) => Math.abs(s.lat - lat) < 1e-4 && Math.abs(s.lng - lng) < 1e-4 && s.radius === Math.round(r),
+          );
+          if (mine) setActiveSavedId(mine.id);
+        }
+      } catch {
+        /* ignora: la ricerca è comunque a schermo */
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [addr],
+  );
+
   async function hunt() {
     if (!center) return;
     setBusy(true);
     setError(null);
     setSelectedId(null);
     try {
-      const res = await fetch("/api/hunt/zone", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          lat: center[0],
-          lng: center[1],
-          radius,
-          categories: cats,
-          reviews_min: revMin !== "" ? Number(revMin) : undefined,
-          reviews_max: revMax !== "" ? Number(revMax) : undefined,
-          rating_min: ratMin !== "" ? Number(ratMin) : undefined,
-          rating_max: ratMax !== "" ? Number(ratMax) : undefined,
-        }),
-      });
-      const json = (await res.json()) as ApiResponse<ZoneHuntResult>;
-      if (!json.success || !json.data) {
-        setError(json.error ?? "Caccia zona fallita.");
+      const f = currentFilters();
+      const data = await runHunt(center[0], center[1], radius, f);
+      if (!data) {
         setResult(null);
         return;
       }
-      setResult(json.data);
-      if (json.data.groups_failed.length > 0) {
-        flash(`Zona letta (categorie saltate: ${json.data.groups_failed.join(", ")}).`);
+      setResult(data);
+      if (data.groups_failed.length > 0) {
+        flash(`Zona letta (categorie saltate: ${data.groups_failed.join(", ")}).`);
       }
+      await persistSearch(center[0], center[1], radius, f, data);
     } catch {
       setError("Errore di rete.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  // "Riapri": mostra i risultati SALVATI, nessuna chiamata API.
+  async function reopenSaved(id: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/zone/searches?id=${encodeURIComponent(id)}`, { cache: "no-store" });
+      const json = (await res.json()) as ApiResponse<ZoneSavedSearchFull>;
+      if (!json.success || !json.data) {
+        flash(json.error ?? "Ricerca non trovata.");
+        return;
+      }
+      const s = json.data;
+      setCenter([s.lat, s.lng]);
+      setRadius(s.radius);
+      setCats(s.filters.categories ?? []);
+      setRevMin(s.filters.reviews_min != null ? String(s.filters.reviews_min) : "");
+      setRevMax(s.filters.reviews_max != null ? String(s.filters.reviews_max) : "");
+      setRatMin(s.filters.rating_min != null ? String(s.filters.rating_min) : "");
+      setRatMax(s.filters.rating_max != null ? String(s.filters.rating_max) : "");
+      setResult(s.result);
+      setActiveSavedId(s.id);
+      setSelectedId(null);
+      mapRef.current?.setView([s.lat, s.lng], 15);
+      flash(`Ricerca "${s.label}" riaperta dalla cache (nessuna API).`);
+    } catch {
+      flash("Errore di rete.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // "Aggiorna": rifà la chiamata API SOLO su richiesta esplicita, e
+  // aggiorna la ricerca salvata (dedup su centro+raggio).
+  async function updateSaved(s: ZoneSavedSearch) {
+    setBusy(true);
+    setError(null);
+    try {
+      const data = await runHunt(s.lat, s.lng, s.radius, s.filters);
+      if (!data) return;
+      setCenter([s.lat, s.lng]);
+      setRadius(s.radius);
+      setResult(data);
+      setActiveSavedId(s.id);
+      await persistSearch(s.lat, s.lng, s.radius, s.filters, data);
+      flash(`"${s.label}" aggiornata da Google.`);
+    } catch {
+      setError("Errore di rete.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteSaved(id: string) {
+    try {
+      const res = await fetch(`/api/zone/searches?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      const json = (await res.json()) as ApiResponse<ZoneSavedSearch[]>;
+      if (json.success && json.data) {
+        setSaved(json.data);
+        if (activeSavedId === id) setActiveSavedId(null);
+      }
+    } catch {
+      flash("Errore di rete.");
     }
   }
 
@@ -615,6 +777,69 @@ export default function ZoneConsole() {
         <p className="font-ui text-xs text-danger" role="alert">
           {error}
         </p>
+      )}
+
+      {/* Ricerche salvate (cache anti-spesa API) */}
+      {saved.length > 0 && (
+        <GlassCard className="px-3 py-3 sm:px-4">
+          <button
+            type="button"
+            onClick={() => setSavedOpen((v) => !v)}
+            className="flex w-full items-center justify-between font-ui text-[10px] uppercase tracking-[0.18em] text-text2"
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <Bookmark className="h-3.5 w-3.5" /> Ricerche salvate ({saved.length})
+            </span>
+            <span className="text-text2">{savedOpen ? "nascondi" : "mostra"}</span>
+          </button>
+          {savedOpen && (
+            <ul className="mt-2 space-y-1.5">
+              {saved.map((s) => (
+                <li
+                  key={s.id}
+                  className={cn(
+                    "flex flex-wrap items-center gap-2 rounded-sm border p-2 font-ui text-xs",
+                    activeSavedId === s.id ? "border-accent/50 bg-accent/5" : "border-surface2",
+                  )}
+                >
+                  <span className="min-w-0 flex-1">
+                    <b className="text-text">{s.label}</b>
+                    <span className="text-text2">
+                      {" "}
+                      · {s.count} attività · {fmtRadius(s.radius)} · {s.updated_at.slice(0, 10)}
+                    </span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    <NeonButton size="sm" onClick={() => reopenSaved(s.id)} disabled={busy}>
+                      <ExternalLink className="h-3.5 w-3.5" /> Riapri
+                    </NeonButton>
+                    <button
+                      type="button"
+                      title="Aggiorna da Google (spende API)"
+                      onClick={() => updateSaved(s)}
+                      disabled={busy}
+                      className="inline-flex min-h-[36px] items-center gap-1 rounded-sm border border-ochre/40 px-2 font-semibold text-ochre hover:bg-ochre/10 disabled:opacity-40"
+                    >
+                      <RotateCw className="h-3.5 w-3.5" /> Aggiorna
+                    </button>
+                    <button
+                      type="button"
+                      title="Elimina ricerca salvata"
+                      onClick={() => deleteSaved(s.id)}
+                      className="inline-flex min-h-[36px] items-center rounded-sm border border-danger/40 px-2 text-danger hover:bg-danger/10"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-2 font-ui text-[10px] text-text2">
+            Riapri mostra i risultati salvati senza chiamare Google. Aggiorna rifà la ricerca
+            (spende API) solo quando lo chiedi tu.
+          </p>
+        </GlassCard>
       )}
 
       <div className="grid gap-4 lg:grid-cols-[1fr_400px]">
