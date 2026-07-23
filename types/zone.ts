@@ -45,6 +45,36 @@ export interface ZoneHuntResult {
   groups_failed: string[];
 }
 
+/** Filtri di una ricerca zona (serializzati nella cache). */
+export interface ZoneSearchFilters {
+  categories: string[];
+  reviews_min?: number;
+  reviews_max?: number;
+  rating_min?: number;
+  rating_max?: number;
+}
+
+/** Ricerca zona salvata (cache anti-spesa API). Metadati per l'elenco:
+ *  i risultati completi si leggono con getZoneSearch(id). */
+export interface ZoneSavedSearch {
+  id: string;
+  /** Etichetta (via/CAP digitato o CAP prevalente dei risultati). */
+  label: string;
+  lat: number;
+  lng: number;
+  radius: number;
+  filters: ZoneSearchFilters;
+  /** Numero di attività trovate (dalla cache). */
+  count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Ricerca salvata coi risultati completi (per "Riapri" senza API). */
+export interface ZoneSavedSearchFull extends ZoneSavedSearch {
+  result: ZoneHuntResult;
+}
+
 // ============================================================
 // Zone CRM — registro clienti del giro (persistito su Turso).
 // ============================================================
@@ -64,6 +94,9 @@ export interface ZoneClient {
   /** CAP estratto dall'indirizzo (analisi per zona). */
   cap: string;
   phone: string;
+  /** Numero WhatsApp del cliente per il report recensioni ('' = non
+   *  impostato; in UI si precompila dal telefono Maps se presente). */
+  whatsapp: string;
   lat: number | null;
   lng: number | null;
   maps_url: string;

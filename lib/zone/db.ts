@@ -6,10 +6,14 @@ import type {
   ZoneClient,
   ZoneClientDetail,
   ZoneClientStatus,
+  ZoneHuntResult,
   ZoneLoanStatus,
   ZoneProduct,
   ZoneReviewSnapshot,
   ZoneSale,
+  ZoneSavedSearch,
+  ZoneSavedSearchFull,
+  ZoneSearchFilters,
   ZoneStats,
 } from "@/types/zone";
 
@@ -125,9 +129,22 @@ export async function ensureZoneSchema(): Promise<void> {
     create index if not exists idx_zone_clients_status on zone_clients(status);
     create index if not exists idx_zone_clients_cap on zone_clients(cap);
     create index if not exists idx_zone_clients_callback on zone_clients(callback_at);
+    create table if not exists zone_searches (
+      id         text primary key,
+      label      text default '',
+      lat        real not null,
+      lng        real not null,
+      radius     integer not null default 800,
+      filters    text default '{}',
+      result     text default '{}',
+      count      integer not null default 0,
+      created_at text default (datetime('now')),
+      updated_at text default (datetime('now'))
+    );
     create index if not exists idx_zone_sales_client on zone_sales(client_id);
     create index if not exists idx_zone_sales_sold_at on zone_sales(sold_at);
     create index if not exists idx_zone_cards_client on zone_cards(client_id);
+    create index if not exists idx_zone_searches_updated on zone_searches(updated_at);
     insert or ignore into zone_products (id, name, default_price) values
       ('prod-card', 'Card singola', 25),
       ('prod-targhetta', 'Targhetta forex 10x10 (biadesivo + supporto inclusi)', 40),
@@ -170,6 +187,8 @@ export async function ensureZoneSchema(): Promise<void> {
     // storicizzato sulla riga vendita (fisso al salvataggio).
     "alter table zone_products add column unit_cost real not null default 0",
     "alter table zone_sales add column unit_cost real not null default 0",
+    // WhatsApp cliente (report recensioni).
+    "alter table zone_clients add column whatsapp text default ''",
   ]) {
     try {
       await turso.execute(ddl);
@@ -338,6 +357,7 @@ function rowToClient(r: Row): ZoneClient {
     address: str(r.address),
     cap: str(r.cap),
     phone: str(r.phone),
+    whatsapp: str(r.whatsapp),
     lat: typeof r.lat === "number" ? r.lat : null,
     lng: typeof r.lng === "number" ? r.lng : null,
     maps_url: str(r.maps_url),
@@ -493,6 +513,7 @@ const CLIENT_EDITABLE = [
   "notes",
   "zone_label",
   "phone",
+  "whatsapp",
   "nfc_review_url",
   "fatt_ragione_sociale",
   "fatt_piva",
@@ -1172,6 +1193,127 @@ export async function deleteSaleRow(rowId: string): Promise<ZoneClientDetail | n
   }
   await turso.execute({ sql: "delete from zone_sales where id = ?", args: [rowId] });
   return getClientDetail(clientId);
+}
+
+// ----- Ricerche zona (cache anti-spesa API) ----------------------
+
+function parseFilters(v: unknown): ZoneSearchFilters {
+  try {
+    const f = JSON.parse(str(v) || "{}") as Partial<ZoneSearchFilters>;
+    return {
+      categories: Array.isArray(f.categories) ? f.categories.filter((c) => typeof c === "string") : [],
+      reviews_min: typeof f.reviews_min === "number" ? f.reviews_min : undefined,
+      reviews_max: typeof f.reviews_max === "number" ? f.reviews_max : undefined,
+      rating_min: typeof f.rating_min === "number" ? f.rating_min : undefined,
+      rating_max: typeof f.rating_max === "number" ? f.rating_max : undefined,
+    };
+  } catch {
+    return { categories: [] };
+  }
+}
+
+function rowToSavedSearch(r: Row): ZoneSavedSearch {
+  return {
+    id: str(r.id),
+    label: str(r.label),
+    lat: num(r.lat),
+    lng: num(r.lng),
+    radius: num(r.radius),
+    filters: parseFilters(r.filters),
+    count: num(r.count),
+    created_at: str(r.created_at),
+    updated_at: str(r.updated_at),
+  };
+}
+
+export interface SaveZoneSearchInput {
+  label: string;
+  lat: number;
+  lng: number;
+  radius: number;
+  filters: ZoneSearchFilters;
+  result: ZoneHuntResult;
+}
+
+/** Salva (o aggiorna) una ricerca zona coi suoi risultati. Dedup su
+ *  centro (~11 m) + raggio: rifare la stessa zona AGGIORNA la riga
+ *  invece di duplicarla, così l'elenco resta pulito. Ritorna l'elenco
+ *  aggiornato (metadati, senza il blob risultati). */
+export async function saveZoneSearch(input: SaveZoneSearchInput): Promise<ZoneSavedSearch[]> {
+  if (!turso) throw new Error("Turso non configurato: il registro Zone richiede il DB.");
+  await ensureZoneSchema();
+  const filtersJson = JSON.stringify(input.filters ?? { categories: [] });
+  const resultJson = JSON.stringify(input.result ?? { leads: [], count: 0, groups_failed: [] });
+  const count = input.result?.count ?? input.result?.leads?.length ?? 0;
+  const existing = await turso.execute({
+    sql: `select id from zone_searches
+          where round(lat,4) = round(?,4) and round(lng,4) = round(?,4) and radius = ?
+          limit 1`,
+    args: [input.lat, input.lng, Math.round(input.radius)],
+  });
+  const hit = existing.rows[0] as Row | undefined;
+  if (hit) {
+    await turso.execute({
+      sql: `update zone_searches set label = ?, filters = ?, result = ?, count = ?,
+              updated_at = datetime('now') where id = ?`,
+      args: [input.label, filtersJson, resultJson, count, str(hit.id)],
+    });
+  } else {
+    await turso.execute({
+      sql: `insert into zone_searches (id, label, lat, lng, radius, filters, result, count)
+            values (?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        `search-${randomUUID().slice(0, 12)}`,
+        input.label,
+        input.lat,
+        input.lng,
+        Math.round(input.radius),
+        filtersJson,
+        resultJson,
+        count,
+      ],
+    });
+  }
+  return listZoneSearches();
+}
+
+/** Elenco ricerche salvate (metadati, più recenti prima). Senza il
+ *  blob dei risultati per tenere leggera la lista. */
+export async function listZoneSearches(): Promise<ZoneSavedSearch[]> {
+  if (!turso) return [];
+  await ensureZoneSchema();
+  const res = await turso.execute(
+    `select id, label, lat, lng, radius, filters, count, created_at, updated_at
+     from zone_searches order by updated_at desc, created_at desc limit 100`,
+  );
+  return (res.rows as Row[]).map(rowToSavedSearch);
+}
+
+/** Una ricerca salvata COI RISULTATI completi (per "Riapri" senza API). */
+export async function getZoneSearch(id: string): Promise<ZoneSavedSearchFull | null> {
+  if (!turso) return null;
+  await ensureZoneSchema();
+  const res = await turso.execute({
+    sql: "select * from zone_searches where id = ? limit 1",
+    args: [id],
+  });
+  const r = res.rows[0] as Row | undefined;
+  if (!r) return null;
+  let result: ZoneHuntResult;
+  try {
+    result = JSON.parse(str(r.result) || "{}") as ZoneHuntResult;
+  } catch {
+    result = { leads: [], count: 0, groups_failed: [] };
+  }
+  if (!Array.isArray(result.leads)) result = { leads: [], count: 0, groups_failed: [] };
+  return { ...rowToSavedSearch(r), result };
+}
+
+export async function deleteZoneSearch(id: string): Promise<ZoneSavedSearch[]> {
+  if (!turso) throw new Error("Turso non configurato: il registro Zone richiede il DB.");
+  await ensureZoneSchema();
+  await turso.execute({ sql: "delete from zone_searches where id = ?", args: [id] });
+  return listZoneSearches();
 }
 
 // ----- Card ------------------------------------------------------
