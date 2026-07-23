@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Download, Nfc, Plus, Search, TrendingUp, UserPlus } from "lucide-react";
+import { Download, Nfc, Plus, RefreshCw, Search, TrendingUp, UserPlus } from "lucide-react";
 import GlassCard from "@/components/ui/spectre/GlassCard";
 import NeonButton from "@/components/ui/spectre/NeonButton";
 import ZoneClientSheet, {
@@ -52,6 +52,16 @@ export default function ZoneRegistry() {
   const [addCity, setAddCity] = useState("Bari");
   const [addBusy, setAddBusy] = useState(false);
   const [candidates, setCandidates] = useState<ZoneLead[] | null>(null);
+  // aggiornamento massivo dati Google
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkDone, setBulkDone] = useState(0);
+  const [bulkTotal, setBulkTotal] = useState(0);
+  const [bulkSummary, setBulkSummary] = useState<{
+    updated: number;
+    skipped: number;
+    failed: number;
+    upsell: { id: string; name: string; delta: number }[];
+  } | null>(null);
 
   function flash(msg: string) {
     setToast(msg);
@@ -78,6 +88,69 @@ export default function ZoneRegistry() {
     const t = setTimeout(refresh, q ? 300 : 0); // debounce sulla ricerca
     return () => clearTimeout(t);
   }, [refresh, q]);
+
+  // Protezione API: non ri-chiamare Google per chi è stato aggiornato
+  // da meno di STALE_HOURS ore.
+  const STALE_HOURS = 12;
+
+  // "Aggiorna dati Google (tutti)": refresh in blocco di conteggio
+  // recensioni + rating per ogni cliente, saltando i già-freschi. I
+  // delta (recensioni − baseline vendita) si ricalcolano da soli.
+  async function refreshAllGoogle() {
+    if (bulkBusy) return;
+    setBulkSummary(null);
+    setBulkBusy(true);
+    try {
+      // TUTTI i clienti, indipendentemente dai filtri di vista.
+      const res = await fetch("/api/zone/clients", { cache: "no-store" });
+      const json = (await res.json()) as ApiResponse<ZoneClient[]>;
+      if (!json.success || !json.data) {
+        flash("Impossibile caricare l'elenco clienti.");
+        return;
+      }
+      const cutoff = Date.now() - STALE_HOURS * 3600_000;
+      const isFresh = (c: ZoneClient) => {
+        if (!c.reviews_updated_at) return false;
+        // il timestamp SQL ("YYYY-MM-DD HH:MM:SS") è UTC
+        const t = Date.parse(`${c.reviews_updated_at.replace(" ", "T")}Z`);
+        return Number.isFinite(t) && t >= cutoff;
+      };
+      const stale = json.data.filter((c) => !isFresh(c));
+      const skipped = json.data.length - stale.length;
+      setBulkDone(0);
+      setBulkTotal(stale.length);
+      let updated = 0;
+      let failed = 0;
+      const upsell: { id: string; name: string; delta: number }[] = [];
+      for (const c of stale) {
+        try {
+          const r = await fetch("/api/zone/refresh", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: c.id }),
+          });
+          const rj = (await r.json()) as ApiResponse<ZoneClient>;
+          if (rj.success && rj.data) {
+            updated++;
+            if (rj.data.reviews_at_sale != null) {
+              const delta = rj.data.reviews - rj.data.reviews_at_sale;
+              if (delta > 0) upsell.push({ id: rj.data.id, name: rj.data.name, delta });
+            }
+          } else {
+            failed++;
+          }
+        } catch {
+          failed++;
+        }
+        setBulkDone((n) => n + 1);
+      }
+      upsell.sort((a, b) => b.delta - a.delta);
+      setBulkSummary({ updated, skipped, failed, upsell });
+      await refresh(); // ricarica la vista corrente coi dati freschi
+    } finally {
+      setBulkBusy(false);
+    }
+  }
 
   async function lookupCard() {
     const code = cardCode.trim();
@@ -150,6 +223,61 @@ export default function ZoneRegistry() {
 
   return (
     <div className="space-y-4">
+      {/* aggiornamento massivo dati Google */}
+      <GlassCard className="px-3 py-3 sm:px-4">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <NeonButton size="sm" variant="cyan" onClick={refreshAllGoogle} disabled={bulkBusy} className="min-h-[40px]">
+            <RefreshCw className={cn("h-3.5 w-3.5", bulkBusy && "animate-spin")} />
+            {bulkBusy ? `Aggiorno ${bulkDone}/${bulkTotal}…` : "Aggiorna dati Google (tutti)"}
+          </NeonButton>
+          <span className="font-ui text-[11px] text-text2">
+            Conteggio recensioni + rating di tutti i clienti. Salta chi è già stato
+            aggiornato nelle ultime {STALE_HOURS}h (risparmio API).
+          </span>
+        </div>
+        {bulkBusy && bulkTotal > 0 && (
+          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-surface2">
+            <div
+              className="h-full rounded-full bg-accent transition-all"
+              style={{ width: `${Math.round((bulkDone / bulkTotal) * 100)}%` }}
+            />
+          </div>
+        )}
+        {bulkSummary && !bulkBusy && (
+          <div className="mt-2 space-y-1 border-t border-surface2 pt-2 font-ui text-xs">
+            <p className="text-text">
+              ✓ <b>{bulkSummary.updated}</b> aggiornati · {bulkSummary.skipped} già aggiornati
+              (saltati)
+              {bulkSummary.failed > 0 && (
+                <span className="text-danger"> · {bulkSummary.failed} non riusciti</span>
+              )}
+            </p>
+            {bulkSummary.upsell.length > 0 ? (
+              <div>
+                <p className="font-semibold text-success">
+                  📈 Nuove recensioni dalla vendita (pronti per l&apos;upsell):
+                </p>
+                <ul className="mt-0.5 space-y-0.5">
+                  {bulkSummary.upsell.map((u) => (
+                    <li key={u.id}>
+                      <button
+                        type="button"
+                        onClick={() => setOpenId(u.id)}
+                        className="text-left text-text2 hover:text-text"
+                      >
+                        {u.name} <b className="text-success">+{u.delta} rec</b>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <p className="text-text2">Nessun cliente con nuove recensioni in questo giro.</p>
+            )}
+          </div>
+        )}
+      </GlassCard>
+
       {/* toolbar */}
       <GlassCard className="space-y-3 px-3 py-3 sm:px-4">
         <div className="flex flex-wrap items-center gap-1.5">
