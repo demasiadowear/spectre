@@ -18,6 +18,7 @@ create table if not exists autopilot_pipeline (
   study_json        text default '{}',               -- JSON AutopilotStudy
   brief             text default '',                 -- lead brief 5 righe (Gemini)
   wa_first_message  text default '',                 -- primo msg WA unico per il lead
+  wa_variant        text default '',                 -- variante A/B/C usata (A/B test)
   approval_status   text default 'pending',          -- pending/approved/rejected/auto
   approved_at       text,
   contacted_at      text,

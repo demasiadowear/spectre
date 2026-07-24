@@ -3,15 +3,10 @@ import { geminiJSON } from "@/lib/gemini";
 import { isMobilePhone } from "@/lib/pitch";
 import { searchGooglePlaces } from "@/lib/hunter/google-places";
 import { isTursoConnected, turso } from "@/lib/turso";
-import type {
-  AutopilotLead,
-  AutopilotStudy,
-  StudyGeneration,
-} from "@/types/autopilot";
-import { getTemplateContent } from "@/lib/templates/db";
+import type { AutopilotLead, AutopilotStudy } from "@/types/autopilot";
 import { buildStudyPrompt } from "./constants";
+import { composeFirstMessage } from "./variants";
 import {
-  addAlert,
   getPipelineLead,
   normalizePhone,
   placeIdInPipeline,
@@ -120,6 +115,23 @@ async function resolvePlace(
   };
 }
 
+/** Brief di fallback se Gemini non risponde: solo dati veri del lead, niente
+ *  numeri inventati (la riga reputazione compare solo se rating+recensioni
+ *  ci sono davvero). Tiene il lead in pipeline invece di scartarlo. */
+function localBrief(lead: AutopilotLead): string {
+  const lines = [`${lead.company} — ${lead.category || "attività locale"} a ${lead.city}.`];
+  if (lead.rating > 0 && lead.reviews > 0) {
+    lines.push(
+      `Reputazione Google: ${lead.rating.toFixed(1)}★ su ${Math.round(lead.reviews)} recensioni.`,
+    );
+  }
+  lines.push(
+    "Senza sito proprio: invisibile nella ricerca Google locale, nessuna vetrina di servizi/prezzi, prenotazioni solo via telefono o social.",
+    "Angolo: prima impressione professionale + canale diretto, senza commissioni di piattaforma.",
+  );
+  return lines.join("\n");
+}
+
 export type StudyOutcome = "studied" | "incomplete" | "failed" | "archived" | "fisso";
 
 /** Salva il tipo numero su leads.meta.phone_type (merge, no overwrite). */
@@ -200,44 +212,73 @@ export async function studyLead(lead: AutopilotLead): Promise<StudyOutcome> {
     gaps: gapsFor(lead.category),
   };
 
+  // rating/recensioni a 0 = dato ASSENTE, non un valore reale: si passano
+  // come null così Gemini non scrive mai "0 su Google" / "0 recensioni" nel
+  // brief (stessa regola del messaggio, qui per il brief mostrato a Puccio).
   const userPrompt = JSON.stringify({
     attivita: lead.company,
     categoria: lead.category,
     zona: `${lead.city} (${lead.address || "Puglia"})`,
-    rating: lead.rating,
-    recensioni_totali: lead.reviews,
+    rating: lead.rating > 0 ? lead.rating : null,
+    recensioni_totali: lead.reviews > 0 ? lead.reviews : null,
     recensioni_recenti: recent,
     gap_senza_sito: study.gaps,
   });
 
-  // Istruzioni variante A (stelle+demo) lette LIVE dal template manager:
-  // una modifica in /templates vale dal prossimo lead studiato.
-  const waInstructions = await getTemplateContent("study_wa_instructions");
-  const generated = await geminiJSON<StudyGeneration>(
-    buildStudyPrompt(waInstructions),
-    userPrompt,
-    { complex: true, temperature: 0.8 },
-  );
-  if (!generated?.brief || !generated?.wa_message) {
-    console.error("[autopilot/study] Gemini vuoto per", lead.lead_id);
-    return "failed";
+  // Brief commerciale (5 righe) da Gemini. Il PRIMO messaggio WA NON arriva
+  // più da Gemini: è una delle tre varianti deterministiche A/B/C (vedi
+  // composeFirstMessage). Se Gemini è giù il lead non si perde: si usa un
+  // brief locale e si procede comunque col messaggio.
+  let generated: { brief?: string } | null = null;
+  try {
+    generated = await geminiJSON<{ brief?: string }>(
+      buildStudyPrompt(),
+      userPrompt,
+      { complex: true, temperature: 0.8 },
+    );
+  } catch (err) {
+    // geminiJSON oggi non lancia (cattura da sé e torna null), ma se un
+    // giorno lo facesse il lead NON deve sparire: si scende su localBrief.
+    console.warn(
+      "[autopilot/study] geminiJSON ha lanciato, fallback locale per",
+      lead.lead_id,
+      (err as Error).message,
+    );
+  }
+  const brief = generated?.brief?.trim() || localBrief(lead);
+  if (!generated?.brief) {
+    console.warn(
+      "[autopilot/study] brief Gemini assente, uso brief locale per",
+      lead.lead_id,
+    );
   }
 
-  // Highlights ricavabili a costo zero: le frasi chiave del brief le ha
-  // già distillate Gemini; teniamo le recensioni grezze nello study.
-  study.review_highlights = generated.brief
+  // Primo messaggio: variante A/B/C deterministica per lead + complimento
+  // costruito dai dati reali (rating/recensioni del singolo lead, mai
+  // hardcoded; fallback se assenti). La variante si salva sul record.
+  const { variant, message } = composeFirstMessage({
+    lead_id: lead.lead_id,
+    rating: lead.rating,
+    reviews: lead.reviews,
+    category: lead.category,
+  });
+
+  // Highlights ricavabili a costo zero: le frasi chiave del brief;
+  // teniamo le recensioni grezze nello study.
+  study.review_highlights = brief
     .split("\n")
     .map((l) => l.trim())
     .filter(Boolean)
     .slice(0, 5);
 
   // Lead pronto da contattare a mano: lo stage resta "da_contattare",
-  // ora col primo messaggio preparato (wa_first_message). Nessuna coda
-  // di approvazione, nessun invio automatico.
+  // ora col primo messaggio preparato (wa_first_message) e la variante
+  // usata (wa_variant). Nessuna coda di approvazione, nessun invio auto.
   await updatePipeline(lead.lead_id, {
     stage: "da_contattare",
-    brief: generated.brief.trim(),
-    wa_first_message: generated.wa_message.trim(),
+    brief,
+    wa_first_message: message,
+    wa_variant: variant,
     study_json: JSON.stringify(study),
     approval_status: "auto",
   });

@@ -31,6 +31,11 @@ export const DEAL_STAGES: AutopilotStage[] = [
 /** Stato del primo messaggio WA (storico: sempre "auto" nel flusso attuale). */
 export type ApprovalStatus = "pending" | "approved" | "rejected" | "auto";
 
+/** Variante del primo messaggio WA per l'A/B test. Scelta in modo
+ *  deterministico da hash(lead_id) % 3 in Study, così lo stesso lead
+ *  riceve sempre la stessa variante anche se ricomposto. */
+export type WaVariant = "A" | "B" | "C";
+
 export type WaDirection = "in" | "out";
 
 /** queued -> sent -> delivered -> read; failed su errore invio. */
@@ -69,6 +74,10 @@ export interface AutopilotLead {
   brief: string;
   study: AutopilotStudy | null;
   wa_first_message: string;
+  /** Variante A/B/C usata per wa_first_message (vuota se non ancora
+   *  studiato). Persistita su autopilot_pipeline.wa_variant per misurare
+   *  il tasso di risposta per variante. */
+  wa_variant: WaVariant | "";
   approval_status: ApprovalStatus;
   approved_at: string | null;
   contacted_at: string | null;
@@ -108,6 +117,9 @@ export interface AutopilotLead {
   rating: number;
   reviews: number;
   address: string;
+  /** Handle Instagram (da leads.meta.ig). "" se sconosciuto: Scout non lo
+   *  popola, arriva solo dagli import beauty. Mai usato per inventare dati. */
+  ig: string;
   /** Tipo numero: "mobile" = WhatsApp-abile, "fisso" = solo chiamata. */
   phone_type: "mobile" | "fisso" | "";
   /** Coordinate per la vista Mappa (da leads.meta.lat/lng). */

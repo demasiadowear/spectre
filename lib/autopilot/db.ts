@@ -8,6 +8,7 @@ import type {
   AutopilotStats,
   AutopilotStudy,
   WaMessage,
+  WaVariant,
 } from "@/types/autopilot";
 import { AUTOPILOT_STAGES } from "./constants";
 
@@ -49,6 +50,9 @@ function rowToAutopilotLead(r: Row): AutopilotLead {
     brief: str(r.brief),
     study: parseStudy(r.study_json),
     wa_first_message: str(r.wa_first_message),
+    wa_variant: (["A", "B", "C"].includes(str(r.wa_variant))
+      ? str(r.wa_variant)
+      : "") as WaVariant | "",
     approval_status: str(r.approval_status) as ApprovalStatus,
     approved_at: r.approved_at ? str(r.approved_at) : null,
     contacted_at: r.contacted_at ? str(r.contacted_at) : null,
@@ -74,6 +78,7 @@ function rowToAutopilotLead(r: Row): AutopilotLead {
     rating: num(meta.rating),
     reviews: num(meta.reviews),
     address: str(meta.address),
+    ig: str(meta.ig),
     lat: typeof meta.lat === "number" ? meta.lat : null,
     lng: typeof meta.lng === "number" ? meta.lng : null,
     // Tipo salvato (scout/study/retroattivo); fallback al volo se assente,
@@ -180,6 +185,7 @@ const UPDATABLE_PIPELINE_FIELDS = new Set([
   "brief",
   "study_json",
   "wa_first_message",
+  "wa_variant",
   "approval_status",
   "approved_at",
   "contacted_at",
@@ -203,6 +209,7 @@ export async function updatePipeline(
     brief: string;
     study_json: string;
     wa_first_message: string;
+    wa_variant: WaVariant;
     approval_status: ApprovalStatus;
     approved_at: string;
     contacted_at: string;

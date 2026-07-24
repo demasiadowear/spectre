@@ -438,6 +438,11 @@ export default function AutopilotLeadDrawer({
                 WhatsApp, poi "Segna come inviato" fa avanzare la pipeline. */}
             {notContacted && lead.wa_first_message && (
               <Section title="Primo messaggio WA">
+                {lead.wa_variant && (
+                  <span className="mb-2 inline-flex items-center rounded-sm border border-accent/40 bg-accent/10 px-1.5 py-0.5 font-ui text-[10px] font-semibold uppercase tracking-[0.12em] text-accent">
+                    Variante {lead.wa_variant}
+                  </span>
+                )}
                 <textarea
                   value={firstDraft}
                   onChange={(e) => setFirstDraft(e.target.value)}
