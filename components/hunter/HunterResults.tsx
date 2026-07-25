@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import {
   Ban,
   Check,
+  ChevronDown,
   ExternalLink,
   FileText,
   Gavel,
@@ -13,6 +14,7 @@ import {
   Plus,
   Star,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import GlassCard from "@/components/ui/spectre/GlassCard";
 import NeonButton from "@/components/ui/spectre/NeonButton";
 import LoadingGrid from "@/components/ui/spectre/LoadingGrid";
@@ -46,7 +48,19 @@ const itDate = (iso: string): string => {
   return d && m && y ? `${d}/${m}/${y}` : iso;
 };
 
+/** Riga chiave/valore dell'accordion (solo se il valore c'è). */
+function DetailRow({ label, value }: { label: string; value: string }) {
+  if (!value || value === "n/d") return null;
+  return (
+    <div className="flex gap-2">
+      <span className="w-28 shrink-0 text-spectre-muted/70">{label}</span>
+      <span className="min-w-0 text-spectre-text">{value}</span>
+    </div>
+  );
+}
+
 function AsteCard({ lot }: { lot: AsteLot }) {
+  const [open, setOpen] = useState(false);
   const urgent =
     lot.giorni_al_termine != null && lot.giorni_al_termine >= 0 && lot.giorni_al_termine <= 7;
   const termine =
@@ -55,27 +69,35 @@ function AsteCard({ lot }: { lot: AsteLot }) {
       : lot.giorni_al_termine >= 0
         ? `${itDate(lot.termine_offerte)} (tra ${lot.giorni_al_termine} giorni)`
         : `${itDate(lot.termine_offerte)} (SCADUTO)`;
+
   return (
     <GlassCard className="flex flex-col gap-2 p-4">
-      <div className="flex items-start justify-between gap-3">
+      {/* Header cliccabile: espande l'accordion inline */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-start justify-between gap-3 text-left"
+      >
         <p className="font-display text-sm font-medium text-spectre-text">
           {(lot.comune || "—").toUpperCase()} — {lot.tipo || "immobile"}
           {lot.mq != null && <span className="text-spectre-muted">, {lot.mq} mq</span>}
         </p>
-        {lot.risparmio_pct != null ? (
-          <span className="shrink-0 rounded-sm border border-spectre-green/40 bg-spectre-green/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.15em] text-spectre-green">
-            -{Math.round(lot.risparmio_pct * 100)}%
-          </span>
-        ) : lot.numero_pubblicazione != null ? (
-          <span className="shrink-0 rounded-sm border border-spectre-amber/40 bg-spectre-amber/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.15em] text-spectre-amber">
-            {lot.numero_pubblicazione}^ asta{lot.numero_pubblicazione >= 2 ? " · ribassato" : ""}
-          </span>
-        ) : null}
-      </div>
+        <span className="flex shrink-0 items-center gap-2">
+          {lot.risparmio_pct != null && (
+            <span className="rounded-sm border border-spectre-green/40 bg-spectre-green/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.15em] text-spectre-green">
+              -{Math.round(lot.risparmio_pct * 100)}%
+            </span>
+          )}
+          <ChevronDown
+            className={cn("h-4 w-4 text-spectre-muted transition-transform", open && "rotate-180")}
+            strokeWidth={1.5}
+          />
+        </span>
+      </button>
+
       <div className="grid grid-cols-2 gap-x-4 gap-y-1 font-mono text-[11px] text-spectre-muted">
         <span>
-          Offerta minima:{" "}
-          <b className="text-spectre-cyan">{eur(lot.offerta_minima)}</b>
+          Offerta minima: <b className="text-spectre-cyan">{eur(lot.offerta_minima)}</b>
         </span>
         {lot.valore_stima != null && (
           <span>Valore perizia: <b className="text-spectre-text">{eur(lot.valore_stima)}</b></span>
@@ -85,15 +107,38 @@ function AsteCard({ lot }: { lot: AsteLot }) {
           Termine offerte: {termine}{urgent ? " ⚠️" : ""}
         </span>
       </div>
-      {lot.link && (
-        <a
-          href={lot.link}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 font-mono text-[11px] text-spectre-cyan transition hover:text-glow-cyan"
-        >
-          <ExternalLink className="h-3 w-3" strokeWidth={1.5} /> Avviso / perizia
-        </a>
+
+      {/* Accordion inline: dettaglio dai campi già intercettati (nessuno
+          scrape della scheda). */}
+      {open && (
+        <div className="mt-1 flex flex-col gap-1 border-t border-border pt-2 font-mono text-[11px]">
+          <DetailRow label="Indirizzo" value={lot.indirizzo} />
+          <DetailRow label="Descrizione" value={lot.descrizione} />
+          <DetailRow label="Tribunale" value={lot.tribunale} />
+          <DetailRow label="Procedura" value={lot.procedura ? `n. ${lot.procedura}` : ""} />
+          <DetailRow label="Lotto" value={lot.lotto} />
+          <DetailRow label="Tipo" value={lot.tipo} />
+          <DetailRow
+            label="Vendita"
+            value={lot.vendita_telematica ? "Telematica" : "Analogica / mista"}
+          />
+          <DetailRow label="Inizio gara" value={itDate(lot.data_inizio_gara)} />
+          <DetailRow label="Fine gara" value={itDate(lot.data_fine_gara)} />
+          <DetailRow label="Udienza" value={itDate(lot.data_udienza)} />
+          <DetailRow label="Termine offerte" value={itDate(lot.termine_offerte)} />
+          <DetailRow label="Esito" value={lot.esito} />
+          {lot.link && (
+            <a
+              href={lot.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-1 inline-flex items-center gap-1 text-spectre-cyan transition hover:text-glow-cyan"
+            >
+              <ExternalLink className="h-3 w-3" strokeWidth={1.5} />
+              Apri scheda completa su astegiudiziarie
+            </a>
+          )}
+        </div>
       )}
     </GlassCard>
   );

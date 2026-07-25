@@ -147,10 +147,27 @@ export function parseAsteLot(raw: AsteRawLot, now = new Date()): AsteLot {
     data_asta,
     termine_offerte,
     numero_pubblicazione,
+    indirizzo: raw.indirizzo,
+    descrizione: raw.descrizione,
+    esito: raw.esito,
+    vendita_telematica: /^(true|1|s[iì])$/i.test(raw.vendita_telematica),
+    data_inizio_gara: parseItDate(raw.data_inizio_gara),
+    data_fine_gara: parseItDate(raw.data_fine_gara),
+    data_udienza: parseItDate(raw.data_udienza),
     link: raw.link,
     risparmio_pct,
     giorni_al_termine: daysUntil(termine_offerte, now),
+    raw_json: raw.raw_text,
   };
+}
+
+// Solo immobili RESIDENZIALI: la lista provincia include anche terreni,
+// depositi, magazzini, negozi, fabbricati agricoli — vanno esclusi.
+const RESIDENTIAL_RE =
+  /\b(abitazion\w*|appartament\w*|villin\w*|ville?tt\w*|villa|attico|mansard\w*|monolocale|bilocale|trilocale|quadrilocale|loft|residenz\w*)\b/i;
+
+export function isResidential(tipo: string): boolean {
+  return RESIDENTIAL_RE.test(tipo || "");
 }
 
 // ----- Persistenza / dedup (Turso, auto-migrata) -----------------
@@ -176,6 +193,7 @@ export async function ensureAsteSchema(): Promise<void> {
       numero_pubblicazione integer,
       link            text default '',
       risparmio_pct   real,
+      raw_json        text default '',
       gemini_score    integer default 0,
       gemini_nota     text default '',
       first_seen      text default (datetime('now')),
@@ -184,12 +202,17 @@ export async function ensureAsteSchema(): Promise<void> {
     create index if not exists idx_aste_risparmio on aste_lots(risparmio_pct);
     create index if not exists idx_aste_termine on aste_lots(termine_offerte);
   `);
-  // Migrazione: colonna aggiunta a tabelle già create ("duplicate
+  // Migrazione: colonne aggiunte a tabelle già create ("duplicate
   // column" = già migrata, si ignora).
-  try {
-    await turso.execute("alter table aste_lots add column numero_pubblicazione integer");
-  } catch {
-    /* colonna già presente */
+  for (const ddl of [
+    "alter table aste_lots add column numero_pubblicazione integer",
+    "alter table aste_lots add column raw_json text default ''",
+  ]) {
+    try {
+      await turso.execute(ddl);
+    } catch {
+      /* colonna già presente */
+    }
   }
   asteSchemaEnsured = true;
 }
@@ -208,8 +231,8 @@ async function upsertAsteLot(lot: ScoredLot): Promise<void> {
     sql: `insert into aste_lots
             (key, tribunale, procedura, lotto, comune, tipo, mq, vani,
              offerta_minima, valore_stima, data_asta, termine_offerte,
-             numero_pubblicazione, link, risparmio_pct, gemini_score, gemini_nota)
-          values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             numero_pubblicazione, link, risparmio_pct, raw_json, gemini_score, gemini_nota)
+          values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           on conflict(key) do update set
             comune = excluded.comune,
             tipo = excluded.tipo,
@@ -222,6 +245,7 @@ async function upsertAsteLot(lot: ScoredLot): Promise<void> {
             numero_pubblicazione = excluded.numero_pubblicazione,
             link = case when excluded.link != '' then excluded.link else aste_lots.link end,
             risparmio_pct = excluded.risparmio_pct,
+            raw_json = case when excluded.raw_json != '' then excluded.raw_json else aste_lots.raw_json end,
             gemini_score = excluded.gemini_score,
             gemini_nota = excluded.gemini_nota,
             updated_at = datetime('now')`,
@@ -229,7 +253,7 @@ async function upsertAsteLot(lot: ScoredLot): Promise<void> {
       lot.key, lot.tribunale, lot.procedura, lot.lotto, lot.comune, lot.tipo,
       lot.mq, lot.vani, lot.offerta_minima, lot.valore_stima, lot.data_asta,
       lot.termine_offerte, lot.numero_pubblicazione, lot.link, lot.risparmio_pct,
-      lot.gemini_score ?? 0, lot.gemini_nota ?? "",
+      lot.raw_json ?? "", lot.gemini_score ?? 0, lot.gemini_nota ?? "",
     ] as (string | number | null)[],
   });
 }
@@ -487,9 +511,22 @@ export async function fetchAsteLots(now = new Date()): Promise<{ lots: AsteLot[]
   const lots: AsteLot[] = [];
   for (const r of raw) {
     const lot = parseAsteLot(r, now);
-    if (!isUsable(lot) || seen.has(lot.key)) continue;
+    // Solo residenziale: fuori terreni, depositi, magazzini, negozi…
+    if (!isUsable(lot) || !isResidential(lot.tipo) || seen.has(lot.key)) continue;
     seen.add(lot.key);
     lots.push(lot);
   }
-  return { lots: sortAsteLots(lots), errors: result.errors };
+  const sorted = sortAsteLots(lots);
+  // Persistenza best-effort del JSON grezzo (raw_json): in futuro il
+  // dettaglio è già in DB, niente riscrape. Un errore qui non blocca
+  // la risposta a schermo.
+  try {
+    await ensureAsteSchema();
+    for (const lot of sorted) {
+      await upsertAsteLot({ ...lot, gemini_score: 0, gemini_nota: "" });
+    }
+  } catch (err) {
+    console.error("[aste] persist raw_json fallita:", (err as Error).message);
+  }
+  return { lots: sorted, errors: result.errors };
 }
