@@ -106,6 +106,18 @@ export function mapInserzione(o: Record<string, unknown>): AsteRawLot {
   if (link && !/^https?:\/\//i.test(link)) {
     link = `https://www.astegiudiziarie.it/${link.replace(/^\/+/, "")}`;
   }
+  // Numero pubblicazione/tentativo d'asta: preferisci il numero di
+  // pubblicazione; in mancanza deriva dal numero di ribassi (+1, così
+  // 0 ribassi = 1^ asta). >=2 = lotto già ribassato.
+  const pub = pickField(o, ["numeroPubblicazione", "nPubblicazione", "numeroTentativo", "tentativo"]);
+  const rib = pickField(o, ["numeroRibasso", "nRibasso", "numeroRibassi"]);
+  let numero_pubblicazione = "";
+  if (pub) {
+    numero_pubblicazione = pub;
+  } else if (rib) {
+    const n = parseInt(rib.replace(/\D/g, ""), 10);
+    if (Number.isFinite(n)) numero_pubblicazione = String(n + 1);
+  }
   return {
     tribunale: pickField(o, ["tribunale"]) || "Bari",
     procedura,
@@ -119,6 +131,7 @@ export function mapInserzione(o: Record<string, unknown>): AsteRawLot {
     valore_stima: pickField(o, ["valorePerizia", "valoreStima", "valoreDiStima", "prezzoPerizia"]),
     data_asta: pickField(o, ["dataInizioGara", "dataVendita", "dataUdienza"]),
     termine_offerte: pickField(o, ["dataFineCauzione", "dataFinePresentazioneOfferte", "terminePresentazioneOfferte"]),
+    numero_pubblicazione,
     link,
     raw_text: JSON.stringify(o),
   };
@@ -169,9 +182,14 @@ export async function scrapeAsteBari(page: Page): Promise<AsteRawLot[]> {
   }
 
   // Diagnostica: log dei campi JSON realmente osservati — così la prima
-  // run dal vivo rivela se esiste un campo perizia/stima nella lista.
+  // run dal vivo rivela quali campi espone la lista.
   if (seenKeys.size > 0) {
-    console.log(`[aste/scout] campi JSON inserzione osservati: ${Array.from(seenKeys).sort().join(", ")}`);
+    const all = Array.from(seenKeys).sort();
+    console.log(`[aste/scout] campi JSON inserzione osservati: ${all.join(", ")}`);
+    const perizia = all.filter((k) => /periz|stima/i.test(k));
+    const pubbl = all.filter((k) => /pubblicaz|ribass|tentativ/i.test(k));
+    console.log(`[aste/scout] campi perizia/stima: ${perizia.length ? perizia.join(", ") : "NESSUNO"}`);
+    console.log(`[aste/scout] campi pubblicazione/ribasso: ${pubbl.length ? pubbl.join(", ") : "NESSUNO"}`);
   }
 
   if (collected.length === 0) {
