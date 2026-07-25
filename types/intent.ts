@@ -129,5 +129,9 @@ export interface AsteScoutResult {
   aggiornati: number;
   digest_inviato: boolean;
   lotti_in_digest: number;
+  /** Diagnostica: nomi dei campi JSON di perizia/stima osservati. */
+  campi_perizia: string[];
+  /** Diagnostica: nomi dei campi JSON di pubblicazione/ribasso osservati. */
+  campi_pubblicazione: string[];
   errors: string[];
 }
