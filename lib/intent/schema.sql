@@ -48,8 +48,9 @@ create table if not exists aste_lots (
   data_asta       text default '',                 -- ISO
   termine_offerte text default '',                 -- ISO (base dell'alert termine)
   numero_pubblicazione integer,                    -- n. pubblicazione/tentativo (>=2 = già ribassato)
-  link            text default '',                 -- avviso/perizia
+  link            text default '',                 -- urlSchedaDettagliata
   risparmio_pct   real,                            -- (stima - offerta)/stima
+  raw_json        text default '',                 -- JSON grezzo inserzione (no riscrape)
   gemini_score    integer default 0,               -- appeal 0-100 (scoring Gemini, opzionale)
   gemini_nota     text default '',
   first_seen      text default (datetime('now')),

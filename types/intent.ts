@@ -90,8 +90,17 @@ export interface AsteRawLot {
   data_asta: string;
   termine_offerte: string;
   /** Numero pubblicazione/tentativo d'asta (1 = prima, >=2 = già
-   *  ribassato). Ricavato da numeroPubblicazione o numeroRibasso+1. */
+   *  ribassato). Ricavato da numeroPubblicazione o numeroRibasso+1.
+   *  NB: astegiudiziarie Bari NON lo espone (resta ""). */
   numero_pubblicazione: string;
+  // Dettaglio (già nel JSON intercettato: nessuno scrape della scheda).
+  indirizzo: string;
+  descrizione: string;
+  esito: string;
+  vendita_telematica: string;
+  data_inizio_gara: string;
+  data_fine_gara: string;
+  data_udienza: string;
   link: string;
   raw_text: string;
 }
@@ -116,7 +125,17 @@ export interface AsteLot {
   /** Numero pubblicazione/tentativo d'asta (>=2 = già ribassato,
    *  null = non esposto in lista). */
   numero_pubblicazione: number | null;
+  // Dettaglio per l'accordion (dal JSON intercettato).
+  indirizzo: string;
+  descrizione: string;
+  esito: string;
+  vendita_telematica: boolean;
+  data_inizio_gara: string;
+  data_fine_gara: string;
+  data_udienza: string;
   link: string;
+  /** JSON grezzo completo dell'inserzione (per non riscrapare in futuro). */
+  raw_json: string;
   /** (valore_stima - offerta_minima) / valore_stima, 0..1 (null se dati mancanti). */
   risparmio_pct: number | null;
   /** Giorni da oggi al termine offerte (negativo = scaduto, null = ignoto). */

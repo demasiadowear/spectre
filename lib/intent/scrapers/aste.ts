@@ -102,7 +102,8 @@ export function mapInserzione(o: Record<string, unknown>): AsteRawLot {
   const procedura = nProc && aProc ? `${nProc}/${aProc}` : nProc || pickField(o, ["procedura"]);
   const comune = pickField(o, ["comune"]);
   const provincia = pickField(o, ["provincia", "siglaProvincia"]);
-  let link = pickField(o, ["url", "urlDettaglio", "permalink", "link", "slug"]);
+  // URL scheda: campo reale del sito = urlSchedaDettagliata.
+  let link = pickField(o, ["urlSchedaDettagliata", "url", "urlDettaglio", "permalink", "link", "slug"]);
   if (link && !/^https?:\/\//i.test(link)) {
     link = `https://www.astegiudiziarie.it/${link.replace(/^\/+/, "")}`;
   }
@@ -132,6 +133,14 @@ export function mapInserzione(o: Record<string, unknown>): AsteRawLot {
     data_asta: pickField(o, ["dataInizioGara", "dataVendita", "dataUdienza"]),
     termine_offerte: pickField(o, ["dataFineCauzione", "dataFinePresentazioneOfferte", "terminePresentazioneOfferte"]),
     numero_pubblicazione,
+    // Dettaglio (già nel JSON): niente scrape della scheda.
+    indirizzo: pickField(o, ["indirizzo"]),
+    descrizione: pickField(o, ["descrizione", "note"]),
+    esito: pickField(o, ["esito"]),
+    vendita_telematica: pickField(o, ["venditaTelematica"]),
+    data_inizio_gara: pickField(o, ["dataInizioGara"]),
+    data_fine_gara: pickField(o, ["dataFineGara"]),
+    data_udienza: pickField(o, ["dataUdienza"]),
     link,
     raw_text: JSON.stringify(o),
   };
