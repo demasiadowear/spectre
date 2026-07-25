@@ -17,9 +17,6 @@ import { isCronAuthorized } from "@/lib/autopilot/cron-auth";
 // ============================================================
 
 export const dynamic = "force-dynamic";
-// Lo scrape aste (Playwright + scroll) può durare: stessa soglia degli
-// altri scout. Su Vercel è capato dal piano.
-export const maxDuration = 300;
 
 const HELP = [
   "🤖 SPECTRE — comandi:",
@@ -28,7 +25,6 @@ const HELP = [
   "/pipeline — conteggi per stadio",
   "/agenda — azioni di oggi + scadute",
   "/leads — ultimi lead in pipeline",
-  "/aste — scan aste giudiziarie (Bari) on-demand",
 ].join("\n");
 
 // Dedup dei retry Telegram: lo stesso update_id non deve rilanciare lo
@@ -200,23 +196,6 @@ export async function POST(req: Request) {
         chatId,
       ).catch(() => {});
       return NextResponse.json({ ok: true, unauthorized_chat: chatId });
-    }
-
-    // /aste — scan aste giudiziarie on-demand: riusa lo stesso handler
-    // del cron (runAsteScout, che invia digest e diagnostica), ristretto
-    // già alla chat admin. Il secret vive lato server (nessun input chat).
-    // Import dinamico: playwright/chromium non entra nel modulo del
-    // webhook per gli altri comandi (cold start leggero).
-    if (cmd === "/aste") {
-      await sendTelegram("🔍 Scraping aste giudiziarie (Bari) in corso…", chatId);
-      try {
-        const { runAsteScout } = await import("@/lib/intent/aste");
-        const r = await runAsteScout();
-        return NextResponse.json({ ok: true, aste: r });
-      } catch (err) {
-        await sendTelegram(`❌ Aste: run fallita — ${(err as Error).message}`, chatId).catch(() => {});
-        return NextResponse.json({ ok: true });
-      }
     }
 
     let reply: string;
