@@ -24,6 +24,7 @@ export async function middleware(req: NextRequest) {
     "/api/autopilot/scout",
     "/api/autopilot/study",
     "/api/intent/scout",
+    "/api/intent/aste",
     "/api/brief",
   ];
   if (

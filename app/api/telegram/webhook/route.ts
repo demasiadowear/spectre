@@ -3,7 +3,6 @@ import { getPipeline, getStats } from "@/lib/autopilot/db";
 import { STAGE_LABELS } from "@/components/autopilot/format";
 import { agendaLabel, buildPipelineBrief, isDueToday, todayRome } from "@/lib/brief";
 import { sendTelegram } from "@/lib/telegram";
-import { runAsteScout } from "@/lib/intent/aste";
 import { AUTOPILOT_STAGES } from "@/lib/autopilot/constants";
 import { isCronAuthorized } from "@/lib/autopilot/cron-auth";
 
@@ -92,7 +91,13 @@ async function leadsText(): Promise<string> {
  *  Serve perché le env Telegram su Vercel sono sensitive (write-only):
  *  solo l'app può usarle per identificare il bot e auto-registrarsi. */
 export async function GET(req: Request) {
-  if (!isCronAuthorized(req)) {
+  // Autorizzazione: header Bearer CRON_SECRET (curl) OPPURE ?secret=
+  // in query, così la ri-registrazione del webhook è apribile da un
+  // browser mobile con un solo URL (recovery quando /aste non risponde).
+  const cronSecret = process.env.CRON_SECRET?.trim();
+  const querySecret = new URL(req.url).searchParams.get("secret")?.trim();
+  const authorized = isCronAuthorized(req) || (!!cronSecret && querySecret === cronSecret);
+  if (!authorized) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
@@ -176,22 +181,36 @@ export async function POST(req: Request) {
 
     const chatId = String(message.chat?.id ?? "");
     const allowed = process.env.TELEGRAM_CHAT_ID?.trim();
-    if (!allowed || chatId !== allowed) {
-      // Chat non in whitelist: nessuna risposta, nessun leak.
-      return NextResponse.json({ ok: true });
-    }
+    // Comando parsato: minuscolo, senza suffisso @nomebot, trim.
+    const cmd = String(message.text).trim().toLowerCase().split(/[\s@]/)[0];
+    // Log di OGNI update ricevuto: comando + chat id ricevuto vs atteso.
+    console.log(
+      `[telegram/webhook] update_id=${update?.update_id} cmd=${cmd} chat=${chatId} atteso=${allowed ?? "(non configurato)"}`,
+    );
 
     // Retry Telegram sullo stesso update: già gestito, non rilanciare.
     if (alreadyHandled(update?.update_id)) return NextResponse.json({ ok: true });
 
-    const cmd = String(message.text).trim().toLowerCase().split(/[\s@]/)[0];
+    if (!allowed || chatId !== allowed) {
+      // Mismatch chat: NON silenzio — messaggio esplicito col chat id
+      // ricevuto (utile per configurare TELEGRAM_CHAT_ID). Non rivela
+      // l'id atteso.
+      await sendTelegram(
+        `⛔ Chat non autorizzata.\nIl tuo chat id è: ${chatId}\nImposta TELEGRAM_CHAT_ID = ${chatId} nelle env per abilitare i comandi.`,
+        chatId,
+      ).catch(() => {});
+      return NextResponse.json({ ok: true, unauthorized_chat: chatId });
+    }
 
     // /aste — scan aste giudiziarie on-demand: riusa lo stesso handler
     // del cron (runAsteScout, che invia digest e diagnostica), ristretto
     // già alla chat admin. Il secret vive lato server (nessun input chat).
+    // Import dinamico: playwright/chromium non entra nel modulo del
+    // webhook per gli altri comandi (cold start leggero).
     if (cmd === "/aste") {
       await sendTelegram("🔍 Scraping aste giudiziarie (Bari) in corso…", chatId);
       try {
+        const { runAsteScout } = await import("@/lib/intent/aste");
         const r = await runAsteScout();
         return NextResponse.json({ ok: true, aste: r });
       } catch (err) {
