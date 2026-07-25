@@ -89,6 +89,9 @@ export interface AsteRawLot {
   valore_stima: string;
   data_asta: string;
   termine_offerte: string;
+  /** Numero pubblicazione/tentativo d'asta (1 = prima, >=2 = già
+   *  ribassato). Ricavato da numeroPubblicazione o numeroRibasso+1. */
+  numero_pubblicazione: string;
   link: string;
   raw_text: string;
 }
@@ -108,8 +111,11 @@ export interface AsteLot {
   valore_stima: number | null;
   /** Data asta in ISO (YYYY-MM-DD) o "". */
   data_asta: string;
-  /** Termine presentazione offerte in ISO o "". */
+  /** Termine presentazione offerte in ISO o "" (base dell'alert ⚠️). */
   termine_offerte: string;
+  /** Numero pubblicazione/tentativo d'asta (>=2 = già ribassato,
+   *  null = non esposto in lista). */
+  numero_pubblicazione: number | null;
   link: string;
   /** (valore_stima - offerta_minima) / valore_stima, 0..1 (null se dati mancanti). */
   risparmio_pct: number | null;

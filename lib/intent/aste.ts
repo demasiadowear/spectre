@@ -130,6 +130,9 @@ export function parseAsteLot(raw: AsteRawLot, now = new Date()): AsteLot {
       ? Math.max(0, (valore_stima - offerta_minima) / valore_stima)
       : null;
 
+  const npRaw = parseInt(String(raw.numero_pubblicazione).replace(/\D/g, ""), 10);
+  const numero_pubblicazione = Number.isFinite(npRaw) && npRaw > 0 ? npRaw : null;
+
   return {
     key: asteKey(tribunale, procedura, lotto),
     tribunale,
@@ -143,6 +146,7 @@ export function parseAsteLot(raw: AsteRawLot, now = new Date()): AsteLot {
     valore_stima,
     data_asta,
     termine_offerte,
+    numero_pubblicazione,
     link: raw.link,
     risparmio_pct,
     giorni_al_termine: daysUntil(termine_offerte, now),
@@ -169,6 +173,7 @@ export async function ensureAsteSchema(): Promise<void> {
       valore_stima    real,
       data_asta       text default '',
       termine_offerte text default '',
+      numero_pubblicazione integer,
       link            text default '',
       risparmio_pct   real,
       gemini_score    integer default 0,
@@ -179,6 +184,13 @@ export async function ensureAsteSchema(): Promise<void> {
     create index if not exists idx_aste_risparmio on aste_lots(risparmio_pct);
     create index if not exists idx_aste_termine on aste_lots(termine_offerte);
   `);
+  // Migrazione: colonna aggiunta a tabelle già create ("duplicate
+  // column" = già migrata, si ignora).
+  try {
+    await turso.execute("alter table aste_lots add column numero_pubblicazione integer");
+  } catch {
+    /* colonna già presente */
+  }
   asteSchemaEnsured = true;
 }
 
@@ -195,9 +207,9 @@ async function upsertAsteLot(lot: ScoredLot): Promise<void> {
   await turso.execute({
     sql: `insert into aste_lots
             (key, tribunale, procedura, lotto, comune, tipo, mq, vani,
-             offerta_minima, valore_stima, data_asta, termine_offerte, link,
-             risparmio_pct, gemini_score, gemini_nota)
-          values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             offerta_minima, valore_stima, data_asta, termine_offerte,
+             numero_pubblicazione, link, risparmio_pct, gemini_score, gemini_nota)
+          values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           on conflict(key) do update set
             comune = excluded.comune,
             tipo = excluded.tipo,
@@ -207,6 +219,7 @@ async function upsertAsteLot(lot: ScoredLot): Promise<void> {
             valore_stima = excluded.valore_stima,
             data_asta = excluded.data_asta,
             termine_offerte = excluded.termine_offerte,
+            numero_pubblicazione = excluded.numero_pubblicazione,
             link = case when excluded.link != '' then excluded.link else aste_lots.link end,
             risparmio_pct = excluded.risparmio_pct,
             gemini_score = excluded.gemini_score,
@@ -215,7 +228,7 @@ async function upsertAsteLot(lot: ScoredLot): Promise<void> {
     args: [
       lot.key, lot.tribunale, lot.procedura, lot.lotto, lot.comune, lot.tipo,
       lot.mq, lot.vani, lot.offerta_minima, lot.valore_stima, lot.data_asta,
-      lot.termine_offerte, lot.link, lot.risparmio_pct,
+      lot.termine_offerte, lot.numero_pubblicazione, lot.link, lot.risparmio_pct,
       lot.gemini_score ?? 0, lot.gemini_nota ?? "",
     ] as (string | number | null)[],
   });
@@ -271,27 +284,27 @@ const itDateFmt = (iso: string): string => {
   return `${d}/${m}/${y}`;
 };
 
-/** Ordina per risparmio_pct desc quando disponibile; se la perizia non
- *  è nota (risparmio null) ripiega sull'urgenza del termine offerte
- *  (scadenza più vicina prima). Top 3 -> 🔥. Termine <= 7gg -> ⚠️.
- *  Le righe Valore/Risparmio si mostrano SOLO se il dato esiste (mai
- *  valori inventati). */
+/** Ordina PRIMA per termine offerte più vicino (scadenza imminente in
+ *  cima), POI per numero di pubblicazione più alto (lotto più
+ *  ribassato). Top 3 -> 🔥. Termine <= 7gg -> ⚠️. Righe Valore/Risparmio
+ *  SOLO se la perizia esiste (mai inventata); in loro assenza, se c'è il
+ *  numero di pubblicazione, mostra "N^ asta — già ribassato". */
 export function buildAsteDigest(lots: ScoredLot[], now = new Date()): string {
   if (lots.length === 0) return "";
-  const hasRisparmio = lots.some((l) => l.risparmio_pct != null);
+  // scadenza: futura più vicina prima; scadute/ignote in fondo
   const daysKey = (l: ScoredLot) =>
     l.giorni_al_termine != null && l.giorni_al_termine >= 0 ? l.giorni_al_termine : Infinity;
 
   const sorted = [...lots].sort((a, b) => {
-    const ra = a.risparmio_pct ?? -1;
-    const rb = b.risparmio_pct ?? -1;
-    if (rb !== ra) return rb - ra; // risparmio desc (null in fondo)
     const da = daysKey(a);
     const db = daysKey(b);
-    if (da !== db) return da - db; // poi scadenza più vicina prima
-    const ga = a.gemini_score ?? 0;
-    const gb = b.gemini_score ?? 0;
-    if (gb !== ga) return gb - ga;
+    if (da !== db) return da - db; // 1) termine offerte più vicino
+    const pa = a.numero_pubblicazione ?? 0;
+    const pb = b.numero_pubblicazione ?? 0;
+    if (pb !== pa) return pb - pa; // 2) numero pubblicazione più alto
+    const ra = a.risparmio_pct ?? -1;
+    const rb = b.risparmio_pct ?? -1;
+    if (rb !== ra) return rb - ra; // 3) risparmio se noto
     return (a.offerta_minima ?? Infinity) - (b.offerta_minima ?? Infinity);
   });
 
@@ -302,7 +315,7 @@ export function buildAsteDigest(lots: ScoredLot[], now = new Date()): string {
 
   const lines: string[] = [
     `🏛️ ASTE GIUDIZIARIE — Tribunale di Bari (residenziale)`,
-    `${dateHeader} · ${sorted.length} lotti · ordinati per ${hasRisparmio ? "risparmio" : "scadenza offerte"}`,
+    `${dateHeader} · ${sorted.length} lotti · ordinati per scadenza offerte`,
     "",
   ];
 
@@ -322,9 +335,18 @@ export function buildAsteDigest(lots: ScoredLot[], now = new Date()): string {
 
     lines.push(`${fire}${comune.toUpperCase()} — ${tipo}${mqTxt}`);
     lines.push(`Offerta minima: ${euroFmt(l.offerta_minima)}`);
-    // Valore/Risparmio SOLO se la perizia è nota (mai inventata).
+    // Valore/Risparmio SOLO se la perizia è nota (mai inventata);
+    // altrimenti, se c'è, il numero di pubblicazione (già ribassato).
     if (l.valore_stima != null) lines.push(`Valore perizia: ${euroFmt(l.valore_stima)}`);
-    if (l.risparmio_pct != null) lines.push(`Risparmio: ${Math.round(l.risparmio_pct * 100)}%`);
+    if (l.risparmio_pct != null) {
+      lines.push(`Risparmio: ${Math.round(l.risparmio_pct * 100)}%`);
+    } else if (l.numero_pubblicazione != null) {
+      lines.push(
+        l.numero_pubblicazione >= 2
+          ? `${l.numero_pubblicazione}^ asta — già ribassato`
+          : `${l.numero_pubblicazione}^ asta`,
+      );
+    }
     lines.push(`Asta: ${itDateFmt(l.data_asta)}`);
     lines.push(termine);
     if (l.link) lines.push(`🔗 ${l.link}`);

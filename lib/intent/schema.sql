@@ -46,7 +46,8 @@ create table if not exists aste_lots (
   offerta_minima  real,                            -- prezzo base d'asta (€)
   valore_stima    real,                            -- valore perizia (€)
   data_asta       text default '',                 -- ISO
-  termine_offerte text default '',                 -- ISO
+  termine_offerte text default '',                 -- ISO (base dell'alert termine)
+  numero_pubblicazione integer,                    -- n. pubblicazione/tentativo (>=2 = già ribassato)
   link            text default '',                 -- avviso/perizia
   risparmio_pct   real,                            -- (stima - offerta)/stima
   gemini_score    integer default 0,               -- appeal 0-100 (scoring Gemini, opzionale)
