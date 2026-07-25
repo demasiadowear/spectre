@@ -361,17 +361,22 @@ export function buildAsteDigest(lots: ScoredLot[], now = new Date()): string {
 
 // ----- Orchestratore ---------------------------------------------
 
-async function scrapeLots(result: AsteScoutResult): Promise<AsteRawLot[]> {
+async function scrapeLots(result: AsteScoutResult): Promise<{ raw: AsteRawLot[]; fields: string[] }> {
   const browser = await launchIntentBrowser();
   try {
     const ctx = await browser.newContext({ userAgent: INTENT_USER_AGENT, locale: "it-IT" });
     const page = await ctx.newPage();
     try {
-      return await scrapeAsteBari(page);
+      const { lots, fields, note } = await scrapeAsteBari(page);
+      if (note) {
+        result.errors.push(`aste: ${note}`);
+        console.error("[aste/scout]", note);
+      }
+      return { raw: lots, fields };
     } catch (err) {
       result.errors.push(`aste: ${(err as Error).message}`);
       console.error("[aste/scout] scraper fallito —", (err as Error).message);
-      return [];
+      return { raw: [], fields: [] };
     }
   } finally {
     try {
@@ -380,6 +385,21 @@ async function scrapeLots(result: AsteScoutResult): Promise<AsteRawLot[]> {
       console.error("[aste/scout] browser.close fallito:", (err as Error).message);
     }
   }
+}
+
+/** Messaggio diagnostico Telegram (conteggio + errori + le due righe
+ *  campi perizia/pubblicazione), così si vede tutto dal telefono senza
+ *  aprire i log Vercel. */
+export function buildAsteDiagnostics(result: AsteScoutResult): string {
+  const list = (a: string[]) => (a.length ? a.join(", ") : "NESSUNO");
+  const lines = [
+    `🏛️ Aste (Bari) — diagnostica`,
+    `Lotti estratti: ${result.scraped}`,
+  ];
+  if (result.errors.length) lines.push(`⚠️ ${result.errors.join(" · ")}`);
+  lines.push(`campi perizia/stima: ${list(result.campi_perizia)}`);
+  lines.push(`campi pubblicazione/ribasso: ${list(result.campi_pubblicazione)}`);
+  return lines.join("\n");
 }
 
 /** Filtra i lotti residenziali con abbastanza dati per essere utili. */
@@ -400,11 +420,16 @@ export async function runAsteScout(now = new Date()): Promise<AsteScoutResult> {
     aggiornati: 0,
     digest_inviato: false,
     lotti_in_digest: 0,
+    campi_perizia: [],
+    campi_pubblicazione: [],
     errors: [],
   };
 
-  const raw = await scrapeLots(result);
+  const { raw, fields } = await scrapeLots(result);
   result.scraped = raw.length;
+  // Diagnostica: quali campi espone davvero il JSON di lista.
+  result.campi_perizia = fields.filter((k) => /periz|stima/i.test(k));
+  result.campi_pubblicazione = fields.filter((k) => /pubblicaz|ribass|tentativ/i.test(k));
 
   const parsed = raw.map((r) => parseAsteLot(r, now)).filter(isUsable);
 
@@ -433,12 +458,12 @@ export async function runAsteScout(now = new Date()): Promise<AsteScoutResult> {
   if (digest) {
     result.lotti_in_digest = Math.min(scored.length, MAX_CARDS);
     result.digest_inviato = await sendTelegram(digest);
-  } else if (result.errors.length > 0) {
-    // Nessun lotto E c'è stato un errore (blocco/anti-bot): avvisa che
-    // lo scout non ha prodotto nulla, senza restare in silenzio.
-    result.digest_inviato = await sendTelegram(
-      `🏛️ Aste giudiziarie (Bari): nessun lotto estratto. ${result.errors[0]}`,
-    );
+  }
+  // Zero lotti O errori: manda la diagnostica (conteggio + campi
+  // perizia/pubblicazione) così si capisce tutto dal telefono.
+  if (result.scraped === 0 || result.errors.length > 0) {
+    const sent = await sendTelegram(buildAsteDiagnostics(result));
+    if (!result.digest_inviato) result.digest_inviato = sent;
   }
 
   return result;

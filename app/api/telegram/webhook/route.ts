@@ -3,6 +3,7 @@ import { getPipeline, getStats } from "@/lib/autopilot/db";
 import { STAGE_LABELS } from "@/components/autopilot/format";
 import { agendaLabel, buildPipelineBrief, isDueToday, todayRome } from "@/lib/brief";
 import { sendTelegram } from "@/lib/telegram";
+import { runAsteScout } from "@/lib/intent/aste";
 import { AUTOPILOT_STAGES } from "@/lib/autopilot/constants";
 import { isCronAuthorized } from "@/lib/autopilot/cron-auth";
 
@@ -17,6 +18,9 @@ import { isCronAuthorized } from "@/lib/autopilot/cron-auth";
 // ============================================================
 
 export const dynamic = "force-dynamic";
+// Lo scrape aste (Playwright + scroll) può durare: stessa soglia degli
+// altri scout. Su Vercel è capato dal piano.
+export const maxDuration = 300;
 
 const HELP = [
   "🤖 SPECTRE — comandi:",
@@ -25,7 +29,22 @@ const HELP = [
   "/pipeline — conteggi per stadio",
   "/agenda — azioni di oggi + scadute",
   "/leads — ultimi lead in pipeline",
+  "/aste — scan aste giudiziarie (Bari) on-demand",
 ].join("\n");
+
+// Dedup dei retry Telegram: lo stesso update_id non deve rilanciare lo
+// scrape. Ring buffer in-memory (per-istanza) — sufficiente per i retry
+// ravvicinati, che colpiscono l'istanza calda.
+const recentUpdates = new Set<number>();
+function alreadyHandled(updateId: unknown): boolean {
+  if (typeof updateId !== "number") return false;
+  if (recentUpdates.has(updateId)) return true;
+  recentUpdates.add(updateId);
+  if (recentUpdates.size > 200) {
+    recentUpdates.delete(recentUpdates.values().next().value as number);
+  }
+  return false;
+}
 
 async function pipelineText(): Promise<string> {
   const stats = await getStats();
@@ -162,7 +181,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
+    // Retry Telegram sullo stesso update: già gestito, non rilanciare.
+    if (alreadyHandled(update?.update_id)) return NextResponse.json({ ok: true });
+
     const cmd = String(message.text).trim().toLowerCase().split(/[\s@]/)[0];
+
+    // /aste — scan aste giudiziarie on-demand: riusa lo stesso handler
+    // del cron (runAsteScout, che invia digest e diagnostica), ristretto
+    // già alla chat admin. Il secret vive lato server (nessun input chat).
+    if (cmd === "/aste") {
+      await sendTelegram("🔍 Scraping aste giudiziarie (Bari) in corso…", chatId);
+      try {
+        const r = await runAsteScout();
+        return NextResponse.json({ ok: true, aste: r });
+      } catch (err) {
+        await sendTelegram(`❌ Aste: run fallita — ${(err as Error).message}`, chatId).catch(() => {});
+        return NextResponse.json({ ok: true });
+      }
+    }
 
     let reply: string;
     let sent = false;

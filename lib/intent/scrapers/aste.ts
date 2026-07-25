@@ -137,7 +137,15 @@ export function mapInserzione(o: Record<string, unknown>): AsteRawLot {
   };
 }
 
-export async function scrapeAsteBari(page: Page): Promise<AsteRawLot[]> {
+export interface AsteScrapeOutput {
+  lots: AsteRawLot[];
+  /** Nomi dei campi JSON osservati nelle inserzioni (diagnostica). */
+  fields: string[];
+  /** Motivo se 0 lotti (endpoint non individuato); "" se ok. */
+  note: string;
+}
+
+export async function scrapeAsteBari(page: Page): Promise<AsteScrapeOutput> {
   const url = process.env.ASTE_LIST_URL?.trim() || DEFAULT_LIST_URL;
   const collected: Record<string, unknown>[] = [];
   const seenKeys = new Set<string>();
@@ -192,13 +200,18 @@ export async function scrapeAsteBari(page: Page): Promise<AsteRawLot[]> {
     console.log(`[aste/scout] campi pubblicazione/ribasso: ${pubbl.length ? pubbl.join(", ") : "NESSUNO"}`);
   }
 
+  const fields = Array.from(seenKeys).sort();
+
+  // Nessuna XHR JSON intercettata: la SPA potrebbe aver cambiato endpoint
+  // o non aver caricato. Il DOM è mustache (vuoto): niente fallback DOM.
+  // NON si lancia (mai "0 lotti" silenzioso): si ritorna con una nota, così
+  // la diagnostica (conteggio + campi) arriva comunque a chi ha lanciato.
   if (collected.length === 0) {
-    // Nessuna XHR JSON intercettata: la SPA potrebbe aver cambiato
-    // endpoint o non aver caricato. Il DOM è mustache (vuoto): niente
-    // fallback DOM utile — errore esplicito, mai "0 lotti" silenzioso.
-    throw new Error(
-      `aste: nessuna inserzione JSON intercettata su ${url} — endpoint API non individuato o pagina cambiata (SPA).`,
-    );
+    return {
+      lots: [],
+      fields,
+      note: `nessuna inserzione JSON intercettata su ${url} — endpoint API non individuato o pagina cambiata (SPA).`,
+    };
   }
 
   // Dedup grezzo per chiave procedura+lotto già a monte (l'API può
@@ -212,5 +225,5 @@ export async function scrapeAsteBari(page: Page): Promise<AsteRawLot[]> {
     seen.add(k);
     lots.push(lot);
   }
-  return lots;
+  return { lots, fields, note: "" };
 }
