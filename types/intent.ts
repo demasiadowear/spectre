@@ -67,3 +67,61 @@ export interface IntentScoutResult {
 export interface IntentStats {
   by_stage: Record<IntentStage, number>;
 }
+
+// ============================================================
+// Aste giudiziarie (immobili residenziali) — sorgente aggiuntiva
+// dello Scout: scraping Playwright della pagina Tribunale, dedup su
+// tribunale+procedura+lotto, digest Telegram giornaliero ordinato per
+// risparmio. Riusa browser/Gemini/Telegram del pipeline Intent.
+// ============================================================
+
+/** Lotto grezzo dallo scraper: campi best-effort + testo integrale
+ *  della scheda per il parsing di fallback (regex robuste). */
+export interface AsteRawLot {
+  tribunale: string;
+  procedura: string;
+  lotto: string;
+  comune: string;
+  tipo: string;
+  mq: string;
+  vani: string;
+  offerta_minima: string;
+  valore_stima: string;
+  data_asta: string;
+  termine_offerte: string;
+  link: string;
+  raw_text: string;
+}
+
+/** Lotto normalizzato + campi calcolati. */
+export interface AsteLot {
+  /** Chiave dedup: tribunale|procedura|lotto (normalizzata). */
+  key: string;
+  tribunale: string;
+  procedura: string;
+  lotto: string;
+  comune: string;
+  tipo: string;
+  mq: number | null;
+  vani: number | null;
+  offerta_minima: number | null;
+  valore_stima: number | null;
+  /** Data asta in ISO (YYYY-MM-DD) o "". */
+  data_asta: string;
+  /** Termine presentazione offerte in ISO o "". */
+  termine_offerte: string;
+  link: string;
+  /** (valore_stima - offerta_minima) / valore_stima, 0..1 (null se dati mancanti). */
+  risparmio_pct: number | null;
+  /** Giorni da oggi al termine offerte (negativo = scaduto, null = ignoto). */
+  giorni_al_termine: number | null;
+}
+
+export interface AsteScoutResult {
+  scraped: number;
+  nuovi: number;
+  aggiornati: number;
+  digest_inviato: boolean;
+  lotti_in_digest: number;
+  errors: string[];
+}
