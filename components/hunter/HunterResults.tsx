@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import {
   Ban,
   Check,
+  ExternalLink,
   FileText,
+  Gavel,
   Globe,
   Loader2,
   Phone,
@@ -16,10 +18,12 @@ import NeonButton from "@/components/ui/spectre/NeonButton";
 import LoadingGrid from "@/components/ui/spectre/LoadingGrid";
 import TypingText from "@/components/ui/spectre/TypingText";
 import { SPECTRE } from "@/lib/constants";
+import type { AsteLot } from "@/types/intent";
 import type { HuntResult, HunterPriority, ScoredLead } from "@/types/hunter";
 
 interface HunterResultsProps {
   leads: ScoredLead[];
+  asteLots?: AsteLot[];
   source: HuntResult["source"] | null;
   loading: boolean;
   error: string | null;
@@ -31,6 +35,68 @@ interface HunterResultsProps {
   onDiscard: (lead: ScoredLead) => void;
   onImportAll: () => void;
   importingAll: boolean;
+}
+
+// --- Aste giudiziarie: formato scheda (comune, tipo, mq, offerta, date) ---
+const eur = (n: number | null): string =>
+  n == null ? "n/d" : `€${Math.round(n).toLocaleString("it-IT")}`;
+const itDate = (iso: string): string => {
+  if (!iso) return "n/d";
+  const [y, m, d] = iso.split("-");
+  return d && m && y ? `${d}/${m}/${y}` : iso;
+};
+
+function AsteCard({ lot }: { lot: AsteLot }) {
+  const urgent =
+    lot.giorni_al_termine != null && lot.giorni_al_termine >= 0 && lot.giorni_al_termine <= 7;
+  const termine =
+    lot.giorni_al_termine == null
+      ? itDate(lot.termine_offerte)
+      : lot.giorni_al_termine >= 0
+        ? `${itDate(lot.termine_offerte)} (tra ${lot.giorni_al_termine} giorni)`
+        : `${itDate(lot.termine_offerte)} (SCADUTO)`;
+  return (
+    <GlassCard className="flex flex-col gap-2 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <p className="font-display text-sm font-medium text-spectre-text">
+          {(lot.comune || "—").toUpperCase()} — {lot.tipo || "immobile"}
+          {lot.mq != null && <span className="text-spectre-muted">, {lot.mq} mq</span>}
+        </p>
+        {lot.risparmio_pct != null ? (
+          <span className="shrink-0 rounded-sm border border-spectre-green/40 bg-spectre-green/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.15em] text-spectre-green">
+            -{Math.round(lot.risparmio_pct * 100)}%
+          </span>
+        ) : lot.numero_pubblicazione != null ? (
+          <span className="shrink-0 rounded-sm border border-spectre-amber/40 bg-spectre-amber/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.15em] text-spectre-amber">
+            {lot.numero_pubblicazione}^ asta{lot.numero_pubblicazione >= 2 ? " · ribassato" : ""}
+          </span>
+        ) : null}
+      </div>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1 font-mono text-[11px] text-spectre-muted">
+        <span>
+          Offerta minima:{" "}
+          <b className="text-spectre-cyan">{eur(lot.offerta_minima)}</b>
+        </span>
+        {lot.valore_stima != null && (
+          <span>Valore perizia: <b className="text-spectre-text">{eur(lot.valore_stima)}</b></span>
+        )}
+        <span>Asta: {itDate(lot.data_asta)}</span>
+        <span className={urgent ? "text-spectre-magenta" : ""}>
+          Termine offerte: {termine}{urgent ? " ⚠️" : ""}
+        </span>
+      </div>
+      {lot.link && (
+        <a
+          href={lot.link}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 font-mono text-[11px] text-spectre-cyan transition hover:text-glow-cyan"
+        >
+          <ExternalLink className="h-3 w-3" strokeWidth={1.5} /> Avviso / perizia
+        </a>
+      )}
+    </GlassCard>
+  );
 }
 
 const PAGE = 8;
@@ -49,6 +115,7 @@ const PRIORITY_CLS: Record<HunterPriority, string> = {
 
 export default function HunterResults({
   leads,
+  asteLots = [],
   source,
   loading,
   error,
@@ -66,7 +133,7 @@ export default function HunterResults({
   // Reset pagination whenever a new result set arrives.
   useEffect(() => {
     setVisible(PAGE);
-  }, [leads]);
+  }, [leads, asteLots]);
 
   if (loading) {
     return (
@@ -93,6 +160,45 @@ export default function HunterResults({
           <TypingText text="Imposta zona e categoria, poi lancia l'hunt per acquisire target." />
         </p>
       </GlassCard>
+    );
+  }
+
+  // Sorgente aste: schede lotto (solo visualizzazione, nessun import).
+  if (source === "aste") {
+    if (asteLots.length === 0) {
+      return (
+        <GlassCard corners glow="magenta" className="p-10 text-center">
+          <p className="font-display text-lg font-bold tracking-[0.15em] text-spectre-magenta">
+            NESSUN LOTTO APERTO
+          </p>
+          <p className="mt-2 font-mono text-xs text-spectre-muted">
+            Nessuna asta residenziale attiva sul Tribunale di Bari in questo momento.
+          </p>
+        </GlassCard>
+      );
+    }
+    return (
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+          <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-spectre-muted">
+            {asteLots.length} lotti ·{" "}
+            <span className="text-spectre-cyan">termine offerte più vicino</span>
+          </span>
+          <span className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.2em] text-spectre-muted/60">
+            <Gavel className="h-3 w-3" strokeWidth={1.5} /> aste · Bari
+          </span>
+        </div>
+        {asteLots.slice(0, visible).map((lot) => (
+          <AsteCard key={lot.key} lot={lot} />
+        ))}
+        {asteLots.length > visible && (
+          <div className="flex justify-center pt-2">
+            <NeonButton variant="ghost" size="sm" onClick={() => setVisible((v) => v + PAGE)}>
+              Carica altri ({asteLots.length - visible})
+            </NeonButton>
+          </div>
+        )}
+      </div>
     );
   }
 

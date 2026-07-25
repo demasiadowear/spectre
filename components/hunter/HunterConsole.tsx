@@ -9,6 +9,7 @@ import ScriptModal from "./ScriptModal";
 import PulseRing from "@/components/ui/spectre/PulseRing";
 import { useVoiceStore } from "@/lib/voice/store";
 import type { ApiResponse } from "@/types";
+import type { AsteLot } from "@/types/intent";
 import {
   HUNTER_CATEGORIES,
   type HuntResult,
@@ -108,6 +109,7 @@ function toImportPayload(lead: ScoredLead, category: string) {
 
 export default function HunterConsole() {
   const [leads, setLeads] = useState<ScoredLead[]>([]);
+  const [asteLots, setAsteLots] = useState<AsteLot[]>([]);
   const [source, setSource] = useState<HuntResult["source"] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -149,14 +151,17 @@ export default function HunterConsole() {
       const json = (await res.json()) as ApiResponse<HuntResult>;
       if (json.success && json.data) {
         setLeads(json.data.leads);
+        setAsteLots(json.data.aste_lots ?? []);
         setSource(json.data.source);
       } else {
         setError(json.error || "Hunt fallito.");
         setLeads([]);
+        setAsteLots([]);
       }
     } catch {
       setError("Errore di rete durante l'hunt.");
       setLeads([]);
+      setAsteLots([]);
     } finally {
       setLoading(false);
     }
@@ -302,6 +307,7 @@ export default function HunterConsole() {
 
       <HunterResults
         leads={leads.filter((l) => !discardedIds.has(l.id))}
+        asteLots={asteLots}
         source={source}
         loading={loading}
         error={error}

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { searchGooglePlaces } from "@/lib/hunter/google-places";
 import { scoreLead } from "@/lib/hunter/scorer";
+import { fetchAsteLots } from "@/lib/intent/aste";
 import { getLeads } from "@/lib/data";
 import { normalizePhone } from "@/lib/pitch";
 import type { ApiResponse } from "@/types";
@@ -11,8 +12,10 @@ import type {
   ScoredLead,
 } from "@/types/hunter";
 
-// POST /api/hunt — find local businesses, filter, score, rank.
-// Solo Google Places: senza chiave l'endpoint fallisce esplicito.
+// POST /api/hunt — trova attività locali (Google Places) OPPURE, con
+// source="aste", i lotti delle aste giudiziarie (Tribunale di Bari).
+// Lo scrape aste usa Playwright: stessa soglia degli scout.
+export const maxDuration = 300;
 
 // Exclude obvious chains / corporates (not "spa" the wellness word).
 const EXCLUDE = [/franchising/i, /\bgroup\b/i, /s\.p\.a\.?/i];
@@ -33,6 +36,29 @@ export async function POST(req: Request) {
       { success: false, error: "Body JSON non valido." },
       { status: 400 },
     );
+  }
+
+  // Sorgente aste giudiziarie: scrape live dei lotti (Tribunale di Bari,
+  // residenziale). Nessun campo Google richiesto.
+  if (str(body.source) === "aste") {
+    try {
+      const { lots, errors } = await fetchAsteLots();
+      if (lots.length === 0 && errors.length > 0) {
+        return NextResponse.json<ApiResponse<never>>(
+          { success: false, error: `Aste: ${errors[0]}` },
+          { status: 502 },
+        );
+      }
+      return NextResponse.json<ApiResponse<HuntResult>>({
+        success: true,
+        data: { leads: [], count: lots.length, source: "aste", aste_lots: lots },
+      });
+    } catch (err) {
+      return NextResponse.json<ApiResponse<never>>(
+        { success: false, error: `Aste: ${(err as Error).message}` },
+        { status: 500 },
+      );
+    }
   }
 
   const location = str(body.location).trim();

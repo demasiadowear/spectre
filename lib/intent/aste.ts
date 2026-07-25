@@ -289,24 +289,29 @@ const itDateFmt = (iso: string): string => {
  *  ribassato). Top 3 -> 🔥. Termine <= 7gg -> ⚠️. Righe Valore/Risparmio
  *  SOLO se la perizia esiste (mai inventata); in loro assenza, se c'è il
  *  numero di pubblicazione, mostra "N^ asta — già ribassato". */
-export function buildAsteDigest(lots: ScoredLot[], now = new Date()): string {
-  if (lots.length === 0) return "";
-  // scadenza: futura più vicina prima; scadute/ignote in fondo
-  const daysKey = (l: ScoredLot) =>
+/** Ordina i lotti: 1) termine offerte più vicino, 2) n. pubblicazione
+ *  più alto (più ribassato), 3) risparmio se noto, 4) offerta più bassa.
+ *  Usato dal digest e dalla sorgente Hunter. */
+export function sortAsteLots<T extends AsteLot>(lots: T[]): T[] {
+  const daysKey = (l: AsteLot) =>
     l.giorni_al_termine != null && l.giorni_al_termine >= 0 ? l.giorni_al_termine : Infinity;
-
-  const sorted = [...lots].sort((a, b) => {
+  return [...lots].sort((a, b) => {
     const da = daysKey(a);
     const db = daysKey(b);
-    if (da !== db) return da - db; // 1) termine offerte più vicino
+    if (da !== db) return da - db;
     const pa = a.numero_pubblicazione ?? 0;
     const pb = b.numero_pubblicazione ?? 0;
-    if (pb !== pa) return pb - pa; // 2) numero pubblicazione più alto
+    if (pb !== pa) return pb - pa;
     const ra = a.risparmio_pct ?? -1;
     const rb = b.risparmio_pct ?? -1;
-    if (rb !== ra) return rb - ra; // 3) risparmio se noto
+    if (rb !== ra) return rb - ra;
     return (a.offerta_minima ?? Infinity) - (b.offerta_minima ?? Infinity);
   });
+}
+
+export function buildAsteDigest(lots: ScoredLot[], now = new Date()): string {
+  if (lots.length === 0) return "";
+  const sorted = sortAsteLots(lots);
 
   const shown = sorted.slice(0, MAX_CARDS);
   const dateHeader = new Intl.DateTimeFormat("it-IT", {
@@ -467,4 +472,24 @@ export async function runAsteScout(now = new Date()): Promise<AsteScoutResult> {
   }
 
   return result;
+}
+
+/** Scrape LIVE dei lotti aste per Hunter (sorgente selezionabile in
+ *  ricerca): solo scraping + parsing + ordinamento. Niente Telegram,
+ *  niente DB, niente Gemini — i risultati vanno solo a schermo. */
+export async function fetchAsteLots(now = new Date()): Promise<{ lots: AsteLot[]; errors: string[] }> {
+  const result: AsteScoutResult = {
+    scraped: 0, nuovi: 0, aggiornati: 0, digest_inviato: false,
+    lotti_in_digest: 0, campi_perizia: [], campi_pubblicazione: [], errors: [],
+  };
+  const { raw } = await scrapeLots(result);
+  const seen = new Set<string>();
+  const lots: AsteLot[] = [];
+  for (const r of raw) {
+    const lot = parseAsteLot(r, now);
+    if (!isUsable(lot) || seen.has(lot.key)) continue;
+    seen.add(lot.key);
+    lots.push(lot);
+  }
+  return { lots: sortAsteLots(lots), errors: result.errors };
 }

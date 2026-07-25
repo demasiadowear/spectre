@@ -10,11 +10,11 @@ const nextConfig = {
     outputFileTracingIncludes: {
       // Ogni route che lancia il chromium serverless deve includerne i
       // binari brotli nella propria lambda (il file tracing non segue i
-      // path costruiti a runtime): intent scout, aste scout, e il
-      // webhook Telegram (comando /aste esegue lo stesso scrape).
+      // path costruiti a runtime): intent scout, aste scout (cron), e
+      // Hunter (sorgente aste selezionabile in ricerca).
       "/api/intent/scout": ["./node_modules/@sparticuz/chromium/bin/**"],
       "/api/intent/aste": ["./node_modules/@sparticuz/chromium/bin/**"],
-      "/api/telegram/webhook": ["./node_modules/@sparticuz/chromium/bin/**"],
+      "/api/hunt": ["./node_modules/@sparticuz/chromium/bin/**"],
     },
   },
 };

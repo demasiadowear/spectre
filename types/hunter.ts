@@ -2,7 +2,12 @@
 // AYRO SPECTRE — Lead Hunter types
 // ============================================================
 
+import type { AsteLot } from "@/types/intent";
+
 export type HunterPriority = "HOT" | "WARM" | "COLD";
+
+/** Sorgente della ricerca Hunter. */
+export type HunterSource = "google" | "aste";
 
 /** A business as returned by Google Places or the mock source. */
 export interface RawLead {
@@ -32,12 +37,16 @@ export interface HunterParams {
   min_rating?: number;
   limit?: number;
   only_no_website?: boolean;
+  /** Sorgente: "google" (default) o "aste" (aste giudiziarie Bari). */
+  source?: HunterSource;
 }
 
 export interface HuntResult {
   leads: ScoredLead[];
   count: number;
-  source: "google-places" | "mock";
+  source: "google-places" | "mock" | "aste";
+  /** Lotti aste (valorizzato solo quando source = "aste"). */
+  aste_lots?: AsteLot[];
 }
 
 export interface ScriptObjection {

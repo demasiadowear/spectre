@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { Crosshair, Globe } from "lucide-react";
+import { Crosshair, Gavel, Globe, MapPin } from "lucide-react";
 import GlassCard from "@/components/ui/spectre/GlassCard";
 import NeonButton from "@/components/ui/spectre/NeonButton";
+import { cn } from "@/lib/utils";
 import { SPECTRE } from "@/lib/constants";
-import { HUNTER_CATEGORIES, type HunterParams } from "@/types/hunter";
+import { HUNTER_CATEGORIES, type HunterParams, type HunterSource } from "@/types/hunter";
 
 interface HunterFormProps {
   onHunt: (params: HunterParams) => void;
@@ -25,6 +26,7 @@ export default function HunterForm({
   initialLocation,
   initialCategory,
 }: HunterFormProps) {
+  const [source, setSource] = useState<HunterSource>("google");
   const [location, setLocation] = useState(initialLocation ?? "");
   const [category, setCategory] = useState(
     initialCategory ?? HUNTER_CATEGORIES[0].value,
@@ -35,8 +37,16 @@ export default function HunterForm({
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!location.trim() || !category.trim() || loading) return;
+    if (loading) return;
+    if (source === "aste") {
+      // Sorgente fissa (Tribunale di Bari): location/category sono
+      // segnaposto, la route aste li ignora.
+      onHunt({ source: "aste", location: "Bari", category: "aste giudiziarie" });
+      return;
+    }
+    if (!location.trim() || !category.trim()) return;
     onHunt({
+      source: "google",
       location: location.trim(),
       category: category.trim(),
       radius,
@@ -46,9 +56,50 @@ export default function HunterForm({
     });
   }
 
+  const SOURCES: { value: HunterSource; label: string; icon: typeof MapPin }[] = [
+    { value: "google", label: "Google Maps", icon: MapPin },
+    { value: "aste", label: "Aste giudiziarie", icon: Gavel },
+  ];
+
   return (
     <GlassCard corners glow="magenta" className="p-5 sm:p-6">
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+        {/* Sorgente ricerca */}
+        <div className="flex flex-col gap-1.5">
+          <span className={LABEL}>Sorgente</span>
+          <div className="grid grid-cols-2 gap-2">
+            {SOURCES.map((s) => {
+              const Icon = s.icon;
+              const active = source === s.value;
+              return (
+                <button
+                  key={s.value}
+                  type="button"
+                  onClick={() => setSource(s.value)}
+                  className={cn(
+                    "flex items-center justify-center gap-2 rounded-sm border px-3 py-2.5 font-mono text-xs transition",
+                    active
+                      ? "border-spectre-cyan/60 bg-spectre-cyan/10 text-spectre-cyan shadow-neon-cyan"
+                      : "border-border bg-surface text-spectre-muted hover:border-spectre-cyan/30",
+                  )}
+                >
+                  <Icon className="h-4 w-4" strokeWidth={1.5} />
+                  {s.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {source === "aste" && (
+          <p className="rounded-sm border border-border bg-surface px-3 py-2.5 font-mono text-[11px] leading-relaxed text-spectre-muted">
+            Aste giudiziarie · Tribunale di Bari (immobili residenziali). Sorgente fissa:
+            lancia la ricerca per vedere i lotti aperti, ordinati per termine offerte.
+          </p>
+        )}
+
+        {source === "google" && (
+        <>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="flex flex-col gap-1.5">
             <span className={LABEL}>Città / Zona</span>
@@ -146,20 +197,25 @@ export default function HunterForm({
             />
           </span>
         </button>
+        </>
+        )}
 
         <NeonButton
           type="submit"
           variant="magenta"
           size="lg"
           filled
-          disabled={loading || !location.trim()}
+          disabled={loading || (source === "google" && !location.trim())}
           className="w-full"
         >
-          <Crosshair
-            className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
-            strokeWidth={1.5}
-          />
-          {loading ? "Hunting in corso" : "Lancia Hunt"}
+          {source === "aste" ? (
+            <Gavel className={`h-4 w-4 ${loading ? "animate-pulse" : ""}`} strokeWidth={1.5} />
+          ) : (
+            <Crosshair className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} strokeWidth={1.5} />
+          )}
+          {loading
+            ? source === "aste" ? "Scraping aste…" : "Hunting in corso"
+            : source === "aste" ? "Cerca aste" : "Lancia Hunt"}
         </NeonButton>
       </form>
     </GlassCard>
