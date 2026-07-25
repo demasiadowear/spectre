@@ -37,14 +37,29 @@ export function parseNum(s: string): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-/** "12/09/2026" / "12-09-2026" -> "2026-09-12" · "" se non valida. */
+/** Normalizza una data in ISO (YYYY-MM-DD). Gestisce i formati che
+ *  arrivano dall'API (ISO, epoch s/ms) e dal testo (dd/mm/yyyy).
+ *  "" se non valida. */
 export function parseItDate(s: string): string {
-  const m = s.match(/(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})/);
+  if (!s) return "";
+  const t = String(s).trim();
+  // ISO: 2026-09-05 o 2026-09-05T00:00:00...
+  const iso = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) {
+    const d = `${iso[1]}-${iso[2]}-${iso[3]}`;
+    return Number.isFinite(Date.parse(`${d}T00:00:00Z`)) ? d : "";
+  }
+  // epoch (secondi o millisecondi)
+  if (/^\d{10}$/.test(t) || /^\d{13}$/.test(t)) {
+    const ms = t.length === 13 ? Number(t) : Number(t) * 1000;
+    const dt = new Date(ms);
+    return Number.isFinite(dt.getTime()) ? dt.toISOString().slice(0, 10) : "";
+  }
+  // dd/mm/yyyy (o con - / .)
+  const m = t.match(/(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})/);
   if (!m) return "";
-  const dd = m[1].padStart(2, "0");
-  const mm = m[2].padStart(2, "0");
-  const iso = `${m[3]}-${mm}-${dd}`;
-  return Number.isFinite(Date.parse(`${iso}T00:00:00Z`)) ? iso : "";
+  const d2 = `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  return Number.isFinite(Date.parse(`${d2}T00:00:00Z`)) ? d2 : "";
 }
 
 /** Giorni interi da oggi (UTC) al termine (negativo = scaduto). */
@@ -97,9 +112,10 @@ export function parseAsteLot(raw: AsteRawLot, now = new Date()): AsteLot {
     /prezzo\s*base[^0-9]*([0-9][0-9.,]*)/i,
     /base\s*d['’]?asta[^0-9]*([0-9][0-9.,]*)/i,
   ]));
+  // SOLO campi esplicitamente di perizia/stima: mai prezzoBase/valoreBase,
+  // così non si inventa un valore quando la perizia non c'è.
   const valore_stima = parseEuro(pick(raw.valore_stima, t, [
-    /(?:valore|stima|perizia)[^0-9]*([0-9][0-9.,]*)/i,
-    /valore\s*di\s*stima[^0-9]*([0-9][0-9.,]*)/i,
+    /(?:valore\s*(?:di\s*)?(?:perizia|stima)|prezzo\s*perizia|"?valoreperizia"?|"?valorestima"?)[^0-9]{0,14}([0-9][0-9.,]{2,})/i,
   ]));
   const data_asta = parseItDate(pick(raw.data_asta, t, [
     /(?:data\s*(?:vendita|asta)|vendita\s*(?:il|del)?|asta\s*(?:il|del)?)[^0-9]*(\d{1,2}[/\-.]\d{1,2}[/\-.]\d{4})/i,
@@ -255,18 +271,28 @@ const itDateFmt = (iso: string): string => {
   return `${d}/${m}/${y}`;
 };
 
-/** Ordina per risparmio_pct desc (null in fondo), tiebreak punteggio
- *  Gemini poi valore. Top 3 -> 🔥. Termine <= 7gg -> ⚠️. */
+/** Ordina per risparmio_pct desc quando disponibile; se la perizia non
+ *  è nota (risparmio null) ripiega sull'urgenza del termine offerte
+ *  (scadenza più vicina prima). Top 3 -> 🔥. Termine <= 7gg -> ⚠️.
+ *  Le righe Valore/Risparmio si mostrano SOLO se il dato esiste (mai
+ *  valori inventati). */
 export function buildAsteDigest(lots: ScoredLot[], now = new Date()): string {
   if (lots.length === 0) return "";
+  const hasRisparmio = lots.some((l) => l.risparmio_pct != null);
+  const daysKey = (l: ScoredLot) =>
+    l.giorni_al_termine != null && l.giorni_al_termine >= 0 ? l.giorni_al_termine : Infinity;
+
   const sorted = [...lots].sort((a, b) => {
     const ra = a.risparmio_pct ?? -1;
     const rb = b.risparmio_pct ?? -1;
-    if (rb !== ra) return rb - ra;
+    if (rb !== ra) return rb - ra; // risparmio desc (null in fondo)
+    const da = daysKey(a);
+    const db = daysKey(b);
+    if (da !== db) return da - db; // poi scadenza più vicina prima
     const ga = a.gemini_score ?? 0;
     const gb = b.gemini_score ?? 0;
     if (gb !== ga) return gb - ga;
-    return (b.valore_stima ?? 0) - (a.valore_stima ?? 0);
+    return (a.offerta_minima ?? Infinity) - (b.offerta_minima ?? Infinity);
   });
 
   const shown = sorted.slice(0, MAX_CARDS);
@@ -276,7 +302,7 @@ export function buildAsteDigest(lots: ScoredLot[], now = new Date()): string {
 
   const lines: string[] = [
     `🏛️ ASTE GIUDIZIARIE — Tribunale di Bari (residenziale)`,
-    `${dateHeader} · ${sorted.length} lotti`,
+    `${dateHeader} · ${sorted.length} lotti · ordinati per ${hasRisparmio ? "risparmio" : "scadenza offerte"}`,
     "",
   ];
 
@@ -284,24 +310,21 @@ export function buildAsteDigest(lots: ScoredLot[], now = new Date()): string {
     const fire = i < 3 ? "🔥 " : "";
     const urgent =
       l.giorni_al_termine != null && l.giorni_al_termine >= 0 && l.giorni_al_termine <= URGENT_DAYS;
-    const risparmio = l.risparmio_pct != null ? `${Math.round(l.risparmio_pct * 100)}%` : "n/d";
     const mqTxt = l.mq != null ? `, ${l.mq} mq` : "";
     const comune = l.comune || "—";
     const tipo = l.tipo || "immobile";
 
     let termine = `Termine offerte: ${itDateFmt(l.termine_offerte)}`;
     if (l.giorni_al_termine != null) {
-      termine +=
-        l.giorni_al_termine >= 0
-          ? ` (tra ${l.giorni_al_termine} giorni)`
-          : ` (SCADUTO)`;
+      termine += l.giorni_al_termine >= 0 ? ` (tra ${l.giorni_al_termine} giorni)` : ` (SCADUTO)`;
     }
     if (urgent) termine += " ⚠️";
 
     lines.push(`${fire}${comune.toUpperCase()} — ${tipo}${mqTxt}`);
     lines.push(`Offerta minima: ${euroFmt(l.offerta_minima)}`);
-    lines.push(`Valore perizia: ${euroFmt(l.valore_stima)}`);
-    lines.push(`Risparmio: ${risparmio}`);
+    // Valore/Risparmio SOLO se la perizia è nota (mai inventata).
+    if (l.valore_stima != null) lines.push(`Valore perizia: ${euroFmt(l.valore_stima)}`);
+    if (l.risparmio_pct != null) lines.push(`Risparmio: ${Math.round(l.risparmio_pct * 100)}%`);
     lines.push(`Asta: ${itDateFmt(l.data_asta)}`);
     lines.push(termine);
     if (l.link) lines.push(`🔗 ${l.link}`);
@@ -309,7 +332,7 @@ export function buildAsteDigest(lots: ScoredLot[], now = new Date()): string {
   });
 
   if (sorted.length > shown.length) {
-    lines.push(`+${sorted.length - shown.length} altri lotti (ordina per risparmio).`);
+    lines.push(`+${sorted.length - shown.length} altri lotti.`);
   }
   return lines.join("\n").trim();
 }
