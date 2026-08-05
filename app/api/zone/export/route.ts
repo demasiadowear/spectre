@@ -1,8 +1,8 @@
 import { turso } from "@/lib/turso";
-import { ensureZoneSchema } from "@/lib/zone/db";
+import { commissionReport, ensureZoneSchema } from "@/lib/zone/db";
 
-// GET /api/zone/export?what=clients|sales — CSV per conti/backup
-// (dietro JWT). Separatore ';' e BOM: si apre dritto in Excel IT.
+// GET /api/zone/export?what=clients|sales|commissions — CSV per conti/
+// backup (dietro JWT). Separatore ';' e BOM: apre dritto in Excel IT.
 export const dynamic = "force-dynamic";
 
 function esc(v: unknown): string {
@@ -21,7 +21,41 @@ export async function GET(req: Request) {
     return new Response("Turso non configurato.", { status: 500 });
   }
   await ensureZoneSchema();
-  const what = new URL(req.url).searchParams.get("what") ?? "clients";
+  const sp = new URL(req.url).searchParams;
+  const what = sp.get("what") ?? "clients";
+
+  // CSV provvigioni: una riga per agente nel periodo (agente, periodo,
+  // n_vendite, pezzi, totale_venduto, provvigione). Filtrabile per
+  // agente e periodo. Un solo importo, nessuno scorporo fiscale.
+  if (what === "commissions") {
+    const isDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
+    const now = new Date();
+    const defStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1)).toISOString().slice(0, 10);
+    const defEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0)).toISOString().slice(0, 10);
+    const start = isDate(sp.get("start") ?? "") ? (sp.get("start") as string) : defStart;
+    const end = isDate(sp.get("end") ?? "") ? (sp.get("end") as string) : defEnd;
+    const agent = sp.get("agent")?.trim() || undefined;
+    const report = await commissionReport(start, end, agent);
+    const periodo = `${start} → ${end}`;
+    const rows = report.agents.map((a) => ({
+      agente: a.nome,
+      periodo,
+      n_vendite: a.n_vendite,
+      pezzi: a.pezzi,
+      totale_venduto: a.totale_venduto,
+      provvigione: a.provvigione,
+    }));
+    const csv = toCsv(
+      ["agente", "periodo", "n_vendite", "pezzi", "totale_venduto", "provvigione"],
+      rows,
+    );
+    return new Response(csv, {
+      headers: {
+        "Content-Type": "text/csv;charset=utf-8",
+        "Content-Disposition": 'attachment; filename="zone-provvigioni.csv"',
+      },
+    });
+  }
 
   if (what === "sales") {
     const res = await turso.execute(`
