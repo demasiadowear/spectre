@@ -1,6 +1,9 @@
 import { randomUUID } from "crypto";
 import { turso } from "@/lib/turso";
 import type {
+  CommissionAgentRow,
+  CommissionReport,
+  ZoneAgent,
   ZoneCard,
   ZoneCardStatus,
   ZoneClient,
@@ -124,6 +127,24 @@ export async function ensureZoneSchema(): Promise<void> {
       taken_at  text default (datetime('now')),
       source    text not null default 'refresh'
     );
+    create table if not exists zone_agents (
+      id             text primary key,
+      nome           text not null,
+      telefono       text default '',
+      commission_pct real not null default 25,
+      attivo         integer not null default 1,
+      note           text default '',
+      created_at     text default (datetime('now')),
+      updated_at     text default (datetime('now'))
+    );
+    create table if not exists zone_commission_payments (
+      id            text primary key,
+      agent_id      text not null,
+      periodo_start text not null,
+      periodo_end   text not null,
+      importo       real not null default 0,
+      pagata_at     text default (datetime('now'))
+    );
     create index if not exists idx_zone_snapshots_client on zone_review_snapshots(client_id, taken_at);
     create index if not exists idx_zone_moves_product on zone_stock_moves(product_id);
     create index if not exists idx_zone_clients_status on zone_clients(status);
@@ -189,6 +210,11 @@ export async function ensureZoneSchema(): Promise<void> {
     "alter table zone_sales add column unit_cost real not null default 0",
     // WhatsApp cliente (report recensioni).
     "alter table zone_clients add column whatsapp text default ''",
+    // Agenti / segnalatori: agente della vendita + % e importo
+    // provvigione STORICIZZATI sulla riga (fissi al salvataggio).
+    "alter table zone_sales add column agent_id text default ''",
+    "alter table zone_sales add column commission_pct_snapshot real not null default 0",
+    "alter table zone_sales add column commission_amount real not null default 0",
   ]) {
     try {
       await turso.execute(ddl);
@@ -429,6 +455,9 @@ function rowToSale(r: Row): ZoneSale {
     qty: num(r.qty),
     price: num(r.price),
     unit_cost: num(r.unit_cost),
+    agent_id: str(r.agent_id),
+    commission_pct: num(r.commission_pct_snapshot),
+    commission_amount: num(r.commission_amount),
     omaggio: num(r.omaggio) === 1,
     group_id: str(r.group_id),
     sold_at: str(r.sold_at),
@@ -1140,6 +1169,9 @@ export interface AddSaleInput {
   notes?: string;
   /** Codici card da assegnare al cliente insieme alla vendita. */
   card_codes?: string[];
+  /** Agente/segnalatore della vendita ('' o assente = vendita diretta,
+   *  nessuna provvigione). La % viene storicizzata sulla riga. */
+  agent_id?: string;
 }
 
 /** Registra la vendita, assegna le eventuali card e marca il cliente
@@ -1158,6 +1190,17 @@ export async function addSale(input: AddSaleInput): Promise<ZoneClientDetail | n
   const costRows = await turso.execute("select id, unit_cost from zone_products");
   const costMap: Record<string, number> = {};
   for (const r of costRows.rows as Row[]) costMap[str(r.id)] = num(r.unit_cost);
+  // Agente: % provvigione STORICIZZATA al salvataggio. Se cambio poi la
+  // % dell'agente, le vendite già fatte NON si ricalcolano.
+  const agentId = input.agent_id?.trim() || "";
+  let commissionPct = 0;
+  if (agentId) {
+    const a = await turso.execute({
+      sql: "select commission_pct from zone_agents where id = ? limit 1",
+      args: [agentId],
+    });
+    commissionPct = num((a.rows[0] as Row | undefined)?.commission_pct);
+  }
   // Un group_id condiviso: le righe sono UNA vendita (raggruppate in
   // rilettura). sold_at unico per tutte le righe del gruppo.
   const groupId = `sale-${randomUUID().slice(0, 12)}`;
@@ -1169,10 +1212,15 @@ export async function addSale(input: AddSaleInput): Promise<ZoneClientDetail | n
     const qty = Math.max(1, Math.round(line.qty));
     const price = line.omaggio ? 0 : line.price;
     const unitCost = line.product_id ? explodedUnitCost(costMap, line.product_id) : 0;
+    // Provvigione: sempre 0 sugli omaggi (anche con agente). Altrove
+    // price × % / 100, arrotondata a 2 decimali. Un solo importo.
+    const commissionAmount =
+      agentId && !line.omaggio ? Math.round(price * commissionPct) / 100 : 0;
     await turso.execute({
       sql: `insert into zone_sales
-              (id, client_id, product_id, product_name, qty, price, unit_cost, omaggio, group_id, sold_at, notes)
-            values (?, ?, ?, ?, ?, ?, ?, ?, ?, coalesce(?, datetime('now')), ?)`,
+              (id, client_id, product_id, product_name, qty, price, unit_cost,
+               agent_id, commission_pct_snapshot, commission_amount, omaggio, group_id, sold_at, notes)
+            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, coalesce(?, datetime('now')), ?)`,
       args: [
         rowId,
         input.client_id,
@@ -1181,6 +1229,9 @@ export async function addSale(input: AddSaleInput): Promise<ZoneClientDetail | n
         qty,
         price,
         unitCost,
+        agentId,
+        agentId ? commissionPct : 0,
+        commissionAmount,
         line.omaggio ? 1 : 0,
         groupId,
         soldAt,
@@ -1271,6 +1322,203 @@ export async function deleteSaleRow(rowId: string): Promise<ZoneClientDetail | n
   }
   await turso.execute({ sql: "delete from zone_sales where id = ?", args: [rowId] });
   return getClientDetail(clientId);
+}
+
+// ----- Agenti / segnalatori --------------------------------------
+
+function rowToAgent(r: Row): ZoneAgent {
+  return {
+    id: str(r.id),
+    nome: str(r.nome),
+    telefono: str(r.telefono),
+    commission_pct: num(r.commission_pct),
+    attivo: num(r.attivo) === 1,
+    note: str(r.note),
+    created_at: str(r.created_at),
+    updated_at: str(r.updated_at),
+  };
+}
+
+/** Elenco agenti. Default solo attivi (per il select vendita); passa
+ *  includeInactive per la gestione (storico compreso). */
+export async function listAgents(includeInactive = false): Promise<ZoneAgent[]> {
+  if (!turso) return [];
+  await ensureZoneSchema();
+  const res = await turso.execute(
+    `select * from zone_agents ${includeInactive ? "" : "where attivo = 1"} order by attivo desc, nome`,
+  );
+  return (res.rows as Row[]).map(rowToAgent);
+}
+
+export async function upsertAgent(input: {
+  id?: string;
+  nome: string;
+  telefono?: string;
+  commission_pct?: number;
+  attivo?: boolean;
+  note?: string;
+}): Promise<ZoneAgent[]> {
+  if (!turso) throw new Error("Turso non configurato: il registro Zone richiede il DB.");
+  await ensureZoneSchema();
+  // default 25 solo se non specificata; resta sempre editabile.
+  const pct =
+    typeof input.commission_pct === "number" && Number.isFinite(input.commission_pct)
+      ? Math.max(0, Math.round(input.commission_pct * 100) / 100)
+      : 25;
+  await turso.execute({
+    sql: `insert into zone_agents (id, nome, telefono, commission_pct, attivo, note)
+          values (?, ?, ?, ?, ?, ?)
+          on conflict(id) do update set
+            nome = excluded.nome,
+            telefono = excluded.telefono,
+            commission_pct = excluded.commission_pct,
+            attivo = excluded.attivo,
+            note = excluded.note,
+            updated_at = datetime('now')`,
+    args: [
+      input.id || `agent-${randomUUID().slice(0, 8)}`,
+      input.nome.trim(),
+      input.telefono ?? "",
+      pct,
+      input.attivo === false ? 0 : 1,
+      input.note ?? "",
+    ],
+  });
+  return listAgents(true);
+}
+
+/** Attiva/disattiva un agente (lo storico resta, sparisce dai select). */
+export async function setAgentActive(id: string, attivo: boolean): Promise<ZoneAgent[]> {
+  if (!turso) throw new Error("Turso non configurato: il registro Zone richiede il DB.");
+  await ensureZoneSchema();
+  await turso.execute({
+    sql: "update zone_agents set attivo = ?, updated_at = datetime('now') where id = ?",
+    args: [attivo ? 1 : 0, id],
+  });
+  return listAgents(true);
+}
+
+/** Segna pagate le provvigioni di un agente per un periodo. */
+export async function markCommissionPaid(input: {
+  agent_id: string;
+  periodo_start: string;
+  periodo_end: string;
+  importo: number;
+}): Promise<void> {
+  if (!turso) throw new Error("Turso non configurato: il registro Zone richiede il DB.");
+  await ensureZoneSchema();
+  await turso.execute({
+    sql: `insert into zone_commission_payments (id, agent_id, periodo_start, periodo_end, importo)
+          values (?, ?, ?, ?, ?)`,
+    args: [
+      `pay-${randomUUID().slice(0, 10)}`,
+      input.agent_id,
+      input.periodo_start,
+      input.periodo_end,
+      Math.round(input.importo * 100) / 100,
+    ],
+  });
+}
+
+/** Report provvigioni per periodo (sold_at in [start,end]) e agente
+ *  opzionale. Un solo importo per agente: somma commission_amount.
+ *  Nessuno scorporo fiscale. */
+export async function commissionReport(
+  periodoStart: string,
+  periodoEnd: string,
+  agentId?: string,
+): Promise<CommissionReport> {
+  const empty: CommissionReport = {
+    periodo_start: periodoStart,
+    periodo_end: periodoEnd,
+    agents: [],
+  };
+  if (!turso) return empty;
+  await ensureZoneSchema();
+  // Righe vendita con agente nel periodo (sold_at incluso l'ultimo
+  // giorno: confronto su date(sold_at)).
+  const where: string[] = ["s.agent_id != ''", "date(s.sold_at) between ? and ?"];
+  const args: (string | number)[] = [periodoStart, periodoEnd];
+  if (agentId) {
+    where.push("s.agent_id = ?");
+    args.push(agentId);
+  }
+  const rowsRes = await turso.execute({
+    sql: `select s.agent_id, s.group_id, s.sold_at, s.product_name, s.qty, s.price,
+                 s.commission_pct_snapshot, s.commission_amount, s.omaggio,
+                 c.name as client_name,
+                 a.nome as agent_nome, a.telefono as agent_telefono, a.attivo as agent_attivo
+          from zone_sales s
+          join zone_agents a on a.id = s.agent_id
+          left join zone_clients c on c.id = s.client_id
+          where ${where.join(" and ")}
+          order by a.nome, s.sold_at desc`,
+    args,
+  });
+
+  const paysRes = await turso.execute({
+    sql: `select distinct agent_id from zone_commission_payments
+          where periodo_start = ? and periodo_end = ?`,
+    args: [periodoStart, periodoEnd],
+  });
+  const paid = new Set((paysRes.rows as Row[]).map((r) => str(r.agent_id)));
+
+  const byAgent = new Map<string, CommissionAgentRow>();
+  const groups = new Map<string, Set<string>>(); // agent -> group_ids (n vendite)
+  for (const r of rowsRes.rows as Row[]) {
+    const aid = str(r.agent_id);
+    if (!byAgent.has(aid)) {
+      byAgent.set(aid, {
+        id: aid,
+        nome: str(r.agent_nome),
+        telefono: str(r.agent_telefono),
+        attivo: num(r.agent_attivo) === 1,
+        n_vendite: 0,
+        pezzi: 0,
+        omaggi: 0,
+        totale_venduto: 0,
+        provvigione: 0,
+        media_per_vendita: 0,
+        pagata: paid.has(aid),
+        sales: [],
+      });
+      groups.set(aid, new Set());
+    }
+    const ag = byAgent.get(aid)!;
+    const omaggio = num(r.omaggio) === 1;
+    const qty = num(r.qty);
+    if (omaggio) {
+      ag.omaggi += qty;
+    } else {
+      // n_vendite = gruppi con almeno una riga a incasso (un gruppo
+      // tutto-omaggio non è una "vendita", conta solo tra gli omaggi).
+      groups.get(aid)!.add(str(r.group_id));
+      ag.pezzi += qty;
+      ag.totale_venduto += num(r.price);
+      ag.provvigione += num(r.commission_amount);
+    }
+    ag.sales.push({
+      sold_at: str(r.sold_at),
+      client_name: str(r.client_name),
+      product_name: str(r.product_name),
+      qty,
+      price: num(r.price),
+      commission_pct: num(r.commission_pct_snapshot),
+      commission_amount: num(r.commission_amount),
+      omaggio,
+    });
+  }
+  const agents = Array.from(byAgent.values()).map((ag) => {
+    ag.n_vendite = groups.get(ag.id)!.size;
+    ag.totale_venduto = Math.round(ag.totale_venduto * 100) / 100;
+    ag.provvigione = Math.round(ag.provvigione * 100) / 100;
+    ag.media_per_vendita =
+      ag.n_vendite > 0 ? Math.round((ag.totale_venduto / ag.n_vendite) * 100) / 100 : 0;
+    return ag;
+  });
+  // Classifica: totale venduto decrescente.
+  agents.sort((a, b) => b.totale_venduto - a.totale_venduto);
+  return { periodo_start: periodoStart, periodo_end: periodoEnd, agents };
 }
 
 // ----- Ricerche zona (cache anti-spesa API) ----------------------

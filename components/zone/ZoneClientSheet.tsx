@@ -22,6 +22,7 @@ import ZoneBillingSection from "@/components/zone/ZoneBillingSection";
 import { cn } from "@/lib/utils";
 import type { ApiResponse } from "@/types";
 import type {
+  ZoneAgent,
   ZoneClientDetail,
   ZoneClientStatus,
   ZoneLead,
@@ -175,6 +176,8 @@ export default function ZoneClientSheet({ clientId, previewLead, onClose, onChan
   const [saleRows, setSaleRows] = useState<SaleRow[]>([emptyRow()]);
   const [saleCards, setSaleCards] = useState("");
   const [saleNotes, setSaleNotes] = useState("");
+  const [saleAgent, setSaleAgent] = useState("");
+  const [agents, setAgents] = useState<ZoneAgent[]>([]);
   // form comodato
   const [loanOpen, setLoanOpen] = useState(false);
   const [loanProduct, setLoanProduct] = useState("");
@@ -225,6 +228,13 @@ export default function ZoneClientSheet({ clientId, previewLead, onClose, onChan
       .then((r) => r.json())
       .then((res: ApiResponse<ZoneProduct[]>) => {
         if (res.success && res.data) setProducts(res.data);
+      })
+      .catch(() => {});
+    // Agenti attivi per il select vendita (i disattivati non compaiono).
+    fetch("/api/zone/agents", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((res: ApiResponse<ZoneAgent[]>) => {
+        if (res.success && res.data) setAgents(res.data);
       })
       .catch(() => {});
   }, [clientId, load]);
@@ -540,11 +550,13 @@ export default function ZoneClientSheet({ clientId, previewLead, onClose, onChan
       lines,
       notes: saleNotes,
       card_codes: saleCards.split(/[,\s]+/).filter(Boolean),
+      agent_id: saleAgent || undefined,
     });
     if (ok) {
       setSaleRows([emptyRow()]);
       setSaleCards("");
       setSaleNotes("");
+      setSaleAgent("");
       flash("Vendita registrata ✓");
     }
   }
@@ -1149,6 +1161,22 @@ export default function ZoneClientSheet({ clientId, previewLead, onClose, onChan
               onChange={(e) => setSaleNotes(e.target.value)}
               className={cn(inputCls, "min-h-[44px] text-sm")}
             />
+            {/* agente/segnalatore: opzionale, vuoto = vendita diretta */}
+            <label className="block font-ui text-[11px] text-text2">
+              Agente / segnalatore — opzionale
+              <select
+                value={saleAgent}
+                onChange={(e) => setSaleAgent(e.target.value)}
+                className={cn(inputCls, "mt-1 min-h-[44px] text-sm")}
+              >
+                <option value="">Vendita diretta (nessuna provvigione)</option>
+                {agents.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.nome} · {a.commission_pct}%
+                  </option>
+                ))}
+              </select>
+            </label>
             <div className="flex items-center justify-between gap-2 font-ui text-xs">
               <span className="text-text2">
                 Totale vendita: <b className="text-success">€{saleTotal.toLocaleString("it-IT")}</b>

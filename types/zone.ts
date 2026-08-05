@@ -194,12 +194,71 @@ export interface ZoneSale {
    *  allora resta fisso anche se domani cambia il costo in anagrafica.
    *  Costo totale riga = unit_cost × qty (anche per gli omaggi). */
   unit_cost: number;
+  /** Agente/segnalatore della vendita ('' = vendita diretta). */
+  agent_id: string;
+  /** % provvigione STORICIZZATA al salvataggio (dall'agente di allora). */
+  commission_pct: number;
+  /** Provvigione della riga (€) = price × commission_pct / 100,
+   *  arrotondata a 2 decimali. Sempre 0 sugli omaggi. */
+  commission_amount: number;
   /** True = omaggio: prezzo 0 ma pezzo scaricato dalla giacenza. */
   omaggio: boolean;
   /** Raggruppa le righe di UNA stessa vendita. */
   group_id: string;
   sold_at: string;
   notes: string;
+}
+
+// ============================================================
+// Agenti / segnalatori (tracking provvigioni). Single-user: sono
+// solo un'anagrafica di riferimento, nessun ruolo/login.
+// ============================================================
+
+export interface ZoneAgent {
+  id: string;
+  nome: string;
+  telefono: string;
+  /** % provvigione applicata alle NUOVE vendite (default 25, editabile
+   *  per singolo agente). Le vendite già fatte tengono lo snapshot. */
+  commission_pct: number;
+  attivo: boolean;
+  note: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Riga vendita nel dettaglio provvigioni di un agente. */
+export interface CommissionSaleRow {
+  sold_at: string;
+  client_name: string;
+  product_name: string;
+  qty: number;
+  price: number;
+  commission_pct: number;
+  commission_amount: number;
+  omaggio: boolean;
+}
+
+/** Aggregato provvigioni per agente in un periodo. */
+export interface CommissionAgentRow {
+  id: string;
+  nome: string;
+  telefono: string;
+  attivo: boolean;
+  n_vendite: number;
+  pezzi: number;
+  omaggi: number;
+  totale_venduto: number;
+  provvigione: number;
+  media_per_vendita: number;
+  pagata: boolean;
+  sales: CommissionSaleRow[];
+}
+
+export interface CommissionReport {
+  periodo_start: string;
+  periodo_end: string;
+  agents: CommissionAgentRow[];
 }
 
 export type ZoneCardStatus = "attiva" | "in_comodato" | "sostituita" | "dismessa";

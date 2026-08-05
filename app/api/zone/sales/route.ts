@@ -73,6 +73,7 @@ export async function POST(req: Request) {
       card_codes: Array.isArray(body.card_codes)
         ? body.card_codes.filter((c): c is string => typeof c === "string")
         : [],
+      agent_id: str(body.agent_id) || undefined,
     });
     if (!detail) {
       return NextResponse.json<ApiResponse<never>>(

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Copy, PackagePlus, Phone, RefreshCw } from "lucide-react";
 import GlassCard from "@/components/ui/spectre/GlassCard";
 import NeonButton from "@/components/ui/spectre/NeonButton";
+import ZoneCommissions from "@/components/zone/ZoneCommissions";
 import { cn } from "@/lib/utils";
 import type { ApiResponse } from "@/types";
 import type { ZoneProduct, ZoneStats } from "@/types/zone";
@@ -453,6 +454,9 @@ export default function ZoneAnalytics() {
           </ul>
         )}
       </GlassCard>
+
+      {/* agenti / provvigioni / classifica */}
+      <ZoneCommissions />
     </div>
   );
 }
