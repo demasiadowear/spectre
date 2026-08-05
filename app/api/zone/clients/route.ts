@@ -61,6 +61,7 @@ export async function GET(req: Request) {
         const v = Number(url.searchParams.get("upsell_min"));
         return Number.isFinite(v) && v > 0 ? v : undefined;
       })(),
+      high_flow: url.searchParams.get("high_flow") === "1",
     });
     return NextResponse.json<ApiResponse<ZoneClient[]>>({
       success: true,

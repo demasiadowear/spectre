@@ -41,6 +41,7 @@ export default function ZoneRegistry() {
   const [invoiceOnly, setInvoiceOnly] = useState(false);
   const [upsellOnly, setUpsellOnly] = useState(false);
   const [loanOnly, setLoanOnly] = useState(false);
+  const [highFlow, setHighFlow] = useState(false);
   const [upsellMin, setUpsellMin] = useState(20);
   const [q, setQ] = useState("");
   const [cardCode, setCardCode] = useState("");
@@ -70,7 +71,13 @@ export default function ZoneRegistry() {
 
   const refresh = useCallback(async () => {
     const params = new URLSearchParams();
-    if (statusFilter !== "tutti") params.set("status", statusFilter);
+    // Alto flusso: opera sui "da visitare", ordinati per volume recensioni.
+    if (highFlow) {
+      params.set("status", "da_visitare");
+      params.set("high_flow", "1");
+    } else if (statusFilter !== "tutti") {
+      params.set("status", statusFilter);
+    }
     if (invoiceOnly) params.set("invoice", "richiesta");
     if (upsellOnly) params.set("upsell_min", String(upsellMin));
     if (loanOnly) params.set("loan", "attivo");
@@ -82,7 +89,7 @@ export default function ZoneRegistry() {
     } catch {
       /* rete: lo stato precedente resta visibile */
     }
-  }, [statusFilter, q, invoiceOnly, upsellOnly, upsellMin, loanOnly]);
+  }, [statusFilter, q, invoiceOnly, upsellOnly, upsellMin, loanOnly, highFlow]);
 
   useEffect(() => {
     const t = setTimeout(refresh, q ? 300 : 0); // debounce sulla ricerca
@@ -325,6 +332,19 @@ export default function ZoneRegistry() {
           >
             🏷 In comodato
           </button>
+          <button
+            type="button"
+            onClick={() => setHighFlow((v) => !v)}
+            className={cn(
+              "rounded-full border px-2.5 py-1 font-ui text-[11px] font-semibold transition-colors",
+              highFlow
+                ? "border-success/50 bg-success/15 text-success"
+                : "border-border text-text2 hover:text-text",
+            )}
+            title="Da visitare, ordinati per volume recensioni (totale + crescita tra scan)"
+          >
+            🌊 Alto flusso
+          </button>
           <span className="flex items-center gap-1">
             <button
               type="button"
@@ -495,6 +515,16 @@ export default function ZoneRegistry() {
                         {" "}
                         · 📈 {c.reviews - c.reviews_at_sale >= 0 ? "+" : ""}
                         {c.reviews - c.reviews_at_sale} rec ({c.reviews_at_sale}→{c.reviews})
+                      </span>
+                    )}
+                    {/* Alto flusso: criterio d'ordinamento della riga */}
+                    {highFlow && (
+                      <span className="font-semibold text-success">
+                        {" "}
+                        · 🌊{" "}
+                        {c.flow_growth && c.flow_growth > 0
+                          ? `+${c.flow_growth} rec di crescita`
+                          : `${c.reviews} rec (totale)`}
                       </span>
                     )}
                   </p>

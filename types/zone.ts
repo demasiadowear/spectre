@@ -130,6 +130,9 @@ export interface ZoneClient {
   reviews_at_sale: number | null;
   /** Ultimo aggiornamento del conteggio recensioni (scan o refresh). */
   reviews_updated_at: string | null;
+  /** Crescita recensioni osservata tra gli snapshot (max−min).
+   *  Valorizzata solo nel filtro "Alto flusso"; 0 altrove. */
+  flow_growth?: number;
   // ----- Comodato (asse parallelo, come invoice_status) -----
   /** nessuno | attivo | ritirato | convertito */
   loan_status: ZoneLoanStatus;
@@ -216,6 +219,9 @@ export interface ZoneClientDetail extends ZoneClient {
   cards: ZoneCard[];
   /** Ultimi snapshot recensioni (storico delta), più recenti prima. */
   snapshots: ZoneReviewSnapshot[];
+  /** Rating al momento della prima vendita (dal primo snapshot 'scan' o
+   *  dal primo snapshot <= data prima vendita). null se non ricavabile. */
+  rating_at_sale: number | null;
 }
 
 /** Analisi dai dati salvati. */
@@ -245,4 +251,15 @@ export interface ZoneStats {
   }[];
   /** Da richiamare, scaduti prima. */
   callbacks: Pick<ZoneClient, "id" | "name" | "phone" | "callback_at" | "notes">[];
+  /** Classifica recensioni/giorno (AyroStar): clienti venduti ordinati
+   *  per media giornaliera di recensioni guadagnate dalla vendita. */
+  daily_reviews: {
+    id: string;
+    name: string;
+    category: string;
+    zone: string;
+    delta: number;
+    days: number;
+    per_day: number;
+  }[];
 }
