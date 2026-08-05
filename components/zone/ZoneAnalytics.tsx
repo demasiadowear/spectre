@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { PackagePlus, Phone, RefreshCw } from "lucide-react";
+import { Copy, PackagePlus, Phone, RefreshCw } from "lucide-react";
 import GlassCard from "@/components/ui/spectre/GlassCard";
 import NeonButton from "@/components/ui/spectre/NeonButton";
 import { cn } from "@/lib/utils";
@@ -352,6 +352,64 @@ export default function ZoneAnalytics() {
                     </td>
                   </tr>
                 ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </GlassCard>
+
+      {/* classifica recensioni/giorno (AyroStar) — casi reali per la trattativa */}
+      <GlassCard className="p-4">
+        <h3 className="mb-2 font-ui text-[10px] uppercase tracking-[0.18em] text-text2">
+          Classifica recensioni/giorno (casi per la trattativa)
+        </h3>
+        {stats.daily_reviews.length === 0 ? (
+          <p className="font-ui text-xs text-text2">
+            Ancora nessun caso: servono clienti venduti con recensioni guadagnate dalla vendita.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full font-ui text-xs">
+              <thead>
+                <tr className="text-left text-[10px] uppercase tracking-widest text-text2">
+                  <th className="pb-1.5 pr-3">Cliente</th>
+                  <th className="pb-1.5 pr-3">Categoria</th>
+                  <th className="pb-1.5 pr-3">Zona</th>
+                  <th className="pb-1.5 pr-3 text-right">Δ rec</th>
+                  <th className="pb-1.5 pr-3 text-right">Giorni</th>
+                  <th className="pb-1.5 pr-3 text-right">Rec/giorno</th>
+                  <th className="pb-1.5" />
+                </tr>
+              </thead>
+              <tbody>
+                {stats.daily_reviews.map((d) => {
+                  const caseText = `${d.name}${d.zone ? `, ${d.zone}` : ""}: +${d.delta} recensioni in ${d.days} giorni`;
+                  return (
+                    <tr key={d.id} className="border-t border-surface2 text-text">
+                      <td className="py-1.5 pr-3 font-semibold">{d.name}</td>
+                      <td className="py-1.5 pr-3 text-text2">{d.category || "—"}</td>
+                      <td className="py-1.5 pr-3 text-text2">{d.zone || "—"}</td>
+                      <td className="py-1.5 pr-3 text-right font-semibold text-success">+{d.delta}</td>
+                      <td className="py-1.5 pr-3 text-right">{d.days}</td>
+                      <td className="py-1.5 pr-3 text-right font-semibold text-accent">
+                        {d.per_day.toLocaleString("it-IT", { maximumFractionDigits: 2 })}
+                      </td>
+                      <td className="py-1.5 text-right">
+                        <button
+                          type="button"
+                          title="Copia il caso come testo"
+                          onClick={() => {
+                            navigator.clipboard?.writeText(caseText);
+                            flash(`Copiato: ${caseText}`);
+                          }}
+                          className="text-text2 hover:text-text"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -136,6 +136,7 @@ function detailFromLead(l: ZoneLead): ZoneClientDetail {
     sales: [],
     cards: [],
     snapshots: [],
+    rating_at_sale: null,
   };
 }
 
@@ -688,6 +689,20 @@ export default function ZoneClientSheet({ clientId, previewLead, onClose, onChan
                     ({detail.reviews_at_sale} → {detail.reviews})
                   </span>
                 </p>
+                {/* delta rating: solo se positivo (formato ★ +0,1 (4.3 → 4.4)) */}
+                {(() => {
+                  if (detail.rating_at_sale == null) return null;
+                  const d = Math.round((detail.rating - detail.rating_at_sale) * 10) / 10;
+                  if (d <= 0) return null;
+                  return (
+                    <p className="font-ui text-sm font-bold text-ochre">
+                      ★ +{d.toLocaleString("it-IT", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}{" "}
+                      <span className="font-ui text-xs font-normal text-text2">
+                        ({detail.rating_at_sale} → {detail.rating})
+                      </span>
+                    </p>
+                  );
+                })()}
                 <p className="font-ui text-[11px] text-text2">
                   {detail.sales.length > 0 &&
                     `prima vendita ${detail.sales[detail.sales.length - 1].sold_at.slice(0, 10)} · `}
@@ -950,14 +965,15 @@ export default function ZoneClientSheet({ clientId, previewLead, onClose, onChan
                         <span className="text-text">
                           {s.product_name}
                           {s.qty > 1 && ` ×${s.qty}`}
-                          {s.omaggio && (
-                            <span className="ml-1 rounded-full border border-ochre/40 bg-ochre/10 px-1.5 py-0.5 text-[9px] font-semibold text-ochre">
-                              omaggio
-                            </span>
-                          )}
                         </span>
                         <span className="flex shrink-0 items-center gap-2 text-text2">
-                          {s.omaggio ? "€0" : <b className="text-success">{eur(s.price)}</b>}
+                          {s.omaggio ? (
+                            <span className="rounded-full border border-ochre/50 bg-ochre/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-ochre">
+                              Omaggio
+                            </span>
+                          ) : (
+                            <b className="text-success">{eur(s.price)}</b>
+                          )}
                           <button
                             type="button"
                             title="Correggi"

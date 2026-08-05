@@ -344,6 +344,28 @@ export async function ensureZoneSchema(): Promise<void> {
     }
   }
 
+  // Omaggi retroattivi: le targhette forex vendute a prezzo 0 sono
+  // omaggi (non incassi). Idempotente (tocca solo le righe ancora a 0).
+  await turso.execute(
+    `update zone_sales set omaggio = 1
+     where product_id = 'prod-targhetta' and price = 0 and omaggio = 0`,
+  );
+
+  // Backfill zone_label da CAP/indirizzo sui clienti senza etichetta.
+  // Idempotente: aggiorna solo i record con zone_label vuota.
+  const noLabel = await turso.execute(
+    "select id, cap, address from zone_clients where zone_label = '' or zone_label is null",
+  );
+  for (const r of noLabel.rows as Row[]) {
+    const label = zoneLabelFor(str(r.cap), str(r.address));
+    if (label) {
+      await turso.execute({
+        sql: "update zone_clients set zone_label = ? where id = ? and (zone_label = '' or zone_label is null)",
+        args: [label, str(r.id)],
+      });
+    }
+  }
+
   schemaEnsured = true;
 }
 
@@ -385,6 +407,7 @@ function rowToClient(r: Row): ZoneClient {
         ? Number(r.reviews_at_sale)
         : null,
     reviews_updated_at: r.reviews_updated_at ? str(r.reviews_updated_at) : null,
+    flow_growth: r.flow_growth != null ? num(r.flow_growth) : undefined,
     loan_status: (str(r.loan_status) || "nessuno") as ZoneLoanStatus,
     loan_started_at: r.loan_started_at ? str(r.loan_started_at) : null,
     loan_due_at: r.loan_due_at ? str(r.loan_due_at) : null,
@@ -428,6 +451,30 @@ function rowToCard(r: Row): ZoneCard {
 export function capFromAddress(address: string): string {
   const m = /\b(\d{5})\b/.exec(address);
   return m ? m[1] : "";
+}
+
+/** Mappa esplicita CAP -> etichetta giro (comune). */
+const CAP_LABELS: Record<string, string> = {
+  "70121": "Bari", "70122": "Bari", "70124": "Bari", "70126": "Bari", "70132": "Bari",
+  "70026": "Modugno",
+  "70019": "Triggiano",
+  "70043": "Monopoli",
+  "70044": "Polignano",
+  "89135": "Reggio Calabria",
+};
+
+/** Comune estratto dall'indirizzo: il token subito dopo il CAP, fino
+ *  alla virgola (es. "…, 70044 Polignano a Mare, BA" -> "Polignano a
+ *  Mare"). '' se non ricavabile. */
+export function comuneFromAddress(address: string): string {
+  const m = /\b\d{5}\s+([^,\d]+?)(?:,|$)/.exec(address);
+  return m ? m[1].trim() : "";
+}
+
+/** Etichetta giro per un cliente: mappa CAP se nota, altrimenti il
+ *  comune dedotto dall'indirizzo. '' se nessuno dei due. */
+export function zoneLabelFor(cap: string, address: string): string {
+  return CAP_LABELS[cap] || comuneFromAddress(address);
 }
 
 // ----- Clienti ---------------------------------------------------
@@ -474,7 +521,9 @@ export async function upsertClient(input: UpsertClientInput): Promise<ZoneClient
             rating = case when excluded.rating > 0 then excluded.rating else zone_clients.rating end,
             reviews = case when excluded.reviews > 0 then excluded.reviews else zone_clients.reviews end,
             reviews_updated_at = case when excluded.reviews > 0 then datetime('now') else zone_clients.reviews_updated_at end,
-            zone_label = case when excluded.zone_label != '' then excluded.zone_label else zone_clients.zone_label end,
+            -- zone_label "sticky": si riempie solo se ancora vuota, un
+            -- re-scan non sovrascrive mai l'etichetta (manuale o dedotta).
+            zone_label = case when zone_clients.zone_label != '' then zone_clients.zone_label else excluded.zone_label end,
             status = coalesce(?, zone_clients.status),
             updated_at = datetime('now')`,
     args: [
@@ -491,7 +540,8 @@ export async function upsertClient(input: UpsertClientInput): Promise<ZoneClient
       input.rating ?? 0,
       input.reviews ?? 0,
       input.reviews ?? 0,
-      input.zone_label ?? "",
+      // zone_label auto: etichetta esplicita, altrimenti da CAP/indirizzo.
+      input.zone_label?.trim() || zoneLabelFor(capFromAddress(input.address ?? ""), input.address ?? ""),
       input.status ?? "da_visitare",
       input.status ?? null,
     ],
@@ -564,7 +614,7 @@ export async function getClientDetail(id: string): Promise<ZoneClientDetail | nu
   if (!turso) return null;
   const client = await getClient(id);
   if (!client) return null;
-  const [sales, cards, snaps] = await Promise.all([
+  const [sales, cards, snaps, ras] = await Promise.all([
     turso.execute({
       sql: "select * from zone_sales where client_id = ? order by sold_at desc, id desc",
       args: [id],
@@ -578,11 +628,27 @@ export async function getClientDetail(id: string): Promise<ZoneClientDetail | nu
             order by id desc limit 12`,
       args: [id],
     }),
+    // rating_at_sale: primo snapshot 'scan' (rating>0), altrimenti primo
+    // snapshot <= data prima vendita. Stessa logica dell'export CSV.
+    turso.execute({
+      sql: `select coalesce(
+              (select rating from zone_review_snapshots
+                 where client_id = ? and source = 'scan' and rating > 0
+                 order by taken_at asc, id asc limit 1),
+              (select rating from zone_review_snapshots
+                 where client_id = ? and rating > 0
+                   and taken_at <= (select min(sold_at) from zone_sales where client_id = ?)
+                 order by taken_at asc, id asc limit 1)
+            ) as rating_at_sale`,
+      args: [id, id, id],
+    }),
   ]);
+  const rasVal = (ras.rows[0] as Row | undefined)?.rating_at_sale;
   return {
     ...client,
     sales: sales.rows.map((r) => rowToSale(r as Row)),
     cards: cards.rows.map((r) => rowToCard(r as Row)),
+    rating_at_sale: typeof rasVal === "number" ? rasVal : null,
     snapshots: (snaps.rows as Row[]).map((r) => ({
       id: num(r.id),
       client_id: str(r.client_id),
@@ -606,7 +672,15 @@ export interface ClientFilters {
   upsell_min?: number;
   /** Filtro comodato ('attivo' = pezzi in giro da rivisitare). */
   loan?: ZoneLoanStatus;
+  /** Alto flusso: ordina per volume recensioni (totale + crescita tra
+   *  snapshot). Popola flow_growth su ogni riga. */
+  high_flow?: boolean;
 }
+
+// Crescita recensioni osservata tra gli snapshot (max−min): proxy del
+// "flusso" di un'attività quando non c'è una baseline vendita.
+const FLOW_GROWTH_SQL =
+  "(select coalesce(max(reviews) - min(reviews), 0) from zone_review_snapshots sn where sn.client_id = zone_clients.id)";
 
 export async function listClients(filters: ClientFilters = {}): Promise<ZoneClient[]> {
   if (!turso) return [];
@@ -646,14 +720,18 @@ export async function listClients(filters: ClientFilters = {}): Promise<ZoneClie
     const like = `%${filters.q}%`;
     args.push(like, like, like, like);
   }
-  const orderBy =
-    filters.upsell_min != null
+  // Alto flusso: seleziona anche flow_growth e ordina per volume
+  // recensioni (totale + crescita osservata tra gli snapshot).
+  const selectCols = filters.high_flow ? `*, ${FLOW_GROWTH_SQL} as flow_growth` : "*";
+  const orderBy = filters.high_flow
+    ? `(reviews + ${FLOW_GROWTH_SQL}) desc, reviews desc`
+    : filters.upsell_min != null
       ? "(reviews - reviews_at_sale) desc, reviews desc"
       : `case when status = 'da_richiamare' then 0 else 1 end,
             callback_at asc nulls last,
             updated_at desc`;
   const res = await turso.execute({
-    sql: `select * from zone_clients
+    sql: `select ${selectCols} from zone_clients
           ${where.length ? `where ${where.join(" and ")}` : ""}
           order by ${orderBy}
           limit 500`,
@@ -1427,11 +1505,12 @@ export async function zoneStats(): Promise<ZoneStats> {
     conversion_pct: 0,
     by_zone: [],
     callbacks: [],
+    daily_reviews: [],
   };
   if (!turso) return empty;
   await ensureZoneSchema();
 
-  const [statusRes, salesRes, cardsRes, zoneRes, callbackRes] = await Promise.all([
+  const [statusRes, salesRes, cardsRes, zoneRes, callbackRes, dailyRes] = await Promise.all([
     turso.execute("select status, count(*) as n from zone_clients group by status"),
     turso.execute(
       "select count(*) as n, coalesce(sum(price), 0) as revenue, coalesce(sum(unit_cost * qty), 0) as cost from zone_sales",
@@ -1455,6 +1534,17 @@ export async function zoneStats(): Promise<ZoneStats> {
       select id, name, phone, callback_at, notes from zone_clients
       where status = 'da_richiamare'
       order by callback_at asc nulls last limit 50`),
+    // Classifica recensioni/giorno (AyroStar): clienti venduti con delta
+    // recensioni positivo, giorni dalla PRIMA vendita.
+    turso.execute(`
+      select c.id, c.name, c.category,
+        case when c.zone_label != '' then c.zone_label else coalesce(nullif(c.cap, ''), '') end as zone,
+        (c.reviews - c.reviews_at_sale) as delta,
+        cast(julianday('now') - julianday((select min(sold_at) from zone_sales where client_id = c.id)) as integer) as days
+      from zone_clients c
+      where c.reviews_at_sale is not null
+        and (c.reviews - c.reviews_at_sale) > 0
+        and exists (select 1 from zone_sales s where s.client_id = c.id)`),
   ]);
 
   const stats = { ...empty, by_status: { ...empty.by_status } };
@@ -1493,5 +1583,22 @@ export async function zoneStats(): Promise<ZoneStats> {
     callback_at: r.callback_at ? str(r.callback_at) : null,
     notes: str(r.notes),
   }));
+  stats.daily_reviews = (dailyRes.rows as Row[])
+    .map((r) => {
+      const delta = num(r.delta);
+      const days = num(r.days); // giorni interi dalla prima vendita
+      return {
+        id: str(r.id),
+        name: str(r.name),
+        category: str(r.category),
+        zone: str(r.zone),
+        delta,
+        days,
+        per_day: days >= 1 ? Math.round((delta / days) * 100) / 100 : 0,
+      };
+    })
+    .filter((r) => r.days >= 1 && r.delta > 0)
+    .sort((a, b) => b.per_day - a.per_day)
+    .slice(0, 20);
   return stats;
 }
