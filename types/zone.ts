@@ -130,6 +130,9 @@ export interface ZoneClient {
   reviews_at_sale: number | null;
   /** Ultimo aggiornamento del conteggio recensioni (scan o refresh). */
   reviews_updated_at: string | null;
+  /** Conteggio recensioni PRIMA dell'ultimo aggiornamento (null = mai
+   *  aggiornato due volte). reviews − reviews_prev = variazione. */
+  reviews_prev: number | null;
   /** Crescita recensioni osservata tra gli snapshot (max−min).
    *  Valorizzata solo nel filtro "Alto flusso"; 0 altrove. */
   flow_growth?: number;

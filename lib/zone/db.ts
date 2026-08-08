@@ -215,6 +215,8 @@ export async function ensureZoneSchema(): Promise<void> {
     "alter table zone_sales add column agent_id text default ''",
     "alter table zone_sales add column commission_pct_snapshot real not null default 0",
     "alter table zone_sales add column commission_amount real not null default 0",
+    // Conteggio recensioni PRIMA dell'ultimo aggiornamento (variazione).
+    "alter table zone_clients add column reviews_prev integer",
   ]) {
     try {
       await turso.execute(ddl);
@@ -433,6 +435,10 @@ function rowToClient(r: Row): ZoneClient {
         ? Number(r.reviews_at_sale)
         : null,
     reviews_updated_at: r.reviews_updated_at ? str(r.reviews_updated_at) : null,
+    reviews_prev:
+      typeof r.reviews_prev === "number" || typeof r.reviews_prev === "bigint"
+        ? Number(r.reviews_prev)
+        : null,
     flow_growth: r.flow_growth != null ? num(r.flow_growth) : undefined,
     loan_status: (str(r.loan_status) || "nessuno") as ZoneLoanStatus,
     loan_started_at: r.loan_started_at ? str(r.loan_started_at) : null,
@@ -548,6 +554,9 @@ export async function upsertClient(input: UpsertClientInput): Promise<ZoneClient
             maps_url = case when excluded.maps_url != '' then excluded.maps_url else zone_clients.maps_url end,
             nfc_review_url = case when excluded.nfc_review_url != '' then excluded.nfc_review_url else zone_clients.nfc_review_url end,
             rating = case when excluded.rating > 0 then excluded.rating else zone_clients.rating end,
+            -- variazione dall'ultimo aggiornamento: reviews_prev = valore
+            -- prima di questo scan (solo se arriva un conteggio nuovo).
+            reviews_prev = case when excluded.reviews > 0 then zone_clients.reviews else zone_clients.reviews_prev end,
             reviews = case when excluded.reviews > 0 then excluded.reviews else zone_clients.reviews end,
             reviews_updated_at = case when excluded.reviews > 0 then datetime('now') else zone_clients.reviews_updated_at end,
             -- zone_label "sticky": si riempie solo se ancora vuota, un
@@ -813,12 +822,15 @@ export async function refreshClientReviews(
   await ensureZoneSchema();
   await turso.execute({
     sql: `update zone_clients set
+            -- reviews_prev = conteggio PRIMA di questo aggiornamento, così
+            -- reviews - reviews_prev = variazione dall'ultimo aggiornamento.
+            reviews_prev = case when ? > 0 then reviews else reviews_prev end,
             rating = case when ? > 0 then ? else rating end,
             reviews = case when ? > 0 then ? else reviews end,
             reviews_updated_at = datetime('now'),
             updated_at = datetime('now')
           where id = ?`,
-    args: [rating, rating, reviews, reviews, id],
+    args: [reviews, rating, rating, reviews, reviews, id],
   });
   if (reviews > 0) await recordSnapshot(id, reviews, rating, "refresh");
   return getClient(id);
