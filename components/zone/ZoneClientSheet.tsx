@@ -128,6 +128,7 @@ function detailFromLead(l: ZoneLead): ZoneClientDetail {
     invoice_status: "",
     reviews_at_sale: null,
     reviews_updated_at: null,
+    reviews_prev: null,
     loan_status: "nessuno",
     loan_started_at: null,
     loan_due_at: null,

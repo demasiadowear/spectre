@@ -59,8 +59,10 @@ export default function ZoneRegistry() {
   const [bulkTotal, setBulkTotal] = useState(0);
   const [bulkSummary, setBulkSummary] = useState<{
     updated: number;
-    skipped: number;
     failed: number;
+    /** Variazioni dall'ultimo aggiornamento (delta != 0). */
+    changes: { id: string; name: string; delta: number }[];
+    /** Candidati upsell: crescita recensioni dalla vendita. */
     upsell: { id: string; name: string; delta: number }[];
   } | null>(null);
 
@@ -96,13 +98,9 @@ export default function ZoneRegistry() {
     return () => clearTimeout(t);
   }, [refresh, q]);
 
-  // Protezione API: non ri-chiamare Google per chi è stato aggiornato
-  // da meno di STALE_HOURS ore.
-  const STALE_HOURS = 12;
-
   // "Aggiorna dati Google (tutti)": refresh in blocco di conteggio
-  // recensioni + rating per ogni cliente, saltando i già-freschi. I
-  // delta (recensioni − baseline vendita) si ricalcolano da soli.
+  // recensioni + rating per OGNI cliente (nessun salto). Traccia la
+  // variazione dall'ultimo aggiornamento (reviews nuovi − reviews prima).
   async function refreshAllGoogle() {
     if (bulkBusy) return;
     setBulkSummary(null);
@@ -115,21 +113,16 @@ export default function ZoneRegistry() {
         flash("Impossibile caricare l'elenco clienti.");
         return;
       }
-      const cutoff = Date.now() - STALE_HOURS * 3600_000;
-      const isFresh = (c: ZoneClient) => {
-        if (!c.reviews_updated_at) return false;
-        // il timestamp SQL ("YYYY-MM-DD HH:MM:SS") è UTC
-        const t = Date.parse(`${c.reviews_updated_at.replace(" ", "T")}Z`);
-        return Number.isFinite(t) && t >= cutoff;
-      };
-      const stale = json.data.filter((c) => !isFresh(c));
-      const skipped = json.data.length - stale.length;
+      const all = json.data;
       setBulkDone(0);
-      setBulkTotal(stale.length);
+      setBulkTotal(all.length);
       let updated = 0;
       let failed = 0;
+      const changes: { id: string; name: string; delta: number }[] = [];
       const upsell: { id: string; name: string; delta: number }[] = [];
-      for (const c of stale) {
+      for (const c of all) {
+        // conteggio PRIMA dell'aggiornamento (per la variazione)
+        const before = c.reviews;
         try {
           const r = await fetch("/api/zone/refresh", {
             method: "POST",
@@ -139,9 +132,11 @@ export default function ZoneRegistry() {
           const rj = (await r.json()) as ApiResponse<ZoneClient>;
           if (rj.success && rj.data) {
             updated++;
+            const delta = rj.data.reviews - before;
+            if (delta !== 0) changes.push({ id: rj.data.id, name: rj.data.name, delta });
             if (rj.data.reviews_at_sale != null) {
-              const delta = rj.data.reviews - rj.data.reviews_at_sale;
-              if (delta > 0) upsell.push({ id: rj.data.id, name: rj.data.name, delta });
+              const up = rj.data.reviews - rj.data.reviews_at_sale;
+              if (up > 0) upsell.push({ id: rj.data.id, name: rj.data.name, delta: up });
             }
           } else {
             failed++;
@@ -151,8 +146,9 @@ export default function ZoneRegistry() {
         }
         setBulkDone((n) => n + 1);
       }
+      changes.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
       upsell.sort((a, b) => b.delta - a.delta);
-      setBulkSummary({ updated, skipped, failed, upsell });
+      setBulkSummary({ updated, failed, changes, upsell });
       await refresh(); // ricarica la vista corrente coi dati freschi
     } finally {
       setBulkBusy(false);
@@ -238,8 +234,8 @@ export default function ZoneRegistry() {
             {bulkBusy ? `Aggiorno ${bulkDone}/${bulkTotal}…` : "Aggiorna dati Google (tutti)"}
           </NeonButton>
           <span className="font-ui text-[11px] text-text2">
-            Conteggio recensioni + rating di tutti i clienti. Salta chi è già stato
-            aggiornato nelle ultime {STALE_HOURS}h (risparmio API).
+            Conteggio recensioni + rating di TUTTI i clienti (nessun salto). Registra la
+            variazione dall&apos;ultimo aggiornamento.
           </span>
         </div>
         {bulkBusy && bulkTotal > 0 && (
@@ -251,18 +247,45 @@ export default function ZoneRegistry() {
           </div>
         )}
         {bulkSummary && !bulkBusy && (
-          <div className="mt-2 space-y-1 border-t border-surface2 pt-2 font-ui text-xs">
+          <div className="mt-2 space-y-1.5 border-t border-surface2 pt-2 font-ui text-xs">
             <p className="text-text">
-              ✓ <b>{bulkSummary.updated}</b> aggiornati · {bulkSummary.skipped} già aggiornati
-              (saltati)
+              ✓ <b>{bulkSummary.updated}</b> aggiornati
               {bulkSummary.failed > 0 && (
                 <span className="text-danger"> · {bulkSummary.failed} non riusciti</span>
               )}
             </p>
-            {bulkSummary.upsell.length > 0 ? (
+            {/* variazioni dall'ultimo aggiornamento */}
+            {bulkSummary.changes.length > 0 ? (
+              <div>
+                <p className="font-semibold text-accent">
+                  🔄 Variazioni dall&apos;ultimo aggiornamento:
+                </p>
+                <ul className="mt-0.5 space-y-0.5">
+                  {bulkSummary.changes.map((u) => (
+                    <li key={u.id}>
+                      <button
+                        type="button"
+                        onClick={() => setOpenId(u.id)}
+                        className="text-left text-text2 hover:text-text"
+                      >
+                        {u.name}{" "}
+                        <b className={u.delta > 0 ? "text-success" : "text-danger"}>
+                          {u.delta > 0 ? "+" : ""}
+                          {u.delta} rec
+                        </b>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <p className="text-text2">Nessuna variazione recensioni in questo giro.</p>
+            )}
+            {/* candidati upsell (crescita dalla vendita) */}
+            {bulkSummary.upsell.length > 0 && (
               <div>
                 <p className="font-semibold text-success">
-                  📈 Nuove recensioni dalla vendita (pronti per l&apos;upsell):
+                  📈 Pronti per l&apos;upsell (crescita dalla vendita):
                 </p>
                 <ul className="mt-0.5 space-y-0.5">
                   {bulkSummary.upsell.map((u) => (
@@ -278,8 +301,6 @@ export default function ZoneRegistry() {
                   ))}
                 </ul>
               </div>
-            ) : (
-              <p className="text-text2">Nessun cliente con nuove recensioni in questo giro.</p>
             )}
           </div>
         )}
@@ -515,6 +536,20 @@ export default function ZoneRegistry() {
                         {" "}
                         · 📈 {c.reviews - c.reviews_at_sale >= 0 ? "+" : ""}
                         {c.reviews - c.reviews_at_sale} rec ({c.reviews_at_sale}→{c.reviews})
+                      </span>
+                    )}
+                    {/* variazione dall'ultimo aggiornamento */}
+                    {c.reviews_prev != null && c.reviews - c.reviews_prev !== 0 && (
+                      <span
+                        className={cn(
+                          "font-semibold",
+                          c.reviews - c.reviews_prev > 0 ? "text-success" : "text-danger",
+                        )}
+                        title="Variazione recensioni dall'ultimo aggiornamento"
+                      >
+                        {" "}
+                        · 🔄 {c.reviews - c.reviews_prev > 0 ? "+" : ""}
+                        {c.reviews - c.reviews_prev} dall&apos;ultimo agg.
                       </span>
                     )}
                     {/* Alto flusso: criterio d'ordinamento della riga */}
