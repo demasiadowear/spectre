@@ -7,10 +7,6 @@
     {
       "path": "/api/autopilot/study",
       "schedule": "30 6 * * 1-5"
-    },
-    {
-      "path": "/api/factory/run",
-      "schedule": "0 7 * * 1-5"
     }
   ]
 }
