@@ -26,6 +26,9 @@ export async function middleware(req: NextRequest) {
     "/api/intent/scout",
     "/api/intent/aste",
     "/api/brief",
+    // Worker Factory (cron feriale 07:00 UTC). Senza questa riga la
+    // chiamata autenticata col bearer finirebbe redirezionata su /login.
+    "/api/factory/run",
   ];
   if (
     cronSecret &&
