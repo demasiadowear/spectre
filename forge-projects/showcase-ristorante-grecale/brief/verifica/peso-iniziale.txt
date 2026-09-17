@@ -1,0 +1,30 @@
+
+Peso scaricato prima di qualunque interazione (390x844, DPR 2, gzip attivo)
+
+  documento      1 file      7.3 KB
+  font           2 file    133.6 KB
+  immagini       3 file    156.4 KB
+  javascript     1 file     45.7 KB
+  css            1 file      4.2 KB
+  TOTALE         8 file    347.4 KB
+
+  immagini 156.4 KB su un tetto di 2560,0 KB — sotto
+
+Immagini scaricate (quelle e solo quelle):
+     46.3 KB  /img/hero-sala-verticale-810.avif
+     44.2 KB  /img/forno-fuoco-900.avif
+     66.0 KB  /img/mani-orecchiette-900.avif
+
+Cosa ha scelto il browser per ogni <img>:
+  caricata    390x844 css  eager  /img/hero-sala-verticale-810.avif
+  caricata    354x236 css  lazy   /img/forno-fuoco-900.avif
+  caricata    354x236 css  lazy   /img/mani-orecchiette-900.avif
+  rinviata    304x380 css  lazy   —
+  rinviata    304x380 css  lazy   —
+  rinviata    304x380 css  lazy   —
+  rinviata    304x380 css  lazy   —
+  rinviata    354x354 css  lazy   —
+  rinviata    354x354 css  lazy   —
+  rinviata    390x230 css  lazy   —
+
+  3 immagini sopra la piega, 7 rinviate allo scorrimento.

@@ -1,0 +1,204 @@
+{
+  "data": "2026-09-17",
+  "totale_avif_piena_byte": 830270,
+  "file": [
+    {
+      "id": "hero-sala-verticale",
+      "formato": "avif",
+      "larghezza": 1080,
+      "kb": 65.5,
+      "tetto_kb": 190,
+      "q": 62,
+      "sforato": false
+    },
+    {
+      "id": "hero-sala-verticale",
+      "formato": "webp",
+      "larghezza": 1080,
+      "kb": 58.3,
+      "tetto_kb": 190,
+      "q": 62,
+      "sforato": false
+    },
+    {
+      "id": "hero-sala-orizzontale",
+      "formato": "avif",
+      "larghezza": 1920,
+      "kb": 78.6,
+      "tetto_kb": 240,
+      "q": 62,
+      "sforato": false
+    },
+    {
+      "id": "hero-sala-orizzontale",
+      "formato": "webp",
+      "larghezza": 1920,
+      "kb": 63.2,
+      "tetto_kb": 240,
+      "q": 62,
+      "sforato": false
+    },
+    {
+      "id": "piatto-orecchiette",
+      "formato": "avif",
+      "larghezza": 900,
+      "kb": 77.4,
+      "tetto_kb": 120,
+      "q": 62,
+      "sforato": false
+    },
+    {
+      "id": "piatto-orecchiette",
+      "formato": "webp",
+      "larghezza": 900,
+      "kb": 71.2,
+      "tetto_kb": 120,
+      "q": 62,
+      "sforato": false
+    },
+    {
+      "id": "piatto-agnello",
+      "formato": "avif",
+      "larghezza": 900,
+      "kb": 100.2,
+      "tetto_kb": 120,
+      "q": 62,
+      "sforato": false
+    },
+    {
+      "id": "piatto-agnello",
+      "formato": "webp",
+      "larghezza": 900,
+      "kb": 92.8,
+      "tetto_kb": 120,
+      "q": 62,
+      "sforato": false
+    },
+    {
+      "id": "piatto-polpo",
+      "formato": "avif",
+      "larghezza": 900,
+      "kb": 72.3,
+      "tetto_kb": 120,
+      "q": 62,
+      "sforato": false
+    },
+    {
+      "id": "piatto-polpo",
+      "formato": "webp",
+      "larghezza": 900,
+      "kb": 60.2,
+      "tetto_kb": 120,
+      "q": 62,
+      "sforato": false
+    },
+    {
+      "id": "piatto-fichi",
+      "formato": "avif",
+      "larghezza": 900,
+      "kb": 69.7,
+      "tetto_kb": 120,
+      "q": 62,
+      "sforato": false
+    },
+    {
+      "id": "piatto-fichi",
+      "formato": "webp",
+      "larghezza": 900,
+      "kb": 64.3,
+      "tetto_kb": 120,
+      "q": 62,
+      "sforato": false
+    },
+    {
+      "id": "forno-fuoco",
+      "formato": "avif",
+      "larghezza": 1200,
+      "kb": 70.5,
+      "tetto_kb": 150,
+      "q": 62,
+      "sforato": false
+    },
+    {
+      "id": "forno-fuoco",
+      "formato": "webp",
+      "larghezza": 1200,
+      "kb": 49.3,
+      "tetto_kb": 150,
+      "q": 62,
+      "sforato": false
+    },
+    {
+      "id": "mani-orecchiette",
+      "formato": "avif",
+      "larghezza": 1200,
+      "kb": 102.8,
+      "tetto_kb": 140,
+      "q": 62,
+      "sforato": false
+    },
+    {
+      "id": "mani-orecchiette",
+      "formato": "webp",
+      "larghezza": 1200,
+      "kb": 96.1,
+      "tetto_kb": 140,
+      "q": 62,
+      "sforato": false
+    },
+    {
+      "id": "materia-grano-arso",
+      "formato": "avif",
+      "larghezza": 800,
+      "kb": 66.5,
+      "tetto_kb": 100,
+      "q": 62,
+      "sforato": false
+    },
+    {
+      "id": "materia-grano-arso",
+      "formato": "webp",
+      "larghezza": 800,
+      "kb": 66.8,
+      "tetto_kb": 100,
+      "q": 62,
+      "sforato": false
+    },
+    {
+      "id": "materia-olio-nuovo",
+      "formato": "avif",
+      "larghezza": 800,
+      "kb": 36.7,
+      "tetto_kb": 100,
+      "q": 62,
+      "sforato": false
+    },
+    {
+      "id": "materia-olio-nuovo",
+      "formato": "webp",
+      "larghezza": 800,
+      "kb": 31.7,
+      "tetto_kb": 100,
+      "q": 62,
+      "sforato": false
+    },
+    {
+      "id": "sala-tavolata",
+      "formato": "avif",
+      "larghezza": 1800,
+      "kb": 70.6,
+      "tetto_kb": 180,
+      "q": 62,
+      "sforato": false
+    },
+    {
+      "id": "sala-tavolata",
+      "formato": "webp",
+      "larghezza": 1800,
+      "kb": 69.2,
+      "tetto_kb": 180,
+      "q": 62,
+      "sforato": false
+    }
+  ]
+}

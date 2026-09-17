@@ -22,7 +22,8 @@ const PUNTI = process.argv.slice(4);
 mkdirSync(OUT, { recursive: true });
 
 const MIME = { ".html": "text/html;charset=utf-8", ".js": "text/javascript", ".css": "text/css",
-  ".woff2": "font/woff2", ".svg": "image/svg+xml", ".png": "image/png" };
+  ".woff2": "font/woff2", ".svg": "image/svg+xml", ".png": "image/png",
+  ".webp": "image/webp", ".avif": "image/avif", ".jpg": "image/jpeg" };
 const srv = createServer((q, r) => {
   const p = decodeURIComponent((q.url ?? "/").split("?")[0]);
   let f = join(DIST, p === "/" ? "/index.html" : p);

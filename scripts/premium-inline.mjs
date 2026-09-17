@@ -68,6 +68,71 @@ html = html.replace(
   },
 );
 
+// --- Immagini ---
+// Un file autonomo non può puntare a /img/: o le fotografie entrano
+// come data URI, o la pagina si apre vuota. Dentro un <picture> si
+// tiene una sola variante per art direction, all'AVIF di larghezza
+// intermedia: le altre larghezze dello srcset servono a un browser che
+// sceglie, e qui non c'è niente da scegliere. Il base64 costa un terzo
+// in più del file, quindi prendere la larghezza piena triplicherebbe
+// il peso senza che si veda la differenza.
+const MIME_IMG = { ".avif": "image/avif", ".webp": "image/webp", ".png": "image/png", ".jpg": "image/jpeg", ".svg": "image/svg+xml" };
+
+function dataUri(rif) {
+  const pulito = rif.trim().split(" ")[0].split("?")[0];
+  if (/^data:|^https?:/.test(pulito)) return null;
+  const file = join(DIST, pulito.replace(/^\.?\//, ""));
+  if (!existsSync(file)) return null;
+  const mime = MIME_IMG[file.slice(file.lastIndexOf("."))];
+  if (!mime) return null;
+  return `data:${mime};base64,${readFileSync(file).toString("base64")}`;
+}
+
+/** La candidata di mezzo di uno srcset `url 900w, url 1350w, ...`. */
+function intermedia(srcset) {
+  const c = srcset.split(",").map((s) => s.trim()).filter(Boolean);
+  if (!c.length) return null;
+  return c[Math.floor((c.length - 1) / 2)].split(/\s+/)[0];
+}
+
+let inlineate = 0, byteImmagini = 0;
+html = html.replace(/<picture\b[\s\S]*?<\/picture>/g, (blocco) => {
+  // Il WebP è il ripiego per chi non legge l'AVIF: tenerlo qui
+  // raddoppierebbe il peso del file per un caso che non si verifica.
+  let b = blocco.replace(/<source\b[^>]*type=["']image\/webp["'][^>]*>\s*/g, "");
+  b = b.replace(/<source\b([^>]*)>/g, (tag, attr) => {
+    const ss = attr.match(/srcset=["']([^"']+)["']/)?.[1];
+    const uri = ss && dataUri(intermedia(ss));
+    if (!uri) return tag;
+    inlineate++; byteImmagini += uri.length;
+    return `<source${attr.replace(/srcset=["'][^"']+["']/, `srcset="${uri}"`).replace(/\s*sizes=["'][^"']*["']/, "")}>`;
+  });
+  // L'<img> finale puntava al WebP: senza i suoi <source> resterebbe
+  // l'unica sorgente e il file non esiste più nel documento.
+  b = b.replace(/<img\b([^>]*)>/, (tag, attr) => {
+    const src = attr.match(/src=["']([^"']+)["']/)?.[1];
+    const uri = src && (dataUri(src.replace(/\.webp$/, ".avif")) ?? dataUri(src));
+    if (!uri) return tag;
+    inlineate++; byteImmagini += uri.length;
+    return `<img${attr.replace(/src=["'][^"']+["']/, `src="${uri}"`)}>`;
+  });
+  return b;
+});
+
+// Gli <img> fuori da un <picture>.
+html = html.replace(/<img\b([^>]*)>/g, (tag, attr) => {
+  const src = attr.match(/src=["']([^"']+)["']/)?.[1];
+  if (!src || /^data:/.test(src)) return tag;
+  const uri = dataUri(src);
+  if (!uri) return tag;
+  inlineate++; byteImmagini += uri.length;
+  return `<img${attr.replace(/src=["'][^"']+["']/, `src="${uri}"`).replace(/\s*srcset=["'][^"']*["']/, "").replace(/\s*sizes=["'][^"']*["']/, "")}>`;
+});
+
+// Un preload verso /img/ che non esiste più è solo un errore di rete
+// all'apertura: la fotografia è già dentro la pagina.
+html = html.replace(/<link[^>]+rel=["']preload["'][^>]*as=["']image["'][^>]*>\s*/g, "");
+
 // I modulepreload non servono più: il modulo è dentro la pagina.
 html = html.replace(/<link[^>]+rel=["']modulepreload["'][^>]*>/g, "");
 // Nemmeno i preload dei font: sono dentro il CSS come data URI, e un
@@ -77,7 +142,16 @@ html = html.replace(/<link[^>]+rel=["']preload["'][^>]*as=["']font["'][^>]*>\s*/
 writeFileSync(OUT, html);
 const kb = Math.round(statSync(OUT).size / 1024);
 console.log(`${basename(OUT)}: ${kb} KB, autonomo`);
-if (/src=["']\.?\/?assets/.test(html) || /href=["']\.?\/?assets/.test(html)) {
-  console.log("ATTENZIONE: restano riferimenti a file esterni");
+if (inlineate) {
+  console.log(`  ${inlineate} immagini come data URI, ${Math.round(byteImmagini / 1024)} KB in base64`);
+}
+
+// Un riferimento rimasto a un file del build significa che aprendo la
+// pagina da sola qualcosa manca: meglio saperlo qui.
+const rimasti = [...html.matchAll(/(?:src|href|srcset)=["'](\/(?:assets|img|font)\/[^"']+)["']/g)]
+  .map((m) => m[1]);
+if (rimasti.length) {
+  console.log(`ATTENZIONE: restano ${rimasti.length} riferimenti a file esterni:`);
+  for (const r of [...new Set(rimasti)].slice(0, 10)) console.log(`  ${r}`);
   process.exitCode = 1;
 }

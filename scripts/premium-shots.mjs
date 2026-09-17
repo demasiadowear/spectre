@@ -24,7 +24,8 @@ mkdirSync(OUT, { recursive: true });
 const MIME = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css",
   ".woff2": "font/woff2", ".woff": "font/woff", ".svg": "image/svg+xml",
-  ".png": "image/png", ".jpg": "image/jpeg", ".webp": "image/webp", ".json": "application/json",
+  ".png": "image/png", ".jpg": "image/jpeg", ".webp": "image/webp", ".avif": "image/avif",
+  ".json": "application/json",
 };
 
 function serve() {
@@ -212,9 +213,47 @@ async function main() {
         };
       });
 
+      // Il peso che conta e quello di chi apre e basta: si fotografa
+      // qui, prima di scorrere, perche lo scorrimento tira giu tutto il
+      // lazy-load e falserebbe il numero.
+      const pesoIniziale = transferred;
+
+      // Uno scatto a pagina intera cattura anche cio che non e mai
+      // stato in vista, e `loading="lazy"` non ha nessun motivo di aver
+      // caricato quelle immagini: verrebbero fuori bande vuote che nel
+      // sito non esistono. Si scorre tutta la pagina, si aspetta che
+      // ogni <img> sia decodificata, e solo allora si scatta.
+      if (process.env.NOJS === "1") {
+        // Senza JavaScript `evaluate` non esiste: si scorre con la
+        // rotella, che e poi quello che farebbe una persona.
+        for (let i = 0; i < 40; i++) { await pg.mouse.wheel(0, 800); await pg.waitForTimeout(90); }
+        await pg.keyboard.press("Home");
+      } else {
+        await pg.evaluate(async () => {
+          const passo = Math.round(innerHeight * 0.8);
+          for (let y = 0; y < document.body.scrollHeight; y += passo) {
+            scrollTo(0, y);
+            await new Promise((r) => setTimeout(r, 110));
+          }
+          // Si aspetta stando in fondo: tornare in cima prima dell'attesa
+          // rimetterebbe fuori vista le immagini rinviate, che a quel
+          // punto non partirebbero mai e l'attesa non finirebbe.
+          await Promise.race([
+            Promise.all([...document.querySelectorAll("img")]
+              .filter((i) => !i.complete)
+              .map((i) => new Promise((r) => { i.addEventListener("load", r, { once: true }); i.addEventListener("error", r, { once: true }); }))),
+            new Promise((r) => setTimeout(r, 8000)),
+          ]);
+          scrollTo(0, 0);
+        });
+      }
+      await pg.waitForTimeout(900);
+      const nonDipinte = process.env.NOJS === "1" ? null : await pg.evaluate(() =>
+        [...document.querySelectorAll("img")].filter((i) => !(i.complete && i.naturalWidth > 0)).length);
+
       const file = join(OUT, `${slug}-${vp.name}.png`);
       await pg.screenshot({ path: file, fullPage: true });
-      report.push({ page, viewport: vp.name, status: res?.status() ?? 0, fps, transferredKB: Math.round(transferred / 1024), errors, failed, screenshot: file, ...audit });
+      report.push({ page, viewport: vp.name, status: res?.status() ?? 0, fps, transferredKB: Math.round(pesoIniziale / 1024), transferredTotaleKB: Math.round(transferred / 1024), immaginiNonDipinte: nonDipinte, errors, failed, screenshot: file, ...audit });
       await ctx.close();
     }
   }

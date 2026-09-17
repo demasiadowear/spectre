@@ -1,0 +1,106 @@
+[
+  {
+    "page": "index.html",
+    "viewport": "desktop",
+    "status": 200,
+    "fps": 61,
+    "transferredKB": 421,
+    "transferredTotaleKB": 666,
+    "immaginiNonDipinte": 0,
+    "errors": [],
+    "failed": [],
+    "screenshot": "/home/user/spectre/forge-projects/showcase-ristorante-grecale/scatti-ridotto/index_html-desktop.png",
+    "title": "Grecale — si cena sotto le volte, a una tavolata sola",
+    "overflow": false,
+    "scrollW": 1440,
+    "viewW": 1440,
+    "overflowing": [],
+    "clipped": [],
+    "emptySections": [],
+    "hiddenText": [],
+    "minContrast": 5.43,
+    "sottoSoglia": [],
+    "worstContrast": {
+      "t": "Dati di esempio",
+      "r": 5.43,
+      "soglia": 4.5
+    },
+    "cta": {
+      "w": 226,
+      "h": 72,
+      "contrast": 14.4
+    },
+    "headings": [
+      "H1:Si cena sotto le volte,a una tavolata sola.",
+      "H2:Il forno si accende alle quattro",
+      "H2:Quattro cose che facciamo sempre",
+      "H2:La carta di questa settimana",
+      "H2:Due cose che decidono il resto",
+      "H2:Una sala sola",
+      "H2:Cosa direbbero",
+      "H2:Prenota un tavolo",
+      "H2:Trentadue coperti,una sera sola per volta.",
+      "H2:Non parte niente"
+    ],
+    "fontsUsed": [
+      "system-ui",
+      "Newsreader Variable",
+      "Bricolage Grotesque Variable"
+    ]
+  },
+  {
+    "page": "index.html",
+    "viewport": "mobile",
+    "status": 200,
+    "fps": 61,
+    "transferredKB": 443,
+    "transferredTotaleKB": 791,
+    "immaginiNonDipinte": 0,
+    "errors": [],
+    "failed": [],
+    "screenshot": "/home/user/spectre/forge-projects/showcase-ristorante-grecale/scatti-ridotto/index_html-mobile.png",
+    "title": "Grecale — si cena sotto le volte, a una tavolata sola",
+    "overflow": false,
+    "scrollW": 390,
+    "viewW": 390,
+    "overflowing": [
+      "li.scheda",
+      "picture.-",
+      "img.-",
+      "h3.-",
+      "p.-"
+    ],
+    "clipped": [],
+    "emptySections": [],
+    "hiddenText": [],
+    "minContrast": 5.33,
+    "sottoSoglia": [],
+    "worstContrast": {
+      "t": "WhatsApp",
+      "r": 5.33,
+      "soglia": 4.5
+    },
+    "cta": {
+      "w": 354,
+      "h": 68,
+      "contrast": 14.4
+    },
+    "headings": [
+      "H1:Si cena sotto le volte,a una tavolata sola.",
+      "H2:Il forno si accende alle quattro",
+      "H2:Quattro cose che facciamo sempre",
+      "H2:La carta di questa settimana",
+      "H2:Due cose che decidono il resto",
+      "H2:Una sala sola",
+      "H2:Cosa direbbero",
+      "H2:Prenota un tavolo",
+      "H2:Trentadue coperti,una sera sola per volta.",
+      "H2:Non parte niente"
+    ],
+    "fontsUsed": [
+      "system-ui",
+      "Newsreader Variable",
+      "Bricolage Grotesque Variable"
+    ]
+  }
+]

@@ -18,7 +18,9 @@ const DIST = resolve(process.argv[2] ?? "dist");
 const NOME = process.argv[3] ?? "sito";
 const PORTA = Number(process.argv[4] ?? 4391);
 const M = { ".html": "text/html;charset=utf-8", ".js": "text/javascript", ".css": "text/css",
-  ".woff2": "font/woff2", ".svg": "image/svg+xml", ".png": "image/png", ".webmanifest": "application/manifest+json" };
+  ".woff2": "font/woff2", ".svg": "image/svg+xml", ".png": "image/png",
+  ".webp": "image/webp", ".avif": "image/avif", ".jpg": "image/jpeg",
+  ".webmanifest": "application/manifest+json" };
 
 const srv = createServer((q, r) => {
   const p = decodeURIComponent((q.url ?? "/").split("?")[0]);

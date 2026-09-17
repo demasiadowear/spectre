@@ -218,9 +218,13 @@ test("diversita: geometria diversa", () => {
 });
 
 test("diversita: ogni sito ha il suo oggetto identitario", () => {
+  // Il ristorante aveva un muro disegnato finche non aveva fotografie.
+  // Da quando le ha, il suo oggetto e il timbro a stella dell'insegna:
+  // il muro era un ripiego, e un ripiego non diventa un'identita solo
+  // perche e scritto in un test.
   const ancore: Record<string, string> = {
     barberia: "rasoio",
-    ristorante: "muro",
+    ristorante: "insegna-timbro",
     dentista: "sezione",
     beauty: "arco",
   };

@@ -1,89 +1,94 @@
 // ============================================================
 // Grecale — comportamento.
 //
-// Tre cose, e nessuna di più (gsap-motion-design: due gesti orchestrati,
-// non dieci effetti):
-//  1. imbandire — le piastrelle si posano al caricamento;
-//  2. girare la piastrella — quando si apre una portata;
-//  3. la prenotazione, che è il lavoro della pagina.
+// Tre famiglie di movimento, non una di più, e ognuna fa un lavoro:
 //
-// Piu la grana di semola, che è un asset disegnato, non un'animazione.
+//  1. APERTURA — il velo si alza e il titolo sale, una volta sola al
+//     caricamento. È il momento in cui la fotografia deve prendere.
+//  2. PARALLASSE — le due fotografie grandi scorrono un po' più piano
+//     della pagina. Solo `transform`, solo desktop, solo mentre sono in
+//     vista: dà profondità e non costa layout.
+//  3. RISPOSTA AL TOCCO — la scheda demo e l'esito del modulo. È
+//     movimento che spiega un cambiamento, e quindi si può.
 //
-// Regola: nessun movimento legato allo scroll. Niente qui parte a
-// opacita zero aspettando un observer, quindi senza JavaScript la
-// pagina e completa e uno screenshot a pagina intera la ritrae intera.
+// Regola che non si viola: niente di quello che contiene parole parte a
+// opacità zero. Gli offset li mette GSAP, mai il CSS, quindi senza
+// JavaScript la pagina è intera e leggibile.
 // ============================================================
 
 import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+
+gsap.registerPlugin(ScrollTrigger);
 
 const ridotto = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const grande = matchMedia("(min-width: 900px)").matches;
 
-// ----- 0. La grana ------------------------------------------------
-// Rumore disegnato una volta in un canvas fuori dal documento e passato
-// al CSS come data URI. 8 KB di codice invece di un PNG di sfondo.
-
-function grana(lato = 140): string | null {
-  const c = document.createElement("canvas");
-  c.width = c.height = lato;
-  const ctx = c.getContext("2d");
-  if (!ctx) return null;
-  const img = ctx.createImageData(lato, lato);
-  const d = img.data;
-  for (let i = 0; i < d.length; i += 4) {
-    // Rumore caldo, non grigio: la semola sporca di giallo, non di nero.
-    const n = 200 + Math.random() * 55;
-    d[i] = n; d[i + 1] = n * 0.97; d[i + 2] = n * 0.9;
-    d[i + 3] = Math.random() < 0.42 ? 26 : 0;
-  }
-  ctx.putImageData(img, 0, 0);
-  return `url("${c.toDataURL("image/png")}")`;
-}
-
-const g = grana();
-if (g) document.documentElement.style.setProperty("--grana", g);
-
-// ----- 1. Imbandire -----------------------------------------------
-// Le piastrelle si posano una dopo l'altra, dal centro verso i bordi,
-// con un rimbalzo corto: è il gesto di chi apparecchia, non una
-// dissolvenza verso l'alto.
+// ----- 1. L'apertura ----------------------------------------------
 
 if (!ridotto) {
-  const tessere = gsap.utils.toArray<HTMLElement>(".muro .t");
-  gsap.from(tessere, {
-    opacity: 0,
-    scale: 0.82,
-    // Relativa, così la rotazione di base che il CSS da a ogni
-    // piastrella non viene azzerata.
-    rotation: "-=5",
-    duration: 0.62,
-    ease: "back.out(1.5)",
-    stagger: { each: 0.045, from: "center", grid: "auto" },
-  });
+  const dire = gsap.utils.toArray<HTMLElement>(
+    ".apertura-dire > .insegna, .apertura-dire > h1, .apertura-dire > .claim, .apertura-dire > .apertura-azioni",
+  );
+  // Le curve sono quelle di Grecale e di nessun altro: `circ.out` per
+  // le parole, che arrivano e si fermano contro una battuta, e
+  // `power4.out` per la fotografia, che si posa lunga. La barberia usa
+  // le `power2`/`power3`, Camelia le `expo`/`sine`, lo studio le
+  // `power1`: nessuno prende il movimento dell'altro.
+  const t = gsap.timeline({ defaults: { ease: "circ.out" } });
+
+  // Il velo si alza: si anima l'opacità dello pseudo-elemento via
+  // variabile, non il contenuto.
+  const foto = document.querySelector<HTMLElement>(".apertura-foto .fondale");
+  if (foto) t.from(foto, { opacity: 0, scale: 1.06, duration: 1.1, ease: "power4.out" }, 0);
+  if (dire.length) t.from(dire, { opacity: 0, y: 18, duration: 0.7, stagger: 0.09 }, 0.35);
 }
 
-// ----- 2. Girare la piastrella ------------------------------------
-// Aprire una portata gira il modulo su se stesso e lo rimette giu.
-// Mezzo giro e ritorno: il contenuto resta nel flusso, quindi non ci
-// sono due facce sovrapposte da tenere allineate e senza JavaScript il
-// <details> continua ad aprirsi da solo.
+// ----- 2. La parallasse -------------------------------------------
+// Solo `transform` su elementi che NON contengono parole: se una di
+// queste immagini non si muovesse, non mancherebbe niente di leggibile.
 
-document.querySelectorAll<HTMLDetailsElement>(".portata").forEach((portata) => {
-  portata.addEventListener("toggle", () => {
-    if (ridotto || !portata.open) return;
-    gsap.fromTo(portata,
-      { rotationY: 0 },
+if (!ridotto && grande) {
+  for (const sel of [".cucina-forno img", ".sala-fascia img"]) {
+    const img = document.querySelector<HTMLElement>(sel);
+    if (!img) continue;
+    gsap.fromTo(img,
+      { yPercent: -4 },
       {
-        rotationY: 82, duration: 0.2, ease: "power2.in",
-        onComplete: () => {
-          gsap.fromTo(portata,
-            { rotationY: -82 },
-            { rotationY: 0, duration: 0.42, ease: "back.out(1.3)" });
-        },
+        yPercent: 4, ease: "none",
+        scrollTrigger: { trigger: img.closest("figure"), start: "top bottom", end: "bottom top", scrub: 0.6 },
       });
+  }
+}
+
+// ----- 3. La scheda demo ------------------------------------------
+// I comandi che finterebbero un contatto aprono questa e basta. Senza
+// JavaScript sono ancore verso la nota nel piede, che dice la stessa
+// cosa: non c'è nessun tel: e nessun wa.me da nessuna parte.
+
+const scheda = document.querySelector<HTMLDialogElement>("#scheda-demo");
+
+document.querySelectorAll<HTMLElement>("[data-demo-apri]").forEach((c) => {
+  c.addEventListener("click", (e) => {
+    if (!scheda || typeof scheda.showModal !== "function") return;   // niente JS utile: resta l'ancora
+    e.preventDefault();
+    scheda.showModal();
+    if (!ridotto) {
+      gsap.from(scheda, { opacity: 0, y: 12, duration: 0.3, ease: "circ.out" });
+    }
   });
 });
 
-// ----- 3. Prenotare -----------------------------------------------
+document.querySelector<HTMLButtonElement>("[data-demo-chiudi]")
+  ?.addEventListener("click", () => scheda?.close());
+
+// Il clic sullo sfondo chiude: e uno <dialog> modale senza via d'uscita
+// visibile e una trappola.
+scheda?.addEventListener("click", (e) => {
+  if (e.target === scheda) scheda.close();
+});
+
+// ----- 4. La prenotazione -----------------------------------------
 // Il modulo è un <form> vero: senza JavaScript resta leggibile e
 // compilabile. Con JavaScript non parte nessuna richiesta, e lo dice.
 
@@ -115,8 +120,8 @@ modulo?.addEventListener("submit", (e) => {
   }
   esito.textContent =
     `Richiesta pronta: ${coperti} coperti alle ${ora}, a nome ${nome}. ` +
-    `Questo sito è un concept dimostrativo, quindi la richiesta non parte e ` +
+    `Grecale è un concept dimostrativo, quindi la richiesta non parte e ` +
     `nessuno la riceve.`;
   esito.hidden = false;
-  if (!ridotto) gsap.from(esito, { opacity: 0, y: -8, duration: 0.3, ease: "power2.out" });
+  if (!ridotto) gsap.from(esito, { opacity: 0, y: -8, duration: 0.3, ease: "circ.out" });
 });
