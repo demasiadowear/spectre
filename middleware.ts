@@ -51,7 +51,13 @@ export const config = {
   // api/telegram resta fuori dal matcher: Telegram non ha sessione JWT,
   // il webhook si difende da solo (X-Telegram-Bot-Api-Secret-Token +
   // whitelist chat_id nella route).
+  // preview/ e api/factory/demo-view: demo Forge aperte dal prospect,
+  // che non ha sessione. Lo slug a 22 caratteri da crypto.randomBytes È
+  // la credenziale; il ping risponde identico a slug validi e non validi
+  // (vedi la route) così non diventa un oracolo di enumerazione. Come
+  // per detective, "preview/" ha il trailing slash: la dashboard
+  // /api/factory/* resta dietro il JWT.
   matcher: [
-    "/((?!login|api/auth|api/telegram|detective/|_next/static|_next/image|favicon.ico|fonts).*)",
+    "/((?!login|api/auth|api/telegram|api/factory/demo-view|detective/|preview/|_next/static|_next/image|favicon.ico|fonts).*)",
   ],
 };
