@@ -4,7 +4,7 @@
     "viewport": "desktop",
     "status": 200,
     "fps": 61,
-    "transferredKB": 194,
+    "transferredKB": 202,
     "errors": [],
     "failed": [],
     "screenshot": "/home/user/spectre/forge-projects/gold-barberia-centrale/shots-reduced/index_html-desktop.png",
@@ -18,18 +18,18 @@
     "clipped": [],
     "emptySections": [],
     "hiddenText": [],
-    "minContrast": 4.71,
+    "minContrast": 6.72,
     "worstContrast": {
       "t": "080 5240918",
-      "r": 4.71
+      "r": 6.72
     },
     "cta": {
-      "w": 85,
-      "h": 22,
-      "contrast": 6.77
+      "w": 92,
+      "h": 24,
+      "contrast": 9.65
     },
     "headings": [
-      "H1:Una passata sola,\n      fatta come si deve.",
+      "H1:Una passata sola,\n        fatta come si deve.",
       "H2:Il lavoro",
       "H2:Quando siamo aperti",
       "H2:Dove siamo"
@@ -44,7 +44,7 @@
     "viewport": "mobile",
     "status": 200,
     "fps": 60,
-    "transferredKB": 194,
+    "transferredKB": 202,
     "errors": [],
     "failed": [],
     "screenshot": "/home/user/spectre/forge-projects/gold-barberia-centrale/shots-reduced/index_html-mobile.png",
@@ -53,23 +53,27 @@
     "scrollW": 390,
     "viewW": 390,
     "overflowing": [
-      "a.salta"
+      "a.salta",
+      "svg.[object",
+      "g.[object",
+      "path.[object",
+      "circle.[object"
     ],
     "clipped": [],
     "emptySections": [],
     "hiddenText": [],
-    "minContrast": 4.71,
+    "minContrast": 6.72,
     "worstContrast": {
       "t": "080 5240918",
-      "r": 4.71
+      "r": 6.72
     },
     "cta": {
-      "w": 93,
+      "w": 100,
       "h": 44,
-      "contrast": 6.77
+      "contrast": 9.65
     },
     "headings": [
-      "H1:Una passata sola,\n      fatta come si deve.",
+      "H1:Una passata sola,\n        fatta come si deve.",
       "H2:Il lavoro",
       "H2:Quando siamo aperti",
       "H2:Dove siamo"

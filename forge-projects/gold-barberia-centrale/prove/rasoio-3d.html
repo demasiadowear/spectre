@@ -1,0 +1,57 @@
+<!doctype html><html lang="it"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Prova — rasoio 3D</title>
+<style>
+ :root{--fondo:#0D2E26}*{box-sizing:border-box}html,body{margin:0;height:100%}
+ body{background:var(--fondo)} canvas{display:block;width:100%;height:100%}
+</style></head><body>
+<script type="module">
+void (async () => {
+// Prova onesta: rasoio estruso in 3D, metallo, luce d'ambiente, apertura
+// della lama. Serve a misurare, non a essere bello: se perde contro
+// l'SVG, deve perdere su numeri veri.
+const THREE = await import("three");
+const r = new THREE.WebGLRenderer({antialias:true, alpha:true});
+r.setPixelRatio(Math.min(devicePixelRatio,1.75));
+r.setSize(innerWidth, innerHeight);
+document.body.appendChild(r.domElement);
+const sc = new THREE.Scene();
+const cam = new THREE.PerspectiveCamera(32, innerWidth/innerHeight, .1, 100);
+cam.position.set(0, 1.6, 9);
+cam.lookAt(0,0,0);
+
+// Lama: profilo estruso con smusso, materiale metallico.
+const prof = new THREE.Shape();
+prof.moveTo(0,.18); prof.lineTo(3.4,.16); prof.quadraticCurveTo(3.7,.16,3.7,0);
+prof.quadraticCurveTo(3.7,-.1,3.4,-.14); prof.lineTo(.3,-.3);
+prof.quadraticCurveTo(0,-.3,0,.18);
+const lama = new THREE.Mesh(
+  new THREE.ExtrudeGeometry(prof,{depth:.07,bevelEnabled:true,bevelThickness:.02,bevelSize:.02,bevelSegments:2}),
+  new THREE.MeshStandardMaterial({color:0xC9D4D9,metalness:1,roughness:.18})
+);
+const pivot = new THREE.Group(); pivot.add(lama); lama.position.set(0,0,-.035);
+const manico = new THREE.Mesh(
+  new THREE.BoxGeometry(3.5,.34,.42),
+  new THREE.MeshStandardMaterial({color:0x1A120C,metalness:.2,roughness:.65})
+);
+manico.position.set(-1.8,0,0);
+const gruppo = new THREE.Group(); gruppo.add(manico); gruppo.add(pivot);
+gruppo.rotation.set(.22,-.35,.1); gruppo.position.x = -1;
+sc.add(gruppo);
+
+sc.add(new THREE.AmbientLight(0xE8F0F2,.5));
+const k = new THREE.DirectionalLight(0xffffff,2.4); k.position.set(4,6,5); sc.add(k);
+const f = new THREE.DirectionalLight(0xB08D4F,1.1); f.position.set(-5,-2,3); sc.add(f);
+
+let t0 = performance.now();
+r.setAnimationLoop(() => {
+  const t = (performance.now()-t0)/1000;
+  // apertura ciclica, per misurare il costo del movimento
+  const fase = (t % 5) / 5;
+  pivot.rotation.z = -Math.PI*0.93 * (1 - Math.min(1, fase*2.2));
+  gruppo.rotation.y = -0.35 + Math.sin(t*0.4)*0.12;
+  r.render(sc, cam);
+});
+addEventListener("resize", () => { r.setSize(innerWidth,innerHeight);
+  cam.aspect = innerWidth/innerHeight; cam.updateProjectionMatrix(); });
+})();
+</script></body></html>

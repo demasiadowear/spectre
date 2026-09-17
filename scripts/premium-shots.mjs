@@ -115,6 +115,10 @@ async function main() {
         const hidden = [];
         d.querySelectorAll("h1,h2,h3,p,li,a").forEach((el) => {
           const cs = getComputedStyle(el);
+          // La chrome fissa che compare scorrendo (una barra di chiamata,
+          // un torna-su) è legittimamente invisibile a riposo: la regola
+          // riguarda il CONTENUTO parcheggiato, non i comandi flottanti.
+          if (cs.position === "fixed") return;
           if (parseFloat(cs.opacity) < 0.05 && el.getBoundingClientRect().height > 0) {
             hidden.push((el.textContent ?? "").slice(0, 40));
           }

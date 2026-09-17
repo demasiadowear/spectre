@@ -15,6 +15,8 @@ export default defineConfig({
         a: resolve(__dirname, "heroes/a.html"),
         b: resolve(__dirname, "heroes/b.html"),
         c: resolve(__dirname, "heroes/c.html"),
+        rasoiosvg: resolve(__dirname, "prove/rasoio-svg.html"),
+        rasoio3d: resolve(__dirname, "prove/rasoio-3d.html"),
       },
     },
   },

@@ -4,7 +4,7 @@
     "viewport": "desktop",
     "status": 200,
     "fps": null,
-    "transferredKB": 79,
+    "transferredKB": 87,
     "errors": [],
     "failed": [
       "http://127.0.0.1:4330/assets/modulepreload-polyfill-B5Qt9EMX.js csp",
@@ -30,7 +30,7 @@
     "viewport": "mobile",
     "status": 200,
     "fps": null,
-    "transferredKB": 79,
+    "transferredKB": 87,
     "errors": [],
     "failed": [
       "http://127.0.0.1:4330/assets/modulepreload-polyfill-B5Qt9EMX.js csp",

@@ -1,0 +1,46 @@
+<!doctype html><html lang="it"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Prova — rasoio SVG</title>
+<link rel="stylesheet" href="../heroes/fonts.css">
+<style>
+ :root{--fondo:#0D2E26;--osso:#F4F1EA;--ottone:#B08D4F}
+ *{box-sizing:border-box}html,body{margin:0;height:100%}
+ body{background:var(--fondo);display:grid;place-items:center;
+   font-family:"Instrument Sans Variable",sans-serif;color:var(--osso)}
+ .scena{width:min(92vw,900px)}
+ svg{width:100%;height:auto;overflow:visible}
+</style></head><body>
+<div class="scena">
+  <svg viewBox="0 0 420 70" fill="none" aria-hidden="true">
+    <defs>
+      <linearGradient id="acciaio" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#D8E2E6"/><stop offset="42%" stop-color="#8FA0A9"/>
+        <stop offset="52%" stop-color="#E9F0F2"/><stop offset="100%" stop-color="#6E8089"/>
+      </linearGradient>
+      <linearGradient id="riflesso" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="#fff" stop-opacity="0"/>
+        <stop offset="50%" stop-color="#fff" stop-opacity=".85"/>
+        <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <g class="manico">
+      <path d="M6 26 L186 26 Q194 26 194 31 L194 37 Q194 42 186 42 L6 42 Q0 42 0 34 Q0 26 6 26 Z"
+        fill="#1A120C" stroke="#B08D4F" stroke-width="1"/>
+      <circle cx="176" cy="34" r="2.6" fill="#B08D4F"/>
+      <circle cx="16" cy="34" r="2.6" fill="#B08D4F"/>
+    </g>
+    <g class="lama" style="transform-origin:190px 34px">
+      <path class="acciaio" d="M196 24 L390 22 Q404 22 404 30 Q404 35 396 36 L250 41 Q206 43 198 37 Q194 33 196 24 Z"
+        fill="url(#acciaio)"/>
+      <path d="M204 30 L388 27" stroke="#4E5F68" stroke-width=".8" opacity=".7"/>
+      <path class="filo" d="M200 38 L250 40.5 L396 35.6" stroke="#F6FAFB" stroke-width="1.2" opacity=".9"/>
+      <rect class="brillio" x="200" y="23" width="60" height="18" fill="url(#riflesso)" opacity=".5"/>
+    </g>
+  </svg>
+</div>
+<script type="module">
+import gsap from "gsap";
+const tl = gsap.timeline({repeat:-1, repeatDelay:1.2});
+tl.fromTo(".lama",{rotation:-168},{rotation:0,duration:1.4,ease:"power3.out"})
+  .fromTo(".brillio",{x:-70},{x:210,duration:1.1,ease:"power2.inOut"},"-=0.5")
+  .to(".lama",{rotation:-168,duration:1.1,ease:"power2.inOut"},"+=1.4");
+</script></body></html>
