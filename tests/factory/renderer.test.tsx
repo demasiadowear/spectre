@@ -25,7 +25,17 @@ function spec(over: Partial<SiteSpec> = {}): SiteSpec {
       phone: verified("080 1234567"),
     },
     services: [verified("Pizza al forno a legna")],
-    sections: [{ kind: "about", title: "Chi siamo", body: "Pizzeria di quartiere." }],
+    // Le sezioni che il template verticale produce davvero: il renderer
+    // rende quello che la spec dichiara, quindi il fixture deve
+    // dichiarare una spec realistica.
+    sections: [
+      { kind: "about", title: "Il locale", body: "Pizzeria di quartiere." },
+      { kind: "services", title: "La proposta" },
+      { kind: "hours", title: "Quando siamo aperti" },
+      { kind: "reviews", title: "Recensioni Google" },
+      { kind: "contact", title: "Prenotazioni e contatti" },
+      { kind: "map", title: "Dove siamo" },
+    ],
     cta: { label: "Chiama", kind: "call", target: "080 1234567" },
     palette: { primary: "#2FB4C9", accent: "#7FD9E6", bg: "#0D1316", fg: "#EDF6F8" },
     images: [{ url: "", alt: "presentazione", placeholder: true, source: "renderer" }],

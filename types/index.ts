@@ -45,6 +45,18 @@ export interface LeadMeta {
   lng?: number;
   /** Prezzo manuale deciso da Puccio (€). Niente prezzo automatico. */
   price?: number;
+  /** Località dello Scout (già in `zone` per altri flussi, ma lo Scout
+   *  la registra esplicitamente perché la Factory la usa nel copy). */
+  city?: string;
+  /** Sito ufficiale dichiarato su Google ('' = nessuno). Lo legge
+   *  analyze_website: la stringa vuota è un dato, non un campo mancante. */
+  website?: string;
+  has_website?: boolean;
+  /** Correzioni inserite A MANO: hanno la precedenza su qualsiasi fonte
+   *  automatica e non vengono mai sovrascritte dalla ricerca. */
+  manual?: Record<string, string>;
+  /** Pagine ufficiali collegate a mano (social, listino, prenotazioni). */
+  linked_pages?: string[];
   /** Tipo numero: "mobile" = WhatsApp-abile, "fisso" = solo chiamata. */
   phone_type?: "mobile" | "fisso" | "";
   // Funnel timestamps (ISO) — set when the lead enters each stage.

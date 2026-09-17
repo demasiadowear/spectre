@@ -1,4 +1,6 @@
 import { geminiJSON } from "@/lib/gemini";
+import { selectImages, type ImageCandidate } from "./images";
+import { templateFor, type VerticalTemplate } from "./templates";
 import {
   SPEC_VERSION,
   factOf,
@@ -51,6 +53,16 @@ export interface GenerationInput {
   /** Servizi con fonte (mai dedotti dalla categoria). */
   services?: Fact<string>[];
   city?: string;
+  /** Descrizione VERIFICATA (dal sito o inserita a mano). */
+  description?: Fact<string>;
+  /** Listino/menu pubblico, se dichiarato dal sito. */
+  menu_url?: Fact<string>;
+  /** Area servita dichiarata (utile per gli artigiani). */
+  area_served?: Fact<string>[];
+  /** Immagini candidate, già filtrate per sicurezza e licenza. */
+  image_candidates?: ImageCandidate[];
+  /** Host del sito ufficiale: solo da lì si prendono immagini. */
+  official_host?: string;
 }
 
 /** La sola forma che il modello è autorizzato a restituire. */
@@ -113,9 +125,28 @@ Rispondi SOLO con questo JSON:
 const asText = (v: unknown, max: number): string =>
   typeof v === "string" ? v.trim().slice(0, max) : "";
 
+/** Copy di riserva nel lessico del settore. Serve quando Gemini non c'è
+ *  (nessuna chiave) o quando produce testo con affermazioni vietate: in
+ *  quei casi due categorie diverse devono comunque leggere diverse, non
+ *  sfoderare la stessa frase generica. */
+function templateCopy(name: string, category: string, template: VerticalTemplate): SiteCopy {
+  const base = neutralCopy(name, category);
+  const cat = (category || "attività").toLowerCase();
+  return {
+    hero_title: name || base.hero_title,
+    hero_subtitle: `${template.heroLead}. ${cat.charAt(0).toUpperCase()}${cat.slice(1)}.`,
+    about: base.about,
+  };
+}
+
 /** Copy accettato solo se privo di affermazioni fattuali. */
-function acceptCopy(draft: CopyDraft | null, name: string, category: string): SiteCopy {
-  const fallback = neutralCopy(name, category);
+function acceptCopy(
+  draft: CopyDraft | null,
+  name: string,
+  category: string,
+  template: VerticalTemplate,
+): SiteCopy {
+  const fallback = templateCopy(name, category, template);
   if (!draft) return fallback;
   const candidate: SiteCopy = {
     hero_title: asText(draft.hero_title, 90) || fallback.hero_title,
@@ -149,6 +180,7 @@ export async function generateSiteSpec(
   const name = input.name.value;
   const category = input.category.value;
   const services = (input.services ?? []).slice(0, 8);
+  const template = templateFor(category);
 
   // Al modello arrivano SOLO nome, categoria, città e i nomi dei
   // servizi già verificati. Niente telefono, niente indirizzo, niente
@@ -170,29 +202,53 @@ export async function generateSiteSpec(
     maxOutputTokens: 900,
   });
 
-  const copy = acceptCopy(draft, name, category);
+  const copy = acceptCopy(draft, name, category, template);
 
-  const sections: SiteSection[] = [
-    { kind: "about", title: sectionTitle(draft, "about", "Chi siamo"), body: copy.about },
-  ];
-  if (services.length) {
-    sections.unshift({ kind: "services", title: sectionTitle(draft, "services", "Servizi") });
+  // Le sezioni e il loro ORDINE vengono dal template verticale, non dal
+  // modello: è questo che evita l'effetto "stessa pagina per tutti".
+  // Una sezione `requiresData` compare solo se ha dati veri da mostrare.
+  const hasData: Record<string, boolean> = {
+    services: services.length > 0,
+    hours: Boolean(input.hours),
+    map: Boolean(input.maps_url),
+    reviews: Boolean(input.rating && input.reviews_count),
+    about: true,
+    contact: true,
+  };
+  const sections: SiteSection[] = [];
+  for (const slot of template.sections) {
+    if (slot.requiresData && !hasData[slot.kind]) continue;
+    const title =
+      slot.kind === "services"
+        ? sectionTitle(draft, "services", slot.title)
+        : slot.kind === "about"
+          ? sectionTitle(draft, "about", slot.title)
+          : slot.kind === "contact"
+            ? sectionTitle(draft, "contact", slot.title)
+            : slot.title;
+    sections.push({
+      kind: slot.kind,
+      title,
+      // Solo "about" porta corpo di testo: le altre sezioni sono rese
+      // dal renderer con i dati verificati, non con prosa generata.
+      body: slot.kind === "about" ? copy.about : undefined,
+    });
   }
-  sections.push({ kind: "contact", title: sectionTitle(draft, "contact", "Contatti") });
-  if (input.hours) sections.push({ kind: "hours", title: "Orari" });
-  if (input.maps_url) sections.push({ kind: "map", title: "Dove siamo" });
 
-  // CTA: agganciata a un contatto verificato. sanitizeSiteSpec la
-  // degrada comunque se il dato non regge.
+  // CTA: agganciata a un contatto verificato, con l'etichetta del
+  // settore ("Prenota un appuntamento" non è "Chiama" per un salone).
   const ctaKind = input.phone ? "call" : input.maps_url ? "maps" : "email";
   const ctaTarget = input.phone?.value ?? input.maps_url?.value ?? input.email?.value ?? "";
 
-  // Nessuna immagine di terzi: il renderer disegna un segnaposto.
-  // Pubblicare la foto Google di un locale su un dominio nostro
-  // sarebbe un problema di licenza, non un dettaglio estetico.
-  const images: SiteImage[] = [
-    { url: "", alt: `${name} — immagine di presentazione`, placeholder: true, source: "renderer" },
-  ];
+  // Immagini: solo quelle del sito ufficiale, con provenienza. Se non ce
+  // n'è nessuna utilizzabile si disegna un segnaposto — l'assenza di
+  // foto non blocca la generazione.
+  const { images } = selectImages(input.image_candidates ?? [], {
+    category,
+    name,
+    officialHost: input.official_host,
+    max: 3,
+  });
 
   const seoTitleRaw = asText(draft?.seo_title, 60);
   const seoDescRaw = asText(draft?.seo_description, 155);
@@ -216,11 +272,11 @@ export async function generateSiteSpec(
     services,
     sections,
     cta: {
-      label: ctaKind === "call" ? "Chiama" : ctaKind === "maps" ? "Come arrivare" : "Scrivi",
+      label: template.ctaLabels[ctaKind],
       kind: ctaKind,
       target: ctaTarget,
     },
-    palette: paletteFor(category),
+    palette: template.palette,
     images,
     seo: {
       title:

@@ -15,7 +15,8 @@ import {
   setProjectDemoUrl,
   setProjectStage,
 } from "./db";
-import { factsFromPlaces, generateSiteSpec } from "./generate";
+import { factsFromPlaces, generateSiteSpec, type GenerationInput } from "./generate";
+import { researchBusiness, verifiedServices, type ResearchResult } from "./research";
 import { prepareOutreach } from "./outreach";
 import { qaSummary, runQa } from "./qa";
 import {
@@ -26,8 +27,9 @@ import {
   jobsRunToday,
   recoverExpiredLeases,
 } from "./queue";
+import { hasFreshDemo, loadLimits, shouldRecheck } from "./scout-config";
 import { analyzeWebsite, isEligible } from "./website";
-import type { AgentJob, FactoryStage, JobKind } from "@/types/factory";
+import type { AgentJob, Fact, FactoryStage, JobKind } from "@/types/factory";
 
 // ============================================================
 // Orchestrazione Hunter → analisi → ricerca → generazione → QA →
@@ -47,15 +49,26 @@ import type { AgentJob, FactoryStage, JobKind } from "@/types/factory";
 export const DEFAULT_BATCH = 5;
 export const MAX_BATCH = 20;
 
-/** Tetto giornaliero per tipo di job. Le generazioni costano di più. */
-export const DAILY_LIMITS: Record<JobKind, number> = {
-  analyze_website: 200,
-  research_business: 60,
-  generate_site: 25,
-  run_site_qa: 50,
-  prepare_outreach: 40,
-  schedule_followup: 200,
-};
+/**
+ * Tetto giornaliero per tipo di job, derivato dai limiti configurabili
+ * (lib/factory/scout-config.ts): `maxSiteAudits` governa le analisi e
+ * `maxDemosPerDay` le generazioni, che sono la voce che costa di più.
+ * Gli altri tipi non escono verso l'esterno e seguono le demo.
+ */
+export function dailyLimits(env = process.env): Record<JobKind, number> {
+  const l = loadLimits(env);
+  return {
+    analyze_website: l.maxSiteAudits,
+    research_business: l.maxSiteAudits,
+    generate_site: l.maxDemosPerDay,
+    run_site_qa: l.maxDemosPerDay * 2,
+    prepare_outreach: l.maxDemosPerDay * 2,
+    schedule_followup: 200,
+  };
+}
+
+/** Compatibilità: i valori predefiniti senza env impostate. */
+export const DAILY_LIMITS: Record<JobKind, number> = dailyLimits({} as NodeJS.ProcessEnv);
 
 export function isFactoryPaused(): boolean {
   const v = (process.env.FACTORY_PAUSED ?? "").trim().toLowerCase();
@@ -93,6 +106,13 @@ interface LeadContext {
   maps_url: string;
   rating: number;
   reviews: number;
+  /** Campi corretti a mano in SPECTER (meta.manual): precedenza assoluta. */
+  manual: Record<string, string>;
+  /** Pagine ufficiali già collegate al lead (meta.linked_pages). */
+  linked_pages: string[];
+  /** Esito dell'analisi precedente: decide se rianalizzare. */
+  website_status: string;
+  website_checked_at: string | null;
 }
 
 const metaStr = (meta: Record<string, unknown>, key: string): string => {
@@ -103,6 +123,21 @@ const metaNum = (meta: Record<string, unknown>, key: string): number => {
   const v = meta[key];
   return typeof v === "number" ? v : Number(v) || 0;
 };
+/** Correzioni manuali: solo coppie stringa/stringa, il resto si ignora. */
+const metaRecord = (meta: Record<string, unknown>, key: string): Record<string, string> => {
+  const v = meta[key];
+  if (typeof v !== "object" || v === null || Array.isArray(v)) return {};
+  const out: Record<string, string> = {};
+  for (const k of Object.keys(v as Record<string, unknown>)) {
+    const val = (v as Record<string, unknown>)[k];
+    if (typeof val === "string" && val.trim()) out[k] = val.trim();
+  }
+  return out;
+};
+const metaList = (meta: Record<string, unknown>, key: string): string[] => {
+  const v = meta[key];
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+};
 
 /** Raccoglie ciò che si sa del lead dalle tabelle esistenti. La
  *  pipeline resta la fonte di verità: qui non si duplica niente. */
@@ -111,6 +146,7 @@ async function leadContext(leadId: string): Promise<LeadContext | null> {
   if (!lead) return null;
   const meta = (lead.meta ?? {}) as Record<string, unknown>;
   const pipeline = await getPipelineLead(leadId).catch(() => null);
+  const prev = await previousAnalysis(leadId);
   const placeId = pipeline?.place_id ?? "";
   return {
     lead_id: leadId,
@@ -124,7 +160,35 @@ async function leadContext(leadId: string): Promise<LeadContext | null> {
     maps_url: placeId ? `https://www.google.com/maps/place/?q=place_id:${placeId}` : "",
     rating: metaNum(meta, "rating"),
     reviews: metaNum(meta, "reviews"),
+    manual: metaRecord(meta, "manual"),
+    linked_pages: metaList(meta, "linked_pages"),
+    website_status: prev.status,
+    website_checked_at: prev.checked_at,
   };
+}
+
+/** Ultimo esito dell'analisi sito, letto dalla pipeline. Le colonne sono
+ *  aggiunte da ensureFactorySchema: su un DB non ancora migrato la query
+ *  fallisce e si riparte da zero, che è il comportamento giusto. */
+async function previousAnalysis(
+  leadId: string,
+): Promise<{ status: string; checked_at: string | null }> {
+  if (!turso) return { status: "", checked_at: null };
+  try {
+    const rs = await turso.execute({
+      sql: `select website_status, website_checked_at
+              from autopilot_pipeline where lead_id = ? limit 1`,
+      args: [leadId],
+    });
+    const row = rs.rows[0] as Record<string, unknown> | undefined;
+    if (!row) return { status: "", checked_at: null };
+    return {
+      status: row.website_status == null ? "" : String(row.website_status),
+      checked_at: row.website_checked_at == null ? null : String(row.website_checked_at),
+    };
+  } catch {
+    return { status: "", checked_at: null };
+  }
 }
 
 /** Errore che non guarisce riprovando: non va ritentato. */
@@ -135,6 +199,21 @@ class FatalJobError extends Error {}
 async function handleAnalyzeWebsite(job: AgentJob): Promise<string> {
   const ctx = await leadContext(job.lead_id);
   if (!ctx) throw new FatalJobError("lead inesistente");
+
+  const limits = loadLimits();
+
+  // Un esito definitivo non si rianalizza a ogni giro: rifare ogni
+  // mattina la stessa richiesta a un sito che è a posto è spesa inutile
+  // e, dal lato loro, traffico immotivato.
+  if (
+    !shouldRecheck({
+      checkedAt: ctx.website_checked_at,
+      status: ctx.website_status,
+      recheckAfterDays: limits.recheckAfterDays,
+    })
+  ) {
+    return `già analizzato (${ctx.website_status}), ricontrollo fra ${limits.recheckAfterDays} giorni`;
+  }
 
   const analysis = await analyzeWebsite(ctx.website);
   await saveWebsiteAnalysis(job.lead_id, analysis);
@@ -147,21 +226,29 @@ async function handleAnalyzeWebsite(job: AgentJob): Promise<string> {
     created_by: "ai",
   });
 
-  if (!isEligible(analysis)) {
+  // La soglia è configurabile: `isEligible` usa quella predefinita,
+  // qui si applica quella effettiva dell'installazione.
+  const eligible =
+    isEligible(analysis) && analysis.opportunity_score >= limits.minOpportunityScore;
+  if (!eligible) {
     await setFactoryStage(job.lead_id, "rejected");
-    return `scartato: ${analysis.status}, punteggio ${analysis.opportunity_score}`;
+    return `scartato: ${analysis.status}, punteggio ${analysis.opportunity_score} sotto la soglia ${limits.minOpportunityScore}`;
   }
 
-  await setFactoryStage(job.lead_id, "eligible");
-  const project = await getOrCreateProject(job.lead_id, "generation_pending");
+  // Eleggibile: si passa alla RICERCA, non direttamente alla
+  // generazione. Generare senza avere prima raccolto i dati produrrebbe
+  // una demo vuota, che è il modo più rapido di bruciare un lead.
+  await setFactoryStage(job.lead_id, "research_pending");
+  const project = await getOrCreateProject(job.lead_id, "research_pending");
   await enqueueJob({
     lead_id: job.lead_id,
-    kind: "generate_site",
+    kind: "research_business",
     reason: `Opportunità ${analysis.opportunity_score}/100: ${analysis.status}`,
     payload: { analysis },
     forge_project_id: project?.id ?? "",
     priority: analysis.opportunity_score,
-    budget: 1,
+    // Budget = pagine scaricabili dal sito del prospect.
+    budget: 3,
   });
   return `eleggibile: ${analysis.status}, punteggio ${analysis.opportunity_score}`;
 }
@@ -170,40 +257,199 @@ async function handleResearchBusiness(job: AgentJob): Promise<string> {
   const ctx = await leadContext(job.lead_id);
   if (!ctx) throw new FatalJobError("lead inesistente");
 
-  // I dati raccolti NON entrano direttamente nel sito: diventano fatti
-  // PROPOSTI, che una persona approva. È la differenza fra un CRM che
-  // suggerisce e un CRM che si inventa i dati dei clienti.
-  const proposals: { field: string; value: string }[] = [];
-  const at = new Date().toISOString();
-  const candidates: [string, string][] = [
-    ["phone", ctx.phone],
-    ["address", ctx.address],
-    ["email", ctx.email],
-  ];
-  for (const [field, value] of candidates) {
-    if (!value) continue;
+  // Il budget del job è il tetto di pagine scaricabili: la ricerca non
+  // può allargarsi a piacere su un sito grande.
+  const research = await researchBusiness(
+    {
+      lead_id: job.lead_id,
+      name: ctx.name,
+      category: ctx.category,
+      city: ctx.city,
+      phone: ctx.phone,
+      email: ctx.email,
+      address: ctx.address,
+      website: ctx.website,
+      maps_url: ctx.maps_url,
+      rating: ctx.rating,
+      reviews: ctx.reviews,
+      manual: ctx.manual,
+      linked_pages: ctx.linked_pages,
+    },
+    { maxPages: Math.max(1, Math.min(job.budget, 4)) },
+  );
+
+  // Ogni dato raccolto diventa un fatto con evidenza. Lo STATO decide se
+  // è utilizzabile: `applied` per ciò che è manuale o dichiarato dal
+  // sito, `proposed` per tutto il resto, che una persona deve approvare.
+  for (const f of research.facts) {
     await proposeFact({
       lead_id: job.lead_id,
-      field,
-      value,
-      band: "verified",
-      source_url: "google_places",
-      method: "places_search",
-      evidence: { origin: "lead.meta", collected_at: at },
-      status: "applied",
+      field: f.field,
+      value: f.value,
+      band: f.band,
+      source_url: f.source_url,
+      method: `${f.source}/${f.method}`,
+      evidence: f.evidence,
+      status: f.status,
+      observed_at: f.observed_at,
     });
-    proposals.push({ field, value });
   }
+
+  const applied = research.facts.filter((f) => f.status === "applied").length;
+  const proposed = research.facts.length - applied;
 
   await logActivity({
     lead_id: job.lead_id,
     type: "research",
-    subject: `Dati raccolti: ${proposals.length} campi con fonte`,
-    body: proposals.map((p) => `· ${p.field}`).join("\n") || "Nessun campo disponibile.",
+    subject: `Ricerca: ${applied} dati verificati, ${proposed} da approvare`,
+    body: [
+      "Fonti consultate:",
+      ...research.sources_used.map(
+        (s) => `· ${s.kind}${s.url ? ` (${s.url})` : ""}: ${s.ok ? "ok" : "non riuscita"} — ${s.detail}`,
+      ),
+      research.conflicts.length
+        ? `\nDati discordanti da controllare:\n${research.conflicts
+            .map(
+              (c) =>
+                `· ${c.field}: tengo "${c.kept.value}" (${c.kept.source}), scartati ${c.others
+                  .map((o) => `"${o.value}" (${o.source})`)
+                  .join(", ")}`,
+            )
+            .join("\n")}`
+        : "",
+      research.missing.length ? `\nCampi non trovati: ${research.missing.join(", ")}` : "",
+      research.rejected_images.length
+        ? `\nImmagini scartate: ${research.rejected_images.length} (${research.rejected_images
+            .map((r) => r.reason)
+            .filter((v, i, a) => a.indexOf(v) === i)
+            .join(", ")})`
+        : "",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    metadata: {
+      conflicts: research.conflicts,
+      missing: research.missing,
+      schema_types: research.schema_types,
+      sources: research.sources_used,
+    },
     created_by: "ai",
   });
+
+  // La ricerca passa il testimone alla generazione portandosi dietro i
+  // fatti: la generazione non rifà il lavoro e non riscarica il sito.
   await setFactoryStage(job.lead_id, "eligible");
-  return `${proposals.length} fatti registrati`;
+  const project = await getOrCreateProject(job.lead_id, "generation_pending");
+  await enqueueJob({
+    lead_id: job.lead_id,
+    kind: "generate_site",
+    reason: `Ricerca completata: ${applied} dati verificati${
+      research.conflicts.length ? `, ${research.conflicts.length} conflitti` : ""
+    }`,
+    payload: { research: research as unknown as Record<string, unknown> },
+    forge_project_id: project?.id ?? "",
+    priority: job.priority,
+  });
+
+  return `${applied} verificati, ${proposed} proposti, ${research.conflicts.length} conflitti`;
+}
+
+/** Trasforma i fatti della ricerca nell'input di generazione. I fatti
+ *  `proposed` NON entrano: un dato non approvato non finisce in una
+ *  pagina mostrata al titolare. */
+function generationInputFromResearch(
+  research: ResearchResult,
+  fallback: GenerationInput,
+): GenerationInput {
+  const usable = research.facts.filter((f) => f.status === "applied");
+  const pick = (field: string) => usable.find((f) => f.field === field);
+  const asFact = (field: string): Fact<string> | undefined => {
+    const f = pick(field);
+    if (!f) return undefined;
+    return {
+      value: f.value,
+      source: f.source_url || f.source,
+      method: f.method,
+      observed_at: f.observed_at,
+      band: f.band,
+    };
+  };
+
+  const hoursFact = pick("hours");
+  const rating = pick("rating");
+  const reviews = pick("review_count");
+
+  return {
+    ...fallback,
+    name: asFact("name") ?? fallback.name,
+    category: asFact("category") ?? fallback.category,
+    address: asFact("address") ?? fallback.address,
+    phone: asFact("phone") ?? fallback.phone,
+    email: asFact("email") ?? fallback.email,
+    maps_url: asFact("maps_url") ?? fallback.maps_url,
+    description: asFact("description"),
+    menu_url: asFact("menu_url"),
+    hours: hoursFact
+      ? {
+          value: hoursFact.value.split("\n").filter(Boolean),
+          source: hoursFact.source_url || hoursFact.source,
+          method: hoursFact.method,
+          observed_at: hoursFact.observed_at,
+          band: hoursFact.band,
+        }
+      : fallback.hours,
+    rating:
+      rating && Number(rating.value) > 0
+        ? {
+            value: Number(rating.value),
+            source: rating.source_url || rating.source,
+            method: rating.method,
+            observed_at: rating.observed_at,
+            band: rating.band,
+          }
+        : fallback.rating,
+    reviews_count:
+      reviews && Number(reviews.value) > 0
+        ? {
+            value: Number(reviews.value),
+            source: reviews.source_url || reviews.source,
+            method: reviews.method,
+            observed_at: reviews.observed_at,
+            band: reviews.band,
+          }
+        : fallback.reviews_count,
+    // SOLO i servizi con fonte: verifiedServices scarta quelli senza.
+    services: verifiedServices(research).map((f) => ({
+      value: f.value,
+      source: f.source_url || f.source,
+      method: f.method,
+      observed_at: f.observed_at,
+      band: f.band,
+    })),
+    area_served: usable
+      .filter((f) => f.field === "area_served")
+      .slice(0, 4)
+      .map((f) => ({
+        value: f.value,
+        source: f.source_url || f.source,
+        method: f.method,
+        observed_at: f.observed_at,
+        band: f.band,
+      })),
+    image_candidates: research.images,
+    official_host: officialHostOf(research),
+  };
+}
+
+function officialHostOf(research: ResearchResult): string {
+  const site = research.facts.find((f) => f.field === "website");
+  const url = site?.value ?? research.sources_used.find((s) => s.kind === "official_site" && s.url)?.url ?? "";
+  if (!url) return "";
+  try {
+    return new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`).hostname;
+  } catch {
+    return "";
+  }
 }
 
 async function handleGenerateSite(job: AgentJob): Promise<string> {
@@ -216,10 +462,24 @@ async function handleGenerateSite(job: AgentJob): Promise<string> {
     (await getOrCreateProject(job.lead_id, "generating"));
   if (!project) throw new Error("progetto Forge non creabile (DB non configurato)");
 
+  // Una demo valida e recente non si rigenera: la seconda costerebbe
+  // come la prima e sarebbe la stessa pagina.
+  const limits = loadLimits();
+  if (
+    hasFreshDemo({
+      updatedAt: project.updated_at,
+      stage: project.stage,
+      qaScore: project.qa_score,
+      demoFreshDays: limits.demoFreshDays,
+    })
+  ) {
+    return `demo già pronta e recente (QA ${project.qa_score}/100): non rigenero`;
+  }
+
   await setProjectStage(project.id, "generating");
   await setFactoryStage(job.lead_id, "generating");
 
-  const input = factsFromPlaces({
+  const fallbackInput = factsFromPlaces({
     lead_id: job.lead_id,
     name: ctx.name,
     category: ctx.category || "attività locale",
@@ -230,6 +490,13 @@ async function handleGenerateSite(job: AgentJob): Promise<string> {
     reviews: ctx.reviews,
     city: ctx.city,
   });
+
+  // Se la ricerca ha girato, i suoi fatti hanno la precedenza su
+  // lead.meta: sono più freschi e portano la loro fonte.
+  const research = job.payload.research as ResearchResult | undefined;
+  const input = research?.facts
+    ? generationInputFromResearch(research, fallbackInput)
+    : fallbackInput;
 
   const { result, used_ai } = await generateSiteSpec(input);
   await saveProjectSpec(project.id, result.spec, "qa_pending");
@@ -426,9 +693,10 @@ export async function runWorker(opts: RunWorkerOptions = {}): Promise<WorkerResu
   // Tetti giornalieri calcolati una volta per giro: il limite vale per
   // il lotto, non per il singolo job.
   const allowed: JobKind[] = [];
-  const kinds = opts.kinds?.length ? opts.kinds : (Object.keys(DAILY_LIMITS) as JobKind[]);
+  const limits = dailyLimits();
+  const kinds = opts.kinds?.length ? opts.kinds : (Object.keys(limits) as JobKind[]);
   for (const kind of kinds) {
-    if ((await jobsRunToday(kind)) >= DAILY_LIMITS[kind]) result.skipped_limit.push(kind);
+    if ((await jobsRunToday(kind)) >= limits[kind]) result.skipped_limit.push(kind);
     else allowed.push(kind);
   }
   if (allowed.length === 0) return result;

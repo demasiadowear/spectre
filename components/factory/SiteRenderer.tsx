@@ -79,6 +79,7 @@ export function SiteRenderer({ spec, showProvenance = false }: SiteRendererProps
   const category = factValue(spec.business.category) ?? "";
   const address = factValue(spec.business.address);
   const phone = factValue(spec.business.phone);
+  const email = factValue(spec.business.email);
   const hours = factValue(spec.business.hours);
   const maps = factValue(spec.business.maps_url);
   const href = ctaHref(spec.cta.kind, spec.cta.target);
@@ -124,72 +125,137 @@ export function SiteRenderer({ spec, showProvenance = false }: SiteRendererProps
         </div>
       </header>
 
-      {/* ----- Servizi: SOLO quelli con fonte ----- */}
-      {spec.services.length > 0 ? (
-        <section className="mx-auto w-full max-w-3xl px-4 py-7">
-          <h2 className="text-lg font-semibold sm:text-xl" style={{ color: palette.primary }}>
-            Servizi
-          </h2>
-          <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-            {spec.services.map((s, i) => (
-              <li
-                key={`${s.value}-${i}`}
-                className="rounded-lg border px-3 py-2 text-sm"
-                style={{ borderColor: `${palette.primary}26` }}
+      {/* ----- Sezioni nell'ORDINE deciso dal template verticale -----
+          Una pizzeria mette il locale prima dei piatti, un salone i
+          trattamenti prima di sé: l'ordine è parte del mestiere, non
+          un dettaglio estetico. Il renderer non ne sceglie nessuno,
+          esegue quello che la spec dichiara. */}
+      {spec.sections.map((section, i) => {
+        const key = `${section.kind}-${i}`;
+
+        if (section.kind === "services") {
+          if (spec.services.length === 0) return null;
+          return (
+            <section key={key} className="mx-auto w-full max-w-3xl px-4 py-7">
+              <h2 className="text-lg font-semibold sm:text-xl" style={{ color: palette.primary }}>
+                {section.title}
+              </h2>
+              <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                {spec.services.map((s, j) => (
+                  <li
+                    key={`${s.value}-${j}`}
+                    className="rounded-lg border px-3 py-2.5 text-sm leading-snug"
+                    style={{ borderColor: `${palette.primary}26`, background: `${palette.primary}08` }}
+                  >
+                    {s.value}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          );
+        }
+
+        if (section.kind === "reviews") {
+          if (!spec.reviews) return null;
+          return (
+            <section key={key} className="mx-auto w-full max-w-3xl px-4 py-7">
+              <h2 className="text-lg font-semibold sm:text-xl" style={{ color: palette.primary }}>
+                {section.title}
+              </h2>
+              <p className="mt-2 text-sm opacity-85 sm:text-base">
+                {spec.reviews.rating.value.toFixed(1)} su 5 · {spec.reviews.count.value} recensioni
+              </p>
+            </section>
+          );
+        }
+
+        if (section.kind === "hours") {
+          if (!hours || hours.length === 0) return null;
+          return (
+            <section key={key} className="mx-auto w-full max-w-3xl px-4 py-7">
+              <h2 className="text-lg font-semibold sm:text-xl" style={{ color: palette.primary }}>
+                {section.title}
+              </h2>
+              <ul className="mt-3 space-y-1 text-sm opacity-85">
+                {hours.map((h, j) => (
+                  <li key={`${h}-${j}`} className="border-b py-1 last:border-0" style={{ borderColor: `${palette.primary}1A` }}>
+                    {h}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          );
+        }
+
+        if (section.kind === "contact") {
+          return (
+            <section key={key} className="mx-auto w-full max-w-3xl px-4 py-7">
+              <h2 className="text-lg font-semibold sm:text-xl" style={{ color: palette.primary }}>
+                {section.title}
+              </h2>
+              <ul className="mt-3 space-y-2 text-sm opacity-90 sm:text-base">
+                {phone ? (
+                  <li>
+                    <a
+                      href={safeHref(`tel:${phone.replace(/[^\d+]/g, "")}`)}
+                      rel="nofollow noopener"
+                      className="underline decoration-1 underline-offset-4"
+                    >
+                      {phone}
+                    </a>
+                  </li>
+                ) : null}
+                {email ? (
+                  <li>
+                    <a
+                      href={safeHref(`mailto:${email}`)}
+                      rel="nofollow noopener"
+                      className="underline decoration-1 underline-offset-4"
+                    >
+                      {email}
+                    </a>
+                  </li>
+                ) : null}
+                {address ? <li className="opacity-80">{address}</li> : null}
+              </ul>
+              {href ? (
+                <a
+                  href={href}
+                  className="mt-4 inline-flex items-center justify-center rounded-lg px-5 py-3 text-sm font-semibold"
+                  style={{ background: palette.primary, color: palette.bg }}
+                  rel="nofollow noopener"
+                >
+                  {spec.cta.label}
+                </a>
+              ) : null}
+            </section>
+          );
+        }
+
+        if (section.kind === "map") {
+          if (!maps || !safeHref(maps)) return null;
+          return (
+            <section key={key} className="mx-auto w-full max-w-3xl px-4 py-7">
+              <h2 className="text-lg font-semibold sm:text-xl" style={{ color: palette.primary }}>
+                {section.title}
+              </h2>
+              {address ? <p className="mt-2 text-sm opacity-85">{address}</p> : null}
+              <a
+                href={safeHref(maps)}
+                rel="nofollow noopener"
+                target="_blank"
+                className="mt-3 inline-flex items-center gap-1.5 rounded-lg border px-4 py-2.5 text-sm"
+                style={{ borderColor: `${palette.primary}55`, color: palette.primary }}
               >
-                {s.value}
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      {spec.sections.map((s, i) => (
-        <Section key={`${s.kind}-${i}`} section={s} palette={palette} />
-      ))}
-
-      {/* ----- Recensioni: solo se il dato è verificato ----- */}
-      {spec.reviews ? (
-        <section className="mx-auto w-full max-w-3xl px-4 py-7">
-          <h2 className="text-lg font-semibold sm:text-xl" style={{ color: palette.primary }}>
-            Recensioni Google
-          </h2>
-          <p className="mt-2 text-sm opacity-85">
-            {spec.reviews.rating.value.toFixed(1)} su 5 · {spec.reviews.count.value} recensioni
-          </p>
-        </section>
-      ) : null}
-
-      {/* ----- Contatti: nessun campo inventato ----- */}
-      <section className="mx-auto w-full max-w-3xl px-4 py-7">
-        <h2 className="text-lg font-semibold sm:text-xl" style={{ color: palette.primary }}>
-          Contatti
-        </h2>
-        <ul className="mt-2 space-y-1.5 text-sm opacity-85">
-          {phone ? (
-            <li>
-              <a href={safeHref(`tel:${phone.replace(/[^\d+]/g, "")}`)} rel="nofollow noopener">
-                {phone}
-              </a>
-            </li>
-          ) : null}
-          {address ? <li>{address}</li> : null}
-          {maps && safeHref(maps) ? (
-            <li>
-              <a href={safeHref(maps)} rel="nofollow noopener" target="_blank">
                 Apri su Google Maps
               </a>
-            </li>
-          ) : null}
-        </ul>
-        {hours && hours.length > 0 ? (
-          <ul className="mt-3 space-y-1 text-xs opacity-70">
-            {hours.map((h, i) => (
-              <li key={`${h}-${i}`}>{h}</li>
-            ))}
-          </ul>
-        ) : null}
-      </section>
+            </section>
+          );
+        }
+
+        // about e qualsiasi altra sezione testuale.
+        return <Section key={key} section={section} palette={palette} />;
+      })}
 
       <footer className="mx-auto w-full max-w-3xl px-4 pb-12 pt-4 text-xs opacity-50">
         <p>Anteprima realizzata da AYROMEX. Contenuti da verificare con il titolare.</p>
