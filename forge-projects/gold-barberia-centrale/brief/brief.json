@@ -1,0 +1,49 @@
+{
+  "_avvertenza": "DEMO. Barberia Centrale è un lead FIXTURE dell'harness factory-e2e, non un cliente reale e non un'attività esistente. Questo sito è il riferimento qualitativo interno di Forge e non va mostrato come lavoro per un cliente.",
+  "_contratto": "Il progetto riceve SOLO questo file. Non importa codice da Specter, non apre il database, non legge variabili d'ambiente, non chiama servizi esterni a runtime.",
+
+  "attivita": {
+    "nome": "Barberia Centrale",
+    "categoria": "barbiere",
+    "citta": "Bari",
+    "indirizzo": "Via Nicolò Putignani 71, 70121 Bari",
+    "telefono": "080 5240918",
+    "telefono_href": "+390805240918"
+  },
+
+  "servizi": [
+    { "nome": "Taglio uomo", "fonte": "manual" },
+    { "nome": "Barba e rasatura", "fonte": "manual" },
+    { "nome": "Taglio bambino", "fonte": "manual" },
+    { "nome": "Trattamento cute", "fonte": "manual" }
+  ],
+
+  "orari": [
+    { "giorni": "Martedì — Giovedì", "apertura": "09:00", "chiusura": "19:00" },
+    { "giorni": "Venerdì — Sabato", "apertura": "08:30", "chiusura": "20:00" },
+    { "giorni": "Domenica — Lunedì", "chiuso": true }
+  ],
+
+  "recensioni": { "punteggio": 4.8, "conteggio": 143, "fonte": "google_places" },
+
+  "posizionamento": {
+    "pubblico": "uomini adulti del centro di Bari, impiegati e professionisti che tornano dallo stesso barbiere; padri che portano il figlio",
+    "tono": "asciutto, di quartiere, senza pose. Non lifestyle, non americano, non nostalgico",
+    "obiettivo": "far chiamare per prendere un appuntamento",
+    "cta_primaria": "Chiama per l'appuntamento",
+    "cosa_NON_dire": [
+      "prezzi (non verificati)",
+      "anni di esperienza (non verificati)",
+      "numero di barbieri o nomi (non verificati)",
+      "testimonianze (le recensioni Google non sono nostre)",
+      "promesse di risultato",
+      "qualsiasi riferimento ad AyroStar, Specter, Forge, Claude o AI"
+    ]
+  },
+
+  "asset": {
+    "fotografie": "NESSUNA DISPONIBILE",
+    "motivo": "nessuno strumento di image generation utilizzabile e tutti gli host di stock sono bloccati dalla policy di rete (vedi docs/CLAUDE_PREMIUM_FACTORY_CAPABILITIES.md §3.1)",
+    "conseguenza": "la direzione artistica deve reggere su tipografia, colore, texture disegnata e movimento. Nessuna foto finta, nessun volto generato, nessuno stock generico."
+  }
+}

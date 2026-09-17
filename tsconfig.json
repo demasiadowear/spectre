@@ -22,5 +22,11 @@
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    // I progetti Forge sono ISOLATI: hanno tsconfig, dipendenze e build
+    // proprie. Compilarli col tsconfig di Specter rompe l'isolamento e
+    // fa fallire il typecheck su dipendenze che Specter non ha.
+    "forge-projects"
+  ]
 }

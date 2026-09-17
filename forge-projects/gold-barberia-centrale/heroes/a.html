@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A — Insegna smaltata</title>
+<!--
+  DIREZIONE A — "Insegna smaltata"
+  Concept: la targa smaltata del negozio diventa la pagina. Non il
+  barber pole americano (cliché), ma l'insegna italiana in smalto:
+  verde profondo, lettere osso, filetto d'ottone.
+  Rischio: se calcata, diventa pastiche retrò.
+-->
+<link rel="stylesheet" href="./fonts.css">
+<style>
+  :root{
+    --smalto:#0E3B2E;      /* verde smalto della targa */
+    --smalto-scuro:#092822;
+    --osso:#EDE6D6;        /* lettere dipinte */
+    --ottone:#B08D4F;      /* filetto */
+    --osso-tenue:rgba(237,230,214,.62);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:var(--smalto);
+    color:var(--osso);
+    font-family:"Instrument Sans Variable",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  /* Lo smalto non è piatto: ha grana e una luce che scende da sinistra. */
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:
+      radial-gradient(120% 80% at 8% 0%, rgba(255,255,255,.10), transparent 60%),
+      radial-gradient(90% 60% at 100% 100%, rgba(0,0,0,.35), transparent 55%);
+  }
+  .grana{
+    position:fixed;inset:0;pointer-events:none;z-index:1;opacity:.16;
+    mix-blend-mode:overlay;
+  }
+  .scena{position:relative;z-index:2;min-height:100svh;display:grid;
+    grid-template-columns:auto 1fr;gap:0}
+
+  /* Rail verticale: l'indirizzo inciso sul bordo della targa. */
+  .rail{
+    border-right:1px solid rgba(237,230,214,.16);
+    padding:22px 14px;display:flex;flex-direction:column;
+    justify-content:space-between;align-items:center;
+  }
+  .rail span{
+    writing-mode:vertical-rl;text-orientation:mixed;
+    font-size:11px;letter-spacing:.34em;text-transform:uppercase;
+    color:var(--osso-tenue);
+  }
+  .bulloni{display:flex;flex-direction:column;gap:10px}
+  .bullone{width:7px;height:7px;border-radius:50%;
+    background:var(--ottone);box-shadow:inset 0 1px 0 rgba(255,255,255,.5)}
+
+  .corpo{padding:26px 22px 40px;display:flex;flex-direction:column;
+    justify-content:center;gap:0;overflow:hidden}
+
+  .occhiello{
+    font-size:11px;letter-spacing:.42em;text-transform:uppercase;
+    color:var(--ottone);margin:0 0 18px;
+  }
+  /* Il nome è dipinto troppo grande per la targa: esce dal bordo. */
+  .nome{
+    font-family:"Archivo Black",system-ui,sans-serif;
+    font-weight:400;margin:0;line-height:.82;letter-spacing:-.035em;
+    font-size:clamp(3.6rem,15.5vw,13rem);
+    text-transform:uppercase;
+  }
+  .nome .riga{display:block;overflow:hidden}
+  /* NIENTE offset qui: lo stato a riposo deve essere LEGGIBILE se il
+     JS non parte. L'offset iniziale lo mette GSAP, che è anche l'unico
+     modo perché lo sappia togliere (vedi a.ts). */
+  .nome .riga i{display:block;font-style:normal;will-change:transform}
+  .nome .due{color:transparent;-webkit-text-stroke:1.5px var(--osso);
+    padding-left:.06em}
+
+  .filetto{height:1px;background:linear-gradient(90deg,var(--ottone),transparent);
+    margin:30px 0 22px;transform:scaleX(0);transform-origin:left}
+
+  .sotto{display:flex;flex-wrap:wrap;gap:26px 44px;align-items:flex-end}
+  .voce{margin:0}
+  .voce dt{font-size:10px;letter-spacing:.3em;text-transform:uppercase;
+    color:var(--osso-tenue);margin-bottom:6px}
+  .voce dd{margin:0;font-family:"Fraunces Variable",Georgia,serif;
+    font-size:clamp(1.05rem,2.4vw,1.4rem);font-variation-settings:"SOFT" 40,"WONK" 1}
+  .azione{
+    margin-left:auto;display:inline-flex;align-items:center;gap:10px;
+    background:var(--osso);color:var(--smalto-scuro);
+    text-decoration:none;font-weight:600;font-size:15px;
+    padding:15px 26px;border-radius:2px;
+  }
+  .azione:hover{background:#fff}
+
+  @media (max-width:720px){
+    .scena{grid-template-columns:1fr}
+    .rail{flex-direction:row;border-right:0;
+      border-bottom:1px solid rgba(237,230,214,.16);padding:12px 16px}
+    .rail span{writing-mode:horizontal-tb}
+    .bulloni{flex-direction:row}
+    .azione{margin-left:0;width:100%;justify-content:center}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .filetto{transform:scaleX(1)!important}
+  }
+</style>
+</head>
+<body>
+<canvas class="grana" aria-hidden="true"></canvas>
+<div class="scena">
+  <aside class="rail">
+    <span>Via Nicolò Putignani 71 · Bari</span>
+    <div class="bulloni"><i class="bullone"></i><i class="bullone"></i></div>
+  </aside>
+  <main class="corpo">
+    <p class="occhiello">Barbiere · Bari centro</p>
+    <h1 class="nome">
+      <span class="riga"><i>Barberia</i></span>
+      <span class="riga"><i class="due">Centrale</i></span>
+    </h1>
+    <div class="filetto"></div>
+    <div class="sotto">
+      <dl class="voce"><dt>Su appuntamento</dt><dd>080 5240918</dd></dl>
+      <dl class="voce"><dt>Aperto</dt><dd>Mar — Sab</dd></dl>
+      <a class="azione" href="tel:+390805240918">Chiama per l'appuntamento</a>
+    </div>
+  </main>
+</div>
+<script type="module" src="./a.ts"></script>
+</body>
+</html>

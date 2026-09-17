@@ -1,0 +1,148 @@
+[
+  {
+    "page": "heroes/a.html",
+    "viewport": "desktop",
+    "status": 200,
+    "fps": 61,
+    "transferredKB": 161,
+    "errors": [],
+    "failed": [],
+    "screenshot": "/home/user/spectre/forge-projects/gold-barberia-centrale/shots-concept/heroes_a_html-desktop.png",
+    "title": "A — Insegna smaltata",
+    "overflow": false,
+    "scrollW": 1440,
+    "viewW": 1440,
+    "overflowing": [],
+    "clipped": [],
+    "emptySections": [],
+    "hiddenText": [],
+    "minContrast": 1.26,
+    "worstContrast": {
+      "t": "Chiama per l'appuntamento",
+      "r": 1.26
+    },
+    "cta": {
+      "w": 249,
+      "h": 49,
+      "contrast": 12.62
+    },
+    "headings": [
+      "H1:Barberia\n      Centrale"
+    ],
+    "fontsUsed": [
+      "Instrument Sans Variable",
+      "Archivo Black"
+    ]
+  },
+  {
+    "page": "heroes/a.html",
+    "viewport": "mobile",
+    "status": 200,
+    "fps": 61,
+    "transferredKB": 161,
+    "errors": [],
+    "failed": [],
+    "screenshot": "/home/user/spectre/forge-projects/gold-barberia-centrale/shots-concept/heroes_a_html-mobile.png",
+    "title": "A — Insegna smaltata",
+    "overflow": false,
+    "scrollW": 390,
+    "viewW": 390,
+    "overflowing": [],
+    "clipped": [
+      "Centrale"
+    ],
+    "emptySections": [],
+    "hiddenText": [],
+    "minContrast": 1.26,
+    "worstContrast": {
+      "t": "Chiama per l'appuntamento",
+      "r": 1.26
+    },
+    "cta": {
+      "w": 346,
+      "h": 49,
+      "contrast": 12.62
+    },
+    "headings": [
+      "H1:Barberia\n      Centrale"
+    ],
+    "fontsUsed": [
+      "Instrument Sans Variable",
+      "Archivo Black"
+    ]
+  },
+  {
+    "page": "heroes/b.html",
+    "viewport": "desktop",
+    "status": 200,
+    "fps": 62,
+    "transferredKB": 143,
+    "errors": [],
+    "failed": [],
+    "screenshot": "/home/user/spectre/forge-projects/gold-barberia-centrale/shots-concept/heroes_b_html-desktop.png",
+    "title": "B — Il gesto",
+    "overflow": false,
+    "scrollW": 1440,
+    "viewW": 1440,
+    "overflowing": [
+      "path.[object"
+    ],
+    "clipped": [],
+    "emptySections": [],
+    "hiddenText": [],
+    "minContrast": 1,
+    "worstContrast": {
+      "t": "\n      \n        \n      \n    ",
+      "r": 1
+    },
+    "cta": {
+      "w": 271,
+      "h": 47,
+      "contrast": 16.58
+    },
+    "headings": [
+      "H1:Una passata\n      sola, fatta\n      come si de"
+    ],
+    "fontsUsed": [
+      "Fraunces Variable",
+      "Instrument Sans Variable"
+    ]
+  },
+  {
+    "page": "heroes/b.html",
+    "viewport": "mobile",
+    "status": 200,
+    "fps": 61,
+    "transferredKB": 143,
+    "errors": [],
+    "failed": [],
+    "screenshot": "/home/user/spectre/forge-projects/gold-barberia-centrale/shots-concept/heroes_b_html-mobile.png",
+    "title": "B — Il gesto",
+    "overflow": false,
+    "scrollW": 390,
+    "viewW": 390,
+    "overflowing": [
+      "path.[object"
+    ],
+    "clipped": [],
+    "emptySections": [],
+    "hiddenText": [],
+    "minContrast": 1,
+    "worstContrast": {
+      "t": "\n      \n        \n      \n    ",
+      "r": 1
+    },
+    "cta": {
+      "w": 350,
+      "h": 47,
+      "contrast": 16.58
+    },
+    "headings": [
+      "H1:Una passata\n      sola, fatta\n      come si de"
+    ],
+    "fontsUsed": [
+      "Fraunces Variable",
+      "Instrument Sans Variable"
+    ]
+  }
+]

@@ -1,0 +1,7 @@
+[
+  "heroes/a.html/desktop: contrasto 1.26 < 4.5",
+  "heroes/a.html/mobile: testo troncato: Centrale",
+  "heroes/a.html/mobile: contrasto 1.26 < 4.5",
+  "heroes/b.html/desktop: contrasto 1 < 4.5",
+  "heroes/b.html/mobile: contrasto 1 < 4.5"
+]

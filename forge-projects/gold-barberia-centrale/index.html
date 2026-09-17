@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Barberia Centrale — Barbiere in via Putignani, Bari</title>
+<meta name="description" content="Taglio, barba e rasatura in via Nicolò Putignani 71 a Bari. Si lavora su appuntamento: 080 5240918. Aperto da martedì a sabato.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0F1411">
+<meta property="og:title" content="Barberia Centrale — Bari">
+<meta property="og:description" content="Taglio, barba e rasatura in via Putignani. Su appuntamento.">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="it_IT">
+<link rel="stylesheet" href="./src/styles.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "HairSalon",
+  "name": "Barberia Centrale",
+  "telephone": "+39 080 5240918",
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "Via Nicolò Putignani 71",
+    "postalCode": "70121",
+    "addressLocality": "Bari",
+    "addressCountry": "IT"
+  },
+  "openingHoursSpecification": [
+    { "@type": "OpeningHoursSpecification", "dayOfWeek": ["Tuesday","Wednesday","Thursday"], "opens": "09:00", "closes": "19:00" },
+    { "@type": "OpeningHoursSpecification", "dayOfWeek": ["Friday","Saturday"], "opens": "08:30", "closes": "20:00" }
+  ],
+  "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.8", "reviewCount": "143" }
+}
+</script>
+</head>
+<body>
+<a class="salta" href="#contatti">Salta al contatto</a>
+
+<!-- La spina: una sola linea continua, l'arco che il rasoio percorre.
+     Attraversa tutta la pagina e si disegna scorrendo. Non è un
+     ornamento: è il filo che tiene insieme le sezioni, e ogni snodo
+     cade dove comincia una sezione. -->
+<svg class="spina" viewBox="0 0 100 1000" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+  <path d="M 18 0 C 44 110, 88 150, 80 270 S 26 380, 36 500 S 92 610, 78 730 S 30 850, 44 1000"/>
+</svg>
+
+<header class="testata">
+  <span class="marchio">Barberia Centrale</span>
+  <nav aria-label="Sezioni">
+    <a href="#lavoro">Il lavoro</a>
+    <a href="#orari">Orari</a>
+    <a href="#contatti">Dove siamo</a>
+  </nav>
+  <a class="tel-testata" href="tel:+390805240918">080 5240918</a>
+</header>
+
+<main>
+  <!-- ===== Apertura: la tesi ===== -->
+  <section class="apertura" aria-labelledby="t-apertura">
+    <p class="occhiello"><span class="pallino" data-stato-pallino></span><span data-stato-testo>Barbiere · Bari centro</span></p>
+    <h1 class="titolo" id="t-apertura">
+      <span class="lin"><span>Una passata</span></span>
+      <span class="lin"><span><em>sola</em>, fatta</span></span>
+      <span class="lin"><span>come si deve.</span></span>
+    </h1>
+    <p class="nota">
+      Taglio, barba e rasatura in via Putignani, a Bari.
+      Si lavora su appuntamento, così nessuno aspetta in piedi.
+    </p>
+    <div class="apertura-azioni">
+      <a class="azione" href="tel:+390805240918">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z"/></svg>
+        Chiama per l'appuntamento
+      </a>
+      <p class="giudizio"><strong>4,8</strong> su 5 — 143 recensioni Google</p>
+    </div>
+  </section>
+
+  <!-- ===== Il lavoro: elenco editoriale, non griglia di card ===== -->
+  <section class="lavoro griglia" id="lavoro" aria-labelledby="t-lavoro">
+    <div class="rail-sez"><h2 class="titolo-sez" id="t-lavoro">Il lavoro</h2></div>
+    <div class="corpo-sez">
+    <ul class="elenco">
+      <li><span class="voce-nome">Taglio uomo</span></li>
+      <li><span class="voce-nome">Barba e rasatura</span></li>
+      <li><span class="voce-nome">Taglio bambino</span></li>
+      <li><span class="voce-nome">Trattamento cute</span></li>
+    </ul>
+    <p class="chiosa">
+      Quattro cose, fatte tutte allo stesso modo. Per il prezzo si chiede
+      al telefono: dipende da cosa serve.
+    </p>
+    </div>
+  </section>
+
+  <!-- ===== Orari: per una bottega senza vetrina online, è l'informazione
+             che la gente cerca davvero. Trattata come tale. ===== -->
+  <section class="orari griglia" id="orari" aria-labelledby="t-orari">
+    <div class="rail-sez"><h2 class="titolo-sez" id="t-orari">Quando siamo aperti</h2></div>
+    <div class="corpo-sez">
+    <table class="tabella">
+      <caption class="sr">Orari di apertura settimanali</caption>
+      <tbody>
+        <tr data-giorni="2,3,4"><th scope="row">Martedì — Giovedì</th><td><time datetime="09:00">09:00</time> — <time datetime="19:00">19:00</time></td></tr>
+        <tr data-giorni="5,6"><th scope="row">Venerdì — Sabato</th><td><time datetime="08:30">08:30</time> — <time datetime="20:00">20:00</time></td></tr>
+        <tr class="chiuso" data-giorni="0,1"><th scope="row">Domenica — Lunedì</th><td>chiuso</td></tr>
+      </tbody>
+    </table>
+    <p class="chiosa" data-prossima></p>
+    </div>
+  </section>
+
+  <!-- ===== Dove ===== -->
+  <section class="dove griglia" id="contatti" aria-labelledby="t-dove">
+    <div class="rail-sez"><h2 class="titolo-sez" id="t-dove">Dove siamo</h2></div>
+    <div class="corpo-sez dove-corpo">
+      <address>
+        Via Nicolò Putignani 71<br>
+        70121 Bari
+      </address>
+      <p class="chiosa">
+        Nella traversa fra corso Cavour e via Sparano. Si entra dal civico 71.
+      </p>
+      <a class="azione" href="tel:+390805240918">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z"/></svg>
+        080 5240918
+      </a>
+    </div>
+  </section>
+</main>
+
+<footer class="piede">
+  <span>Barberia Centrale · Via Nicolò Putignani 71, Bari</span>
+  <span>Martedì — Sabato</span>
+</footer>
+
+<script type="module" src="./src/main.ts"></script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+/* Font AUTO-OSPITATI da npm (@fontsource*): niente richieste a Google.
+   Chromium headless non usa il proxy dell'ambiente, quindi un font da
+   CDN sparirebbe proprio negli screenshot del QA. */
+@import "@fontsource/archivo-black/400.css";
+@import "@fontsource-variable/fraunces/index.css";
+@import "@fontsource-variable/instrument-sans/index.css";

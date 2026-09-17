@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>B — Il gesto</title>
+<!--
+  DIREZIONE B — "Il gesto"
+  Concept: la pagina è organizzata attorno a UNA linea continua, l'arco
+  che il rasoio percorre sulla guancia. La linea si disegna, e il
+  contenuto ci si appende. Impaginazione editoriale, asimmetrica.
+  Rischio: la linea può far sembrare il sito il portfolio di uno studio
+  invece che il sito di una bottega.
+-->
+<link rel="stylesheet" href="./fonts.css">
+<style>
+  :root{
+    --inchiostro:#14120F;
+    --osso:#F4F1EA;
+    --acciaio:#7E8B94;
+    --osso-tenue:rgba(244,241,234,.55);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:var(--inchiostro);color:var(--osso);
+    font-family:"Instrument Sans Variable",system-ui,sans-serif;
+    overflow-x:hidden;-webkit-font-smoothing:antialiased;
+  }
+  .scena{position:relative;min-height:100svh;padding:clamp(20px,4vw,52px);
+    display:grid;grid-template-rows:auto 1fr auto}
+
+  .testata{display:flex;justify-content:space-between;align-items:baseline;
+    gap:16px;font-size:11px;letter-spacing:.3em;text-transform:uppercase;
+    color:var(--osso-tenue)}
+
+  /* La linea sta DIETRO al testo e lo attraversa: è la spina, non un ornamento. */
+  .tratto{position:absolute;inset:0;width:100%;height:100%;
+    pointer-events:none;z-index:0}
+  .tratto path{fill:none;stroke:var(--acciaio);stroke-width:1.25;
+    stroke-linecap:round;opacity:.85}
+
+  .centro{position:relative;z-index:1;display:flex;flex-direction:column;
+    justify-content:center;padding:clamp(24px,6vh,70px) 0}
+
+  .titolo{
+    font-family:"Fraunces Variable",Georgia,serif;
+    font-variation-settings:"SOFT" 0,"WONK" 1,"opsz" 144;
+    font-weight:300;margin:0;line-height:.94;letter-spacing:-.025em;
+    font-size:clamp(3.1rem,11.5vw,10.5rem);
+  }
+  .titolo em{font-style:italic;font-variation-settings:"SOFT" 60,"WONK" 1;
+    color:var(--acciaio)}
+  .titolo .lin{display:block;overflow:hidden}
+  /* Come in A: lo stato a riposo è leggibile, l'offset lo mette GSAP. */
+  .titolo .lin > span{display:block;will-change:transform}
+
+  /* Colonna stretta, fuori asse: impaginazione da rivista, non centrata. */
+  .nota{max-width:34ch;margin:clamp(22px,4vh,40px) 0 0 auto;
+    font-size:clamp(.95rem,1.7vw,1.08rem);line-height:1.6;
+    color:var(--osso-tenue);text-align:left}
+  .nota b{color:var(--osso);font-weight:600}
+
+  .piede{display:flex;flex-wrap:wrap;align-items:center;gap:14px 28px;
+    position:relative;z-index:1;border-top:1px solid rgba(244,241,234,.14);
+    padding-top:18px}
+  .voce{font-size:13px;color:var(--osso-tenue)}
+  .voce b{display:block;color:var(--osso);font-size:15px;font-weight:600;
+    letter-spacing:.01em}
+  .azione{margin-left:auto;display:inline-flex;align-items:center;gap:10px;
+    color:var(--inchiostro);background:var(--osso);text-decoration:none;
+    font-weight:600;font-size:15px;padding:14px 24px;border-radius:1px}
+  .azione:hover{background:#fff}
+  .azione svg{width:16px;height:16px}
+
+  @media (max-width:720px){
+    .nota{margin-left:0}
+    .azione{margin-left:0;width:100%;justify-content:center}
+    .titolo{font-size:clamp(2.7rem,13vw,4rem)}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .tratto path{stroke-dashoffset:0!important}
+  }
+</style>
+</head>
+<body>
+<div class="scena">
+  <svg class="tratto" viewBox="0 0 1000 700" preserveAspectRatio="none" aria-hidden="true">
+    <!-- L'arco del rasoio: parte in basso a sinistra, risale attraverso
+         il titolo e esce a destra. Una sola passata, come il gesto. -->
+    <path d="M -40 610 C 210 560, 300 300, 520 250 S 880 190, 1060 96" />
+  </svg>
+
+  <header class="testata">
+    <span>Barberia Centrale</span>
+    <span>Bari · Putignani 71</span>
+  </header>
+
+  <main class="centro">
+    <h1 class="titolo">
+      <span class="lin"><span>Una passata</span></span>
+      <span class="lin"><span><em>sola</em>, fatta</span></span>
+      <span class="lin"><span>come si deve.</span></span>
+    </h1>
+    <p class="nota">
+      Taglio, barba e rasatura in via Putignani. Si lavora su
+      appuntamento, così nessuno aspetta in piedi.
+      <b>4,8 su 5</b> su 143 recensioni Google.
+    </p>
+  </main>
+
+  <footer class="piede">
+    <p class="voce">Telefono<b>080 5240918</b></p>
+    <p class="voce">Aperto<b>Mar — Sab</b></p>
+    <a class="azione" href="tel:+390805240918">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+        <path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z"/>
+      </svg>
+      Chiama per l'appuntamento
+    </a>
+  </footer>
+</div>
+<script type="module" src="./b.ts"></script>
+</body>
+</html>

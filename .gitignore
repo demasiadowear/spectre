@@ -61,3 +61,11 @@ worker/.worker.lock
 # Artefatti dell'harness end-to-end della Factory (DB locale, screenshot,
 # report): si rigenerano con `node scripts/factory-e2e/run.mjs`.
 scripts/factory-e2e/out/
+
+# Progetti Forge: dipendenze e build si rigenerano
+forge-projects/*/node_modules/
+forge-projects/*/dist/
+# Screenshot dei cicli QA intermedi: si rigenerano, tengo solo v4 e reduced
+forge-projects/*/shots-v1/
+forge-projects/*/shots-v2/
+forge-projects/*/shots-v3/

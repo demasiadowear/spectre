@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>C — Specchio appannato</title>
+<!--
+  DIREZIONE C — "Specchio appannato"
+  Concept: lo specchio della bottega, velato dal vapore dell'asciugamano
+  caldo. Si pulisce passando il dito: sotto compare il nome.
+  L'unica giustificazione per il WebGL è che simula un MATERIALE VERO
+  della stanza, non una forma astratta messa lì per fare effetto.
+  Rischio: la condensa combatte con la leggibilità, ed è pesante su
+  telefono. È il rischio che questa prova deve misurare.
+-->
+<link rel="stylesheet" href="./fonts.css">
+<style>
+  :root{
+    --tungsteno:#E9C892;   /* la lampadina calda della bottega */
+    --piastrella:#17110D;  /* piastrella scura */
+    --osso:#F0E7DA;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:var(--piastrella);color:var(--osso);
+    font-family:"Instrument Sans Variable",system-ui,sans-serif;
+    overflow-x:hidden;-webkit-font-smoothing:antialiased;
+  }
+  .specchio{position:fixed;inset:0;z-index:0}
+  .specchio canvas{display:block;width:100%;height:100%}
+
+  .contenuto{position:relative;z-index:1;min-height:100svh;
+    display:flex;flex-direction:column;justify-content:space-between;
+    padding:clamp(20px,4vw,48px);pointer-events:none}
+  .contenuto a{pointer-events:auto}
+
+  .testata,.piede{display:flex;justify-content:space-between;
+    align-items:center;gap:16px;flex-wrap:wrap;
+    font-size:11px;letter-spacing:.3em;text-transform:uppercase;
+    color:rgba(240,231,218,.6)}
+
+  .mezzo{display:flex;flex-direction:column;gap:16px;
+    align-items:flex-start;justify-content:center;flex:1}
+  .nome{
+    font-family:"Archivo Black",system-ui,sans-serif;font-weight:400;
+    text-transform:uppercase;margin:0;line-height:.86;
+    letter-spacing:-.03em;font-size:clamp(3rem,13vw,11rem);
+    color:var(--tungsteno);
+    text-shadow:0 0 40px rgba(233,200,146,.25);
+  }
+  .suggerimento{margin:0;font-size:13px;color:rgba(240,231,218,.5)}
+  .azione{display:inline-flex;align-items:center;gap:10px;
+    background:var(--tungsteno);color:#1a1209;text-decoration:none;
+    font-weight:700;font-size:15px;padding:14px 26px;border-radius:2px;
+    margin-top:8px}
+  .senza-webgl .specchio{display:none}
+  .senza-webgl body{background:
+    radial-gradient(90% 70% at 20% 10%, #2a1f16, var(--piastrella))}
+
+  @media (max-width:720px){ .azione{width:100%;justify-content:center} }
+</style>
+</head>
+<body>
+<div class="specchio" aria-hidden="true"></div>
+<div class="contenuto">
+  <header class="testata">
+    <span>Barbiere · Bari</span><span>Putignani 71</span>
+  </header>
+  <main class="mezzo">
+    <h1 class="nome">Barberia<br>Centrale</h1>
+    <p class="suggerimento">Passa il dito sullo specchio.</p>
+    <a class="azione" href="tel:+390805240918">Chiama per l'appuntamento</a>
+  </main>
+  <footer class="piede">
+    <span>Mar — Sab</span><span>080 5240918</span>
+  </footer>
+</div>
+<script type="module" src="./c.ts"></script>
+</body>
+</html>
