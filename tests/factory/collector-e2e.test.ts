@@ -1,0 +1,270 @@
+// L'ambiente PRIMA di tutto: vedi _ambiente-e2e.ts per il perche.
+import { DIR_E2E } from "./_ambiente-e2e";
+
+import assert from "node:assert/strict";
+import { after, before, test } from "node:test";
+import { readFileSync, rmSync } from "node:fs";
+import { createClient } from "@libsql/client";
+
+import { ensureCollectorSchema, leggiDossier, salvaDossier } from "../../lib/collector/db";
+import { ensureFactorySchema } from "../../lib/factory/db";
+import { claimSpecificJob, enqueueJob, getJob } from "../../lib/factory/queue";
+import { runJobNow } from "../../lib/factory/orchestrator";
+import { raccogli, type ClientPlaces } from "../../lib/collector/collect";
+import { diagnosticaDatabase } from "../../lib/collector/diagnostica";
+import { DirectHtmlProvider, type BrowserWorkerProvider, type PaginaRaccolta } from "../../lib/collector/browser";
+import type { EsitoPlaces, PlacesScheda } from "../../lib/collector/places";
+
+// ============================================================
+// Il ciclo di vita completo, su un database VERO.
+//
+// `@libsql/client` parla anche a un file locale, quindi qui gira lo
+// stesso client, lo stesso schema e le stesse query dell'applicazione:
+// cambia solo che l'URL e `file:` invece che remoto. Non e un mock del
+// database, e un database.
+//
+// Quello che si verifica e la catena che nei test unitari non si vede:
+// enqueue -> claim atomico -> running -> completed, dossier e manifest
+// salvati e riletti, idempotenza del claim, e il fatto che un job di
+// un altro lead non venga rubato.
+// ============================================================
+
+const db = createClient({ url: process.env.TURSO_DATABASE_URL as string });
+
+const LEAD = "lead-e2e-1";
+const ALTRO = "lead-e2e-2";
+
+before(async () => {
+  await db.executeMultiple(readFileSync("lib/turso/schema.sql", "utf8"));
+  await ensureFactorySchema();
+  await ensureCollectorSchema();
+  for (const [id, nome] of [[LEAD, "Trattoria di Prova"], [ALTRO, "Altra Attività"]]) {
+    await db.execute({
+      sql: `insert or replace into leads (id, name, company, phone, status, meta)
+            values (?, ?, ?, ?, 'todo', ?)`,
+      args: [id, nome, nome, "080 555 0101", JSON.stringify({ city: "Bari", category: "ristorante" })],
+    });
+  }
+});
+
+after(() => { rmSync(DIR_E2E, { recursive: true, force: true }); });
+
+// ----- Diagnostica su un database vero ---------------------------
+
+test("e2e: la diagnostica riconosce un database pronto", async () => {
+  const d = await diagnosticaDatabase();
+  assert.equal(d.stato, "database_ready", `stato ${d.stato}: ${d.detail}`);
+  assert.ok(d.lead >= 2);
+  assert.deepEqual(d.tabelle_mancanti, []);
+});
+
+// ----- Ciclo di vita del job -------------------------------------
+
+test("e2e: queued -> running -> completed, su coda vera", async () => {
+  const accodato = await enqueueJob({
+    lead_id: LEAD,
+    kind: "collect_business_intelligence",
+    reason: "prova end-to-end",
+    budget: 2,
+  });
+  assert.ok(accodato.id);
+  assert.equal(accodato.created, true);
+
+  const inCoda = await getJob(accodato.id);
+  assert.equal(inCoda?.status, "pending", "appena accodato deve essere pending");
+  assert.equal(inCoda?.attempts, 0);
+
+  const esito = await runJobNow(accodato.id);
+
+  // Senza chiave Places la fase Places fallisce, ma il JOB arriva in
+  // fondo: un dossier parziale con le lacune dichiarate e un esito
+  // valido, non un errore.
+  assert.ok(esito.stato === "completed" || esito.stato === "failed",
+    `stato inatteso ${esito.stato}: ${esito.error}`);
+  assert.equal(esito.lead_id, LEAD, "deve aver lavorato sul lead richiesto");
+
+  const finito = await getJob(accodato.id);
+  assert.ok(finito);
+  assert.ok(finito.status === "succeeded" || finito.status === "failed",
+    `il job deve essere concluso, invece ${finito.status}`);
+  assert.equal(finito.attempts, 1, "un claim, un tentativo");
+  assert.ok(finito.started_at, "started_at deve essere valorizzato dal claim");
+  assert.ok(finito.finished_at, "finished_at deve essere valorizzato dalla chiusura");
+});
+
+test("e2e: il claim e idempotente — premere due volte non esegue due volte", async () => {
+  const a = await enqueueJob({
+    lead_id: LEAD, kind: "analyze_website", reason: "prova idempotenza", budget: 1,
+  });
+  const primo = await claimSpecificJob(a.id, "worker-1");
+  assert.ok(primo, "il primo claim riesce");
+  const secondo = await claimSpecificJob(a.id, "worker-2");
+  assert.equal(secondo, null, "il secondo claim sullo stesso job non deve riuscire");
+
+  const j = await getJob(a.id);
+  assert.equal(j?.worker_id, "worker-1", "il job resta al primo worker");
+  assert.equal(j?.attempts, 1, "un solo tentativo, non due");
+});
+
+test("e2e: runJobNow non tocca il job di un altro lead", async () => {
+  const mio = await enqueueJob({
+    lead_id: LEAD, kind: "run_site_qa", reason: "mio", budget: 1, priority: 1,
+  });
+  const suo = await enqueueJob({
+    lead_id: ALTRO, kind: "run_site_qa", reason: "di un altro", budget: 1, priority: 99,
+  });
+
+  // `suo` ha priorita molto piu alta: un worker che sceglie per
+  // priorita prenderebbe quello. `runJobNow` deve prendere il mio.
+  const esito = await runJobNow(mio.id);
+  assert.equal(esito.job_id, mio.id);
+  assert.equal(esito.lead_id, LEAD);
+
+  const altro = await getJob(suo.id);
+  assert.equal(altro?.status, "pending", "il job dell'altro lead non deve essere stato toccato");
+  assert.equal(altro?.attempts, 0);
+});
+
+test("e2e: FACTORY_PAUSED ferma anche l'esecuzione manuale", async () => {
+  const a = await enqueueJob({
+    lead_id: LEAD, kind: "prepare_outreach", reason: "prova pausa", budget: 1,
+  });
+  process.env.FACTORY_PAUSED = "1";
+  try {
+    const esito = await runJobNow(a.id);
+    assert.equal(esito.stato, "paused");
+    const j = await getJob(a.id);
+    assert.equal(j?.status, "pending", "in pausa il job non viene nemmeno preso");
+  } finally {
+    delete process.env.FACTORY_PAUSED;
+  }
+});
+
+// ----- Dossier completo con fonti sostituite ---------------------
+
+const SCHEDA: PlacesScheda = {
+  place_id: "PLACE-PROVA-1",
+  name: "Trattoria di Prova",
+  address: "Via Sparano 10, 70121 Bari BA",
+  lat: 41.1216, lng: 16.8695,
+  phone: "080 555 0101", phone_international: "+39 080 555 0101",
+  website: "https://trattoriadiprova.example/",
+  maps_url: "https://maps.google.com/?cid=42",
+  category: "Ristorante", types: ["restaurant"],
+  rating: 4.4, reviews: 218,
+  business_status: "OPERATIONAL",
+  hours: ["lunedì: chiuso", "martedì: 12:30–15:00, 19:30–23:00"],
+  photos: [{ name: "places/PLACE-PROVA-1/photos/AAA", widthPx: 3000, heightPx: 2000, attributions: ["Mario Rossi"] }],
+  summary: "",
+};
+
+const placesFinto: ClientPlaces = {
+  async dettaglio(): Promise<EsitoPlaces> {
+    return { ok: true, scheda: SCHEDA, candidati: [], error: "", calls: 1, ms: 5 };
+  },
+  async cerca(): Promise<EsitoPlaces> {
+    return { ok: true, scheda: null, candidati: [SCHEDA], error: "", calls: 1, ms: 5 };
+  },
+};
+
+const HTML = `<!doctype html><html lang="it"><head>
+<title>Trattoria di Prova — Bari</title>
+<meta name="description" content="Cucina pugliese di stagione, sala interna e giardino.">
+<meta property="og:image" content="https://trattoriadiprova.example/foto/sala.jpg">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"Restaurant",
+"name":"Trattoria di Prova","telephone":"+39 080 555 0101",
+"address":{"@type":"PostalAddress","streetAddress":"Via Sparano 10","addressLocality":"Bari"},
+"email":"info@trattoriadiprova.example",
+"sameAs":["https://www.instagram.com/trattoriadiprova","https://www.facebook.com/trattoriadiprova"]}</script>
+</head><body>
+<h1>Trattoria di Prova</h1>
+<p>${"Cucina pugliese di stagione, pasta fatta a mano ogni mattina. ".repeat(12)}</p>
+<a href="https://www.instagram.com/trattoriadiprova">Instagram</a>
+<a href="https://www.facebook.com/trattoriadiprova">Facebook</a>
+<img src="/foto/sala.jpg" alt="la sala del locale" width="1800" height="1200">
+<img src="/foto/piatto-orecchiette.jpg" alt="orecchiette" width="1600" height="1200">
+<img src="/foto/logo.svg" alt="logo">
+</body></html>`;
+
+/** Provider a fixture: restituisce l'HTML sopra per il sito ufficiale e
+ *  dichiara `browser_required` per i social, che e cio che fa davvero
+ *  DirectHtmlProvider su Instagram e Facebook. */
+class ProviderFinto implements BrowserWorkerProvider {
+  readonly nome = "ProviderFinto";
+  readonly esegueJavaScript = false;
+  private readonly diretto = new DirectHtmlProvider();
+  async apri(url: string): Promise<PaginaRaccolta> {
+    if (url.includes("trattoriadiprova.example")) {
+      return { url, final_url: url, esito: "ok", status: 200, html: HTML, detail: "", ssrf: "", ms: 3 };
+    }
+    return this.diretto.apri(url);
+  }
+}
+
+test("e2e: dossier e manifest completi, salvati e riletti dal database", async () => {
+  const { dossier, phases } = await raccogli({
+    lead_id: LEAD,
+    name: "Trattoria di Prova", city: "Bari", address: "Via Sparano 10",
+    phone: "080 555 0101", email: "", website: "", place_id: "PLACE-PROVA-1",
+    manual: {}, linked_pages: [], media_forniti: [],
+  }, { places: placesFinto, provider: new ProviderFinto() });
+
+  // Le fasi sono andate.
+  const ok = phases.filter((p) => p.status === "ok").map((p) => p.phase);
+  assert.ok(ok.includes("places"), `places non riuscita: ${JSON.stringify(phases)}`);
+  assert.ok(ok.includes("official_site"), "official_site non riuscita");
+
+  // Fatti con provenienza completa.
+  const nome = dossier.verified.find((f) => f.field === "name");
+  assert.ok(nome, "il nome deve essere un fatto verificato");
+  assert.equal(nome?.source_type, "google_places");
+  assert.ok(nome && nome.confidence >= 80);
+  assert.ok(dossier.place_id === "PLACE-PROVA-1");
+  assert.equal(dossier.official_host, "trattoriadiprova.example");
+
+  // I social linkati dal sito sono stati valutati, e non leggibili senza
+  // browser: `browser_required`, non «inesistenti».
+  assert.ok(dossier.identities.length >= 2, "i due profili linkati vanno valutati");
+  for (const c of dossier.identities) {
+    assert.notEqual(c.status, "rejected", `${c.candidate_url} non va scartato senza averlo letto`);
+  }
+
+  // Media: la foto Places resta provider_rendered, quelle del sito
+  // restano in attesa di approvazione, nessuna e approvata.
+  const places = dossier.media.candidates.filter((m) => m.rights_status === "provider_rendered");
+  assert.equal(places.length, 1, "la foto Places deve esserci, come riferimento");
+  assert.equal(places[0].allowed_scope, "preview_only");
+  assert.ok(places[0].attribution.includes("Mario Rossi"), "l'attribuzione va conservata");
+  const delSito = dossier.media.candidates.filter((m) => m.rights_status === "official_public_pending_approval");
+  assert.ok(delSito.length >= 1, "le foto del sito devono entrare come candidate");
+  for (const m of delSito) assert.equal(m.allowed_scope, "preview_only");
+  assert.deepEqual(dossier.media.approved_ids, [], "nessuna immagine nasce approvata");
+
+  // La raccomandazione non e GO: ci sono profili non letti e media da
+  // approvare, e il sistema lo dice invece di tirare a indovinare.
+  assert.equal(dossier.recommendation, "REVIEW");
+  assert.ok(dossier.recommendation_reasons.length > 0);
+
+  // Salvataggio e rilettura: il giro completo sul database vero.
+  await salvaDossier({ dossier, phases, job_id: "job-e2e" });
+  const riletto = await leggiDossier(LEAD);
+  assert.ok(riletto, "il dossier deve essere rileggibile");
+  assert.equal(riletto?.dossier.place_id, "PLACE-PROVA-1");
+  assert.equal(riletto?.dossier.media.candidates.length, dossier.media.candidates.length);
+  assert.equal(riletto?.recommendation, "REVIEW");
+  assert.equal(riletto?.phases.length, phases.length);
+});
+
+test("e2e: rilanciare una sola fase non rifa le altre", async () => {
+  const { phases } = await raccogli({
+    lead_id: LEAD, name: "Trattoria di Prova", city: "Bari", address: "",
+    phone: "", email: "", website: "", place_id: "PLACE-PROVA-1",
+    manual: {}, linked_pages: [], media_forniti: [],
+  }, { places: placesFinto, provider: new ProviderFinto(), solo: ["places"] });
+
+  const perFase = Object.fromEntries(phases.map((p) => [p.phase, p.status]));
+  assert.equal(perFase.places, "ok");
+  assert.equal(perFase.official_site, "skipped", "non richiesta, quindi saltata");
+  assert.equal(perFase.social_discovery, "skipped");
+  assert.equal(perFase.media, "skipped");
+});

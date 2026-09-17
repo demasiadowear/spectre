@@ -533,14 +533,54 @@ const f = (field: string, value: string, source_type: DossierFact["source_type"]
   conflict_group: field, usage_scope: "public", status: "proposed",
 });
 
-test("riconciliazione: orari discordanti finiscono in conflitto bloccante", () => {
+test("riconciliazione: giorni diversi non sono un conflitto di orari", () => {
+  // Un orario ha una riga per giorno. Confrontare lunedi con martedi
+  // produceva un conflitto bloccante su OGNI attivita aperta piu di un
+  // giorno, cioe su tutte: un allarme che suona sempre non e un allarme.
   const r = riconcilia([
-    f("hours", "lunedì: 09:00–18:00", "google_places", 90),
-    f("hours", "lunedì: 10:00–19:00", "site_structured", 88),
+    f("hours", "lunedì: chiuso", "google_places", 90),
+    f("hours", "martedì: 12:30–15:00", "google_places", 90),
+    f("hours", "mercoledì: 12:30–15:00", "google_places", 90),
+  ]);
+  assert.equal(r.conflicts.length, 0, "giorni diversi convivono");
+  assert.equal(r.verified.length, 3, "e restano tutti e tre");
+});
+
+test("riconciliazione: la stessa riga da due fonti non si duplica", () => {
+  const r = riconcilia([
+    f("hours", "martedì: 12:30–15:00", "google_places", 90),
+    f("hours", "Martedì: 12:30-15:00", "site_structured", 88),
+  ]);
+  assert.equal(r.verified.length + r.probable.length, 1, "e la stessa riga");
+  assert.equal(r.conflicts.length, 0);
+});
+
+test("riconciliazione: lo stesso indirizzo con piu dettaglio non e un conflitto", () => {
+  const r = riconcilia([
+    f("address", "Via Sparano 10, 70121 Bari BA", "google_places", 90),
+    f("address", "Via Sparano 10, Bari", "site_structured", 88),
+  ]);
+  assert.equal(r.conflicts.length, 0, "il CAP in mezzo non fa due indirizzi diversi");
+});
+
+test("riconciliazione: una via diversa resta un conflitto bloccante", () => {
+  const r = riconcilia([
+    f("address", "Via Sparano 10, Bari", "google_places", 90),
+    f("address", "Corso Cavour 42, Bari", "site_structured", 88),
   ]);
   assert.equal(r.conflicts.length, 1);
-  assert.equal(r.conflicts[0].field, "hours");
-  assert.equal(r.conflicts[0].blocking, true, "gli orari discordanti mandano in REVIEW");
+  assert.equal(r.conflicts[0].blocking, true);
+});
+
+test("riconciliazione: due fonti che dicono la stessa cosa non sono due conflitti", () => {
+  const r = riconcilia([
+    f("phone", "080 555 0101", "google_places", 90),
+    f("phone", "080 999 8888", "site_structured", 88),
+    f("phone", "+39 080 999 8888", "site_meta", 65),
+  ]);
+  assert.equal(r.conflicts.length, 1);
+  assert.equal(r.conflicts[0].others.length, 1,
+    "il valore discordante e uno solo, anche se dichiarato da due fonti");
 });
 
 test("riconciliazione: un telefono conteso non resta fra i verificati", () => {

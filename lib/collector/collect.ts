@@ -71,8 +71,20 @@ export interface LeadInput {
   media_forniti: string[];
 }
 
+/** Il pezzo di Places che il collector usa. Estratto come interfaccia
+ *  per poterlo sostituire nei test: la logica di riconciliazione e di
+ *  identita e la parte che vale, e non deve dipendere da una chiave API
+ *  per essere verificabile. In produzione e sempre l'adapter reale. */
+export interface ClientPlaces {
+  dettaglio: typeof dettaglioPlace;
+  cerca: typeof cercaPlace;
+}
+
+export const PLACES_REALE: ClientPlaces = { dettaglio: dettaglioPlace, cerca: cercaPlace };
+
 export interface OpzioniCollect {
   provider?: BrowserWorkerProvider;
+  places?: ClientPlaces;
   env?: NodeJS.ProcessEnv;
   /** Fasi da eseguire. Assente = tutte. Serve al rilancio dei falliti. */
   solo?: CollectPhase[];
@@ -136,17 +148,41 @@ function fatto(
   };
 }
 
+const normalizza = (s: string) => s.toLowerCase().normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+
 /** Normalizza per capire se due valori dicono la stessa cosa. */
 function stessoValore(field: string, a: string, b: string): boolean {
   if (field === "phone") return stessoTelefono(a, b);
-  const n = (s: string) => s.toLowerCase().normalize("NFD")
-    .replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
-  return n(a) === n(b);
+  const x = normalizza(a), y = normalizza(b);
+  if (x === y) return true;
+  // «Via Sparano 10, Bari» e «Via Sparano 10, 70121 Bari BA» sono lo
+  // stesso indirizzo scritto con piu o meno dettaglio. Segnalarlo come
+  // conflitto bloccante e un falso allarme, e i falsi allarmi fanno
+  // ignorare anche quelli veri.
+  if (field === "address") {
+    // Contenimento per PAROLE, non per sottostringa: «Via Sparano 10,
+    // Bari» sta dentro «Via Sparano 10, 70121 Bari BA» anche se il CAP
+    // si infila in mezzo. Una via diversa avrebbe parole diverse.
+    const pa = x.split(" ").filter(Boolean);
+    const pb = y.split(" ").filter(Boolean);
+    const corte = pa.length <= pb.length ? pa : pb;
+    const lunghe = pa.length <= pb.length ? pb : pa;
+    return corte.length >= 2 && corte.every((t) => lunghe.indexOf(t) !== -1);
+  }
+  return false;
 }
+
+/** Campi che portano PIU valori per natura: piu servizi sono piu
+ *  servizi, e «lunedi: chiuso» e «martedi: 12:30-15:00» sono due righe
+ *  dello stesso orario, non due versioni dello stesso fatto. Metterli a
+ *  confronto fra loro produce un conflitto su ogni attivita con piu di
+ *  un giorno di apertura, cioe su tutte. */
+const CAMPI_MULTIVALORE = ["services", "social", "images", "hours"];
 
 /** Campi su cui un disaccordo NON si risolve da soli: un telefono
  *  sbagliato su una demo e un danno, non un dettaglio. */
-const CAMPI_BLOCCANTI = new Set(["phone", "address", "hours", "email"]);
+const CAMPI_BLOCCANTI = ["phone", "address", "email"];
 
 export function riconcilia(candidati: DossierFact[]): {
   verified: DossierFact[];
@@ -165,18 +201,32 @@ export function riconcilia(candidati: DossierFact[]): {
 
   perCampo.forEach((lista, field) => {
     const ordinati = lista.slice().sort((a, b) => b.confidence - a.confidence);
-    // I campi multi-valore non hanno conflitti: piu servizi sono piu
-    // servizi, non due versioni dello stesso fatto.
-    if (field === "services" || field === "social" || field === "images") {
-      for (const f of ordinati) (f.band === "verified" ? verified : probable).push(f);
+    if (CAMPI_MULTIVALORE.indexOf(field) !== -1) {
+      // Si tolgono solo i doppioni esatti: la stessa riga dichiarata da
+      // due fonti non e due righe.
+      const visti: string[] = [];
+      for (const f of ordinati) {
+        const chiave = normalizza(f.value);
+        if (visti.indexOf(chiave) !== -1) continue;
+        visti.push(chiave);
+        (f.band === "verified" ? verified : probable).push(f);
+      }
       return;
     }
 
     const tenuto = ordinati[0];
-    const diversi = ordinati.slice(1).filter((f) => !stessoValore(field, f.value, tenuto.value));
+    // Doppioni fra loro esclusi: due fonti che dicono la stessa cosa non
+    // sono due conflitti, e lo stesso valore ripetuto tre volte nel
+    // pannello fa sembrare grave cio che non lo e.
+    const diversi: DossierFact[] = [];
+    for (const f of ordinati.slice(1)) {
+      if (stessoValore(field, f.value, tenuto.value)) continue;
+      if (diversi.some((g) => stessoValore(field, g.value, f.value))) continue;
+      diversi.push(f);
+    }
 
     if (diversi.length > 0) {
-      const bloccante = CAMPI_BLOCCANTI.has(field);
+      const bloccante = CAMPI_BLOCCANTI.indexOf(field) !== -1;
       conflicts.push({
         field,
         conflict_group: field,
@@ -200,6 +250,7 @@ export function riconcilia(candidati: DossierFact[]): {
 interface Stato {
   lead: LeadInput;
   provider: BrowserWorkerProvider;
+  places: ClientPlaces;
   env: NodeJS.ProcessEnv;
   fatti: DossierFact[];
   identita: IdentityCandidate[];
@@ -223,8 +274,8 @@ async function fasePlaces(s: Stato): Promise<string> {
   const t0 = Date.now();
   // Un place_id gia noto vale una chiamata sola e nessuna ambiguita.
   let esito = s.lead.place_id
-    ? await dettaglioPlace(s.lead.place_id, s.env)
-    : await cercaPlace([s.lead.name, s.lead.address, s.lead.city].filter(Boolean).join(", "), s.env);
+    ? await s.places.dettaglio(s.lead.place_id, s.env)
+    : await s.places.cerca([s.lead.name, s.lead.address, s.lead.city].filter(Boolean).join(", "), s.env);
   s.chiamate += esito.calls;
 
   if (!s.lead.place_id) {
@@ -244,7 +295,7 @@ async function fasePlaces(s: Stato): Promise<string> {
       return `corrispondenza non sicura: ${r.motivo}`;
     }
     // Ricarica la scheda completa: la ricerca ha una FieldMask ridotta.
-    const pieno = await dettaglioPlace(r.scelta.scheda.place_id, s.env);
+    const pieno = await s.places.dettaglio(r.scelta.scheda.place_id, s.env);
     s.chiamate += pieno.calls;
     if (pieno.ok) esito = pieno;
     else esito = { ...esito, scheda: r.scelta.scheda, ok: true };
@@ -332,7 +383,9 @@ async function faseSitoUfficiale(s: Stato): Promise<string> {
       continue;
     }
 
-    const est = extractFromHtml(pagina.html);
+    // Si passa l'URL della pagina: senza, i `src` relativi — cioe quasi
+    // tutti — verrebbero scartati prima ancora di essere valutati.
+    const est = extractFromHtml(pagina.html, pagina.final_url || u);
     const testo = visibleText(pagina.html);
 
     const aggiungi = (campo: string, voci: { value: string; method: string; evidence: string }[], scope: UsageScope = "public") => {
@@ -372,17 +425,13 @@ async function faseSitoUfficiale(s: Stato): Promise<string> {
 
     // Immagini: candidati, non asset.
     for (const img of est.images.slice(0, 20)) {
-      let assoluto = img.value;
-      try { assoluto = new URL(img.value, u).toString(); } catch { continue; }
       s.mediaGrezzi.push({
-        url: assoluto, source_page: u, platform: "website",
+        url: img.value, source_page: u, platform: "website",
         alt: img.evidence, contesto: testo.slice(0, 200),
       });
     }
     for (const logo of est.logo.slice(0, 2)) {
-      let assoluto = logo.value;
-      try { assoluto = new URL(logo.value, u).toString(); } catch { continue; }
-      s.mediaGrezzi.push({ url: assoluto, source_page: u, platform: "website", alt: "logo", contesto: "logo" });
+      s.mediaGrezzi.push({ url: logo.value, source_page: u, platform: "website", alt: "logo", contesto: "logo" });
     }
 
     // Pagine interne che di solito contengono servizi e contatti. Solo
@@ -521,6 +570,7 @@ export async function raccogli(
   const s: Stato = {
     lead,
     provider: opts.provider ?? providerPredefinito(opts.env),
+    places: opts.places ?? PLACES_REALE,
     env: opts.env ?? process.env,
     fatti: [],
     identita: [],

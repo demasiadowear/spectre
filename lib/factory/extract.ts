@@ -416,18 +416,33 @@ export function extractFromLinks(html: string, out: ExtractedSite): void {
 }
 
 /** Immagini dal markup. L'attributo alt serve come descrizione. */
-export function extractImages(html: string, out: ExtractedSite): void {
+/**
+ * `base` = URL della pagina da cui viene l'HTML.
+ *
+ * Senza, si tengono solo i `src` assoluti, che e il comportamento
+ * storico. Con, si risolvono anche quelli relativi — ed e il caso
+ * normale: la maggior parte dei siti scrive `/img/foto.jpg`, quindi
+ * senza risolverli si perdevano quasi tutte le fotografie di un sito
+ * senza nemmeno registrarle fra le scartate.
+ */
+export function extractImages(html: string, out: ExtractedSite, base?: string): void {
   const re = /<img\b[^>]*>/gi;
   let m: RegExpExecArray | null;
   let seen = 0;
   while ((m = re.exec(html)) !== null && seen < 25) {
     const tag = m[0];
-    const src = decodeEntities(
+    let src = decodeEntities(
       (tag.match(/\bsrc=["']([^"']+)["']/i)?.[1] ??
         tag.match(/\bdata-src=["']([^"']+)["']/i)?.[1] ??
         "").trim(),
     );
-    if (!/^https?:\/\//i.test(src)) continue;
+    if (!/^https?:\/\//i.test(src)) {
+      // `data:` e `about:` non sono fotografie di nessuno: si saltano
+      // prima di provare a risolverli.
+      if (!base || !src || /^(?:data|about|javascript|blob):/i.test(src)) continue;
+      try { src = new URL(src, base).toString(); } catch { continue; }
+      if (!/^https?:\/\//i.test(src)) continue;
+    }
     seen++;
     const alt = clean(decodeEntities(tag.match(/\balt=["']([^"']*)["']/i)?.[1] ?? ""), 120);
     const isLogo = /logo/i.test(src) || /logo/i.test(alt);
@@ -436,7 +451,7 @@ export function extractImages(html: string, out: ExtractedSite): void {
 }
 
 /** Estrazione completa da una pagina. Funzione pura: nessuna rete. */
-export function extractFromHtml(html: string): ExtractedSite {
+export function extractFromHtml(html: string, base?: string): ExtractedSite {
   const out = empty();
   if (!html) return out;
   // JSON-LD per primo: è la fonte dichiarata, e pushIf tiene il primo
@@ -445,6 +460,6 @@ export function extractFromHtml(html: string): ExtractedSite {
   extractFromMicrodata(html, out);
   extractFromMeta(html, out);
   extractFromLinks(html, out);
-  extractImages(html, out);
+  extractImages(html, out, base);
   return out;
 }
