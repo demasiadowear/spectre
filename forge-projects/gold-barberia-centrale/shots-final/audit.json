@@ -18,18 +18,18 @@
     "clipped": [],
     "emptySections": [],
     "hiddenText": [],
-    "minContrast": 6,
+    "minContrast": 4.71,
     "worstContrast": {
       "t": "080 5240918",
-      "r": 6
+      "r": 4.71
     },
     "cta": {
-      "w": 84,
-      "h": 18,
+      "w": 85,
+      "h": 22,
       "contrast": 6.77
     },
     "headings": [
-      "H1:Una passata\n      sola, fatta\n      come si de",
+      "H1:Una passata sola,\n      fatta come si deve.",
       "H2:Il lavoro",
       "H2:Quando siamo aperti",
       "H2:Dove siamo"
@@ -58,18 +58,18 @@
     "clipped": [],
     "emptySections": [],
     "hiddenText": [],
-    "minContrast": 6,
+    "minContrast": 4.71,
     "worstContrast": {
       "t": "080 5240918",
-      "r": 6
+      "r": 4.71
     },
     "cta": {
-      "w": 92,
+      "w": 93,
       "h": 44,
       "contrast": 6.77
     },
     "headings": [
-      "H1:Una passata\n      sola, fatta\n      come si de",
+      "H1:Una passata sola,\n      fatta come si deve.",
       "H2:Il lavoro",
       "H2:Quando siamo aperti",
       "H2:Dove siamo"
@@ -118,7 +118,7 @@
     "page": "heroes/a.html",
     "viewport": "mobile",
     "status": 200,
-    "fps": 62,
+    "fps": 61,
     "transferredKB": 161,
     "errors": [],
     "failed": [],
@@ -155,7 +155,7 @@
     "page": "heroes/b.html",
     "viewport": "desktop",
     "status": 200,
-    "fps": 61,
+    "fps": 62,
     "transferredKB": 143,
     "errors": [],
     "failed": [],
@@ -192,7 +192,7 @@
     "page": "heroes/b.html",
     "viewport": "mobile",
     "status": 200,
-    "fps": 61,
+    "fps": 62,
     "transferredKB": 143,
     "errors": [],
     "failed": [],
@@ -264,7 +264,7 @@
     "page": "heroes/c.html",
     "viewport": "mobile",
     "status": 200,
-    "fps": 61,
+    "fps": 62,
     "transferredKB": 58,
     "errors": [],
     "failed": [],

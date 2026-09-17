@@ -1,0 +1,54 @@
+[
+  {
+    "page": "index.html",
+    "viewport": "desktop",
+    "status": 200,
+    "fps": null,
+    "transferredKB": 79,
+    "errors": [],
+    "failed": [
+      "http://127.0.0.1:4330/assets/modulepreload-polyfill-B5Qt9EMX.js csp",
+      "http://127.0.0.1:4330/assets/index-CzGW6FVa.js csp"
+    ],
+    "screenshot": "/home/user/spectre/forge-projects/gold-barberia-centrale/shots-nojs/index_html-desktop.png",
+    "title": "",
+    "overflow": false,
+    "scrollW": 0,
+    "viewW": 1440,
+    "overflowing": [],
+    "clipped": [],
+    "emptySections": [],
+    "hiddenText": [],
+    "minContrast": null,
+    "worstContrast": null,
+    "cta": null,
+    "headings": [],
+    "fontsUsed": []
+  },
+  {
+    "page": "index.html",
+    "viewport": "mobile",
+    "status": 200,
+    "fps": null,
+    "transferredKB": 79,
+    "errors": [],
+    "failed": [
+      "http://127.0.0.1:4330/assets/modulepreload-polyfill-B5Qt9EMX.js csp",
+      "http://127.0.0.1:4330/assets/index-CzGW6FVa.js csp"
+    ],
+    "screenshot": "/home/user/spectre/forge-projects/gold-barberia-centrale/shots-nojs/index_html-mobile.png",
+    "title": "",
+    "overflow": false,
+    "scrollW": 0,
+    "viewW": 390,
+    "overflowing": [],
+    "clipped": [],
+    "emptySections": [],
+    "hiddenText": [],
+    "minContrast": null,
+    "worstContrast": null,
+    "cta": null,
+    "headings": [],
+    "fontsUsed": []
+  }
+]

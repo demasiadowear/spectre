@@ -62,6 +62,10 @@ async function main() {
         deviceScaleFactor: vp.dsf,
         locale: "it-IT",
         reducedMotion: process.env.REDUCED === "1" ? "reduce" : "no-preference",
+        // NOJS=1: lo stato a riposo della pagina. È quello che vede chi
+        // ha JS lento, un blocco degli script, o un'anteprima di link.
+        // Deve essere completo e leggibile, non "degradato".
+        javaScriptEnabled: process.env.NOJS !== "1",
       });
       const pg = await ctx.newPage();
 
@@ -80,14 +84,15 @@ async function main() {
       // Le animazioni di ingresso devono aver finito prima dello scatto.
       await pg.waitForTimeout(2200);
 
-      // FPS reali su ~1s di rendering.
-      const fps = await pg.evaluate(() => new Promise((done) => {
+      // FPS reali su ~1s di rendering. Senza JS non c'è niente da
+      // misurare e `evaluate` non può nemmeno partire: si salta.
+      const fps = process.env.NOJS === "1" ? null : await pg.evaluate(() => new Promise((done) => {
         let n = 0; const t0 = performance.now();
         const tick = () => { n++; performance.now() - t0 < 1000 ? requestAnimationFrame(tick) : done(Math.round(n * 1000 / (performance.now() - t0))); };
         requestAnimationFrame(tick);
       }));
 
-      const audit = await pg.evaluate(() => {
+      const audit = process.env.NOJS === "1" ? { title: "", overflow: false, scrollW: 0, viewW: vp.width, overflowing: [], clipped: [], emptySections: [], hiddenText: [], minContrast: null, worstContrast: null, cta: null, headings: [], fontsUsed: [] } : await pg.evaluate(() => {
         const d = document, de = d.documentElement;
         const viewW = de.clientWidth;
         const over = [];
@@ -185,7 +190,7 @@ async function main() {
     if (r.minContrast !== null && r.minContrast < 4.5) add(`contrasto ${r.minContrast} < 4.5`);
     if (r.cta && r.cta.h < 44 && r.viewport === "mobile") add(`CTA alta ${r.cta.h}px < 44`);
     if (r.cta && r.cta.contrast !== null && r.cta.contrast < 4.5) add(`contrasto CTA ${r.cta.contrast} < 4.5`);
-    if (r.fps < 50 && r.viewport === "desktop") add(`${r.fps} fps`);
+    if (r.fps !== null && r.fps < 50 && r.viewport === "desktop") add(`${r.fps} fps`);
   }
   console.log(`\n${problemi.length} problemi`);
   writeFileSync(join(OUT, "problemi.json"), JSON.stringify(problemi, null, 2));
