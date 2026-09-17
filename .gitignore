@@ -57,3 +57,7 @@ worker/worker-run.log
 
 ayrobackup-leads-*.json
 worker/.worker.lock
+
+# Artefatti dell'harness end-to-end della Factory (DB locale, screenshot,
+# report): si rigenerano con `node scripts/factory-e2e/run.mjs`.
+scripts/factory-e2e/out/
