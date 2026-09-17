@@ -6,17 +6,18 @@
 @import "@fontsource-variable/instrument-sans/index.css";
 
 :root{
-  /* Il fondo NON è un nero neutro: ha una deriva verde presa dallo
-     smalto dell'insegna. Un grigio-nero puro si legge come non scelto,
-     e "nero quasi puro con un accento solo" è il cliché da evitare. */
-  --fondo:#0F1411;
-  --fondo-alto:#151B17;
+  /* Verde smalto, non un nero tinto di verde. La versione precedente
+     usava #0F1411, che `frontend-design` elenca fra i tell: un
+     near-black tinto messo al posto del nero. Portato abbastanza in là
+     da leggersi come COLORE — è lo smalto dell'insegna, e lega la
+     pagina a questa bottega invece che a un generico sito scuro. */
+  --fondo:#0D2E26;
+  --fondo-alto:#103A30;
   --osso:#F4F1EA;
   --osso-fioco:rgba(244,241,234,.58);
   --osso-tenue:rgba(244,241,234,.30);
   --acciaio:#8FA0A9;      /* la lama */
   --ottone:#B08D4F;       /* i bulloni dell'insegna: segni piccoli */
-  --verde-vivo:#4FA07A;   /* stato "aperto": semantico, non decorativo */
 
   --misura:34ch;
   --gutter:clamp(20px,5vw,72px);
@@ -64,14 +65,14 @@ body{position:relative}
 .testata{
   position:relative;z-index:2;
   display:flex;align-items:center;gap:18px 28px;flex-wrap:wrap;
-  padding:20px var(--gutter);
-  font-size:11px;letter-spacing:.28em;text-transform:uppercase;
+  padding:22px var(--gutter);
+  font-size:14px;letter-spacing:0;
 }
 .marchio{color:var(--osso);font-weight:600}
 .testata nav{display:flex;gap:22px;margin-left:auto}
 .testata a{color:var(--osso-fioco);text-decoration:none}
 .testata a:hover{color:var(--osso)}
-.tel-testata{color:var(--ottone)!important;letter-spacing:.14em}
+.tel-testata{color:var(--ottone)!important}
 
 main{position:relative;z-index:1}
 
@@ -94,18 +95,22 @@ section{padding:clamp(56px,8.5vh,108px) var(--gutter)}
 }
 
 /* ----- Apertura ----- */
-.apertura{min-height:calc(100svh - 62px);display:flex;flex-direction:column;
-  justify-content:center;padding-top:clamp(28px,6vh,60px)}
+.apertura{display:flex;flex-direction:column;
+  padding-top:clamp(40px,9vh,110px);
+  padding-bottom:clamp(56px,12vh,150px)}
 
-.occhiello{
-  display:inline-flex;align-items:center;gap:9px;margin:0 0 clamp(18px,3vh,30px);
-  font-size:11px;letter-spacing:.3em;text-transform:uppercase;
-  color:var(--osso-fioco);
+/* Lo stato "aperto adesso" sta accanto alla CTA, dove uno decide se
+   chiamare. Prima era un occhiello maiuscolo spaziato sopra il titolo:
+   informazione giusta, forma sbagliata — è la chrome da template che
+   `frontend-design` elenca per prima. */
+.stato{
+  display:inline-flex;align-items:center;gap:9px;margin:0;
+  font-size:14px;color:var(--osso);
 }
 .pallino{width:7px;height:7px;border-radius:50%;background:var(--osso-tenue);
   flex:none}
-.pallino.aperto{background:var(--verde-vivo);
-  box-shadow:0 0 0 4px rgba(79,160,122,.18)}
+.pallino.aperto{background:var(--ottone);
+  box-shadow:0 0 0 4px rgba(176,141,79,.22)}
 
 .titolo{
   font-family:"Fraunces Variable",Georgia,"Times New Roman",serif;
@@ -115,8 +120,6 @@ section{padding:clamp(56px,8.5vh,108px) var(--gutter)}
   font-size:clamp(2.6rem,10.5vw,9.5rem);
   text-wrap:balance;
 }
-.titolo em{font-style:italic;color:var(--acciaio);
-  font-variation-settings:"SOFT" 70,"WONK" 1,"opsz" 144}
 .titolo .lin{display:block;overflow:hidden;padding-bottom:.02em}
 .titolo .lin > span{display:block;will-change:transform}
 
@@ -124,7 +127,13 @@ section{padding:clamp(56px,8.5vh,108px) var(--gutter)}
   margin:clamp(20px,3.5vh,34px) 0 0;text-align:left}
 
 .apertura-azioni{display:flex;flex-wrap:wrap;align-items:center;
-  gap:16px 28px;margin-top:clamp(26px,5vh,46px)}
+  gap:14px 26px;margin-top:clamp(26px,5vh,44px)}
+.apertura-azioni .azione{flex:none}
+/* Stato e giudizio vanno a capo insieme sotto il bottone appena lo
+   spazio stringe: tre cose sulla stessa riga si contendono l'attenzione
+   proprio dove uno decide se chiamare. */
+.riga-dati{display:flex;flex-wrap:wrap;align-items:center;gap:8px 22px;
+  margin-top:14px}
 .giudizio{margin:0;font-size:13px;color:var(--osso-fioco)}
 .giudizio strong{color:var(--osso);font-weight:600}
 
@@ -198,7 +207,7 @@ address{font-style:normal;
   display:flex;justify-content:space-between;gap:12px 24px;flex-wrap:wrap;
   padding:26px var(--gutter) 36px;
   border-top:1px solid var(--osso-tenue);
-  font-size:11px;letter-spacing:.24em;text-transform:uppercase;
+  font-size:13px;letter-spacing:0;
   color:var(--osso-fioco);   /* --osso-tenue era illeggibile su telefono */
 }
 
@@ -210,7 +219,7 @@ address{font-style:normal;
   .tel-testata{margin-left:auto;display:inline-flex;align-items:center;
     min-height:44px;padding-left:8px}
   .nota{margin-left:0}
-  .apertura{min-height:auto;padding-top:26px;padding-bottom:clamp(48px,9vh,80px)}
+  .apertura{padding-top:26px;padding-bottom:clamp(48px,9vh,80px)}
   .azione{width:100%}
   .apertura-azioni{gap:14px}
   .elenco li{gap:12px}

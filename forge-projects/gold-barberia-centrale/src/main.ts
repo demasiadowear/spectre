@@ -59,7 +59,10 @@ export function statoApertura(ora: Date): Stato {
     // Oggi conta solo se l'apertura deve ancora arrivare.
     if (salto === 0 && adesso >= minuti(f.da)) continue;
     const quando = salto === 0 ? "oggi" : salto === 1 ? "domani" : GIORNI[g];
-    return { aperto: false, testo: `Chiuso ora — riapre ${quando} alle ${f.da}` };
+    // Frase, non etichetta "PAROLA — frammento": quella forma è uno dei
+    // tell elencati da frontend-design, e in italiano suona da display
+    // di stazione. "alle 9" invece di "alle 09:00" perché è come si dice.
+    return { aperto: false, testo: `Chiuso adesso, riapre ${quando} alle ${f.da.replace(/^0/, "").replace(":00", "")}` };
   }
   return { aperto: false, testo: "Chiuso" };
 }
@@ -74,8 +77,9 @@ function mostraStato(): void {
   const prossima = document.querySelector<HTMLElement>("[data-prossima]");
   if (prossima) {
     prossima.textContent = stato.aperto
+      // `testo` non finisce con un punto: lo mette la frase che segue.
       ? `${stato.testo}. Meglio telefonare prima: si lavora su appuntamento.`
-      : `${stato.testo}. Per l'appuntamento si può chiamare negli orari di apertura.`;
+      : `${stato.testo}. Per l'appuntamento si chiama negli orari di apertura.`;
   }
 
   // La riga di oggi si evidenzia da sola: chi apre il sito guarda quella.
