@@ -221,3 +221,16 @@ address{font-style:normal;
   .azione{transition:none}
   .azione:hover{transform:none}
 }
+
+/* ----- Avviso demo -----
+   Deliberatamente fuori dal linguaggio del sito: non deve sembrare una
+   sezione dell'attività, deve sembrare quello che è, una nota di chi
+   pubblica l'anteprima. */
+.avviso-demo{
+  position:relative;z-index:3;
+  padding:14px var(--gutter);
+  background:var(--ottone);color:#1a1509;
+  font-size:12.5px;line-height:1.5;letter-spacing:.01em;
+  text-align:center;
+}
+.avviso-demo strong{font-weight:700}

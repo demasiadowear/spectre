@@ -69,3 +69,12 @@ forge-projects/*/dist/
 forge-projects/*/shots-v1/
 forge-projects/*/shots-v2/
 forge-projects/*/shots-v3/
+# Artefatti rigenerabili del sito premium
+forge-projects/*/dist-autonomo/
+forge-projects/*/video/
+forge-projects/*/autonomo-test/
+forge-projects/*/artefatto-test/
+forge-projects/*/shots-autonomo/
+forge-projects/*/shots-artefatto/
+forge-projects/*/barberia-centrale-autonomo.html
+forge-projects/*/artefatto-barberia-centrale.html

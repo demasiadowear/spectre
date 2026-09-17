@@ -1,0 +1,298 @@
+[
+  {
+    "page": "index.html",
+    "viewport": "desktop",
+    "status": 200,
+    "fps": 61,
+    "transferredKB": 194,
+    "errors": [],
+    "failed": [],
+    "screenshot": "/home/user/spectre/forge-projects/gold-barberia-centrale/shots-final/index_html-desktop.png",
+    "title": "Barberia Centrale — Barbiere in via Putignani, Bari",
+    "overflow": false,
+    "scrollW": 1440,
+    "viewW": 1440,
+    "overflowing": [
+      "a.salta"
+    ],
+    "clipped": [],
+    "emptySections": [],
+    "hiddenText": [],
+    "minContrast": 6,
+    "worstContrast": {
+      "t": "080 5240918",
+      "r": 6
+    },
+    "cta": {
+      "w": 84,
+      "h": 18,
+      "contrast": 6.77
+    },
+    "headings": [
+      "H1:Una passata\n      sola, fatta\n      come si de",
+      "H2:Il lavoro",
+      "H2:Quando siamo aperti",
+      "H2:Dove siamo"
+    ],
+    "fontsUsed": [
+      "Instrument Sans Variable",
+      "Fraunces Variable"
+    ]
+  },
+  {
+    "page": "index.html",
+    "viewport": "mobile",
+    "status": 200,
+    "fps": 61,
+    "transferredKB": 194,
+    "errors": [],
+    "failed": [],
+    "screenshot": "/home/user/spectre/forge-projects/gold-barberia-centrale/shots-final/index_html-mobile.png",
+    "title": "Barberia Centrale — Barbiere in via Putignani, Bari",
+    "overflow": false,
+    "scrollW": 390,
+    "viewW": 390,
+    "overflowing": [
+      "a.salta"
+    ],
+    "clipped": [],
+    "emptySections": [],
+    "hiddenText": [],
+    "minContrast": 6,
+    "worstContrast": {
+      "t": "080 5240918",
+      "r": 6
+    },
+    "cta": {
+      "w": 92,
+      "h": 44,
+      "contrast": 6.77
+    },
+    "headings": [
+      "H1:Una passata\n      sola, fatta\n      come si de",
+      "H2:Il lavoro",
+      "H2:Quando siamo aperti",
+      "H2:Dove siamo"
+    ],
+    "fontsUsed": [
+      "Instrument Sans Variable",
+      "Fraunces Variable"
+    ]
+  },
+  {
+    "page": "heroes/a.html",
+    "viewport": "desktop",
+    "status": 200,
+    "fps": 61,
+    "transferredKB": 161,
+    "errors": [],
+    "failed": [],
+    "screenshot": "/home/user/spectre/forge-projects/gold-barberia-centrale/shots-final/heroes_a_html-desktop.png",
+    "title": "A — Insegna smaltata",
+    "overflow": false,
+    "scrollW": 1440,
+    "viewW": 1440,
+    "overflowing": [],
+    "clipped": [],
+    "emptySections": [],
+    "hiddenText": [],
+    "minContrast": 4.02,
+    "worstContrast": {
+      "t": "Barbiere · Bari centro",
+      "r": 4.02
+    },
+    "cta": {
+      "w": 249,
+      "h": 49,
+      "contrast": 12.62
+    },
+    "headings": [
+      "H1:Barberia\n      Centrale"
+    ],
+    "fontsUsed": [
+      "Instrument Sans Variable",
+      "Archivo Black"
+    ]
+  },
+  {
+    "page": "heroes/a.html",
+    "viewport": "mobile",
+    "status": 200,
+    "fps": 62,
+    "transferredKB": 161,
+    "errors": [],
+    "failed": [],
+    "screenshot": "/home/user/spectre/forge-projects/gold-barberia-centrale/shots-final/heroes_a_html-mobile.png",
+    "title": "A — Insegna smaltata",
+    "overflow": false,
+    "scrollW": 390,
+    "viewW": 390,
+    "overflowing": [],
+    "clipped": [
+      "Centrale"
+    ],
+    "emptySections": [],
+    "hiddenText": [],
+    "minContrast": 4.02,
+    "worstContrast": {
+      "t": "Barbiere · Bari centro",
+      "r": 4.02
+    },
+    "cta": {
+      "w": 346,
+      "h": 49,
+      "contrast": 12.62
+    },
+    "headings": [
+      "H1:Barberia\n      Centrale"
+    ],
+    "fontsUsed": [
+      "Instrument Sans Variable",
+      "Archivo Black"
+    ]
+  },
+  {
+    "page": "heroes/b.html",
+    "viewport": "desktop",
+    "status": 200,
+    "fps": 61,
+    "transferredKB": 143,
+    "errors": [],
+    "failed": [],
+    "screenshot": "/home/user/spectre/forge-projects/gold-barberia-centrale/shots-final/heroes_b_html-desktop.png",
+    "title": "B — Il gesto",
+    "overflow": false,
+    "scrollW": 1440,
+    "viewW": 1440,
+    "overflowing": [
+      "path.[object"
+    ],
+    "clipped": [],
+    "emptySections": [],
+    "hiddenText": [],
+    "minContrast": 16.58,
+    "worstContrast": {
+      "t": "Una passata\n      sola, fatt",
+      "r": 16.58
+    },
+    "cta": {
+      "w": 271,
+      "h": 47,
+      "contrast": 16.58
+    },
+    "headings": [
+      "H1:Una passata\n      sola, fatta\n      come si de"
+    ],
+    "fontsUsed": [
+      "Fraunces Variable",
+      "Instrument Sans Variable"
+    ]
+  },
+  {
+    "page": "heroes/b.html",
+    "viewport": "mobile",
+    "status": 200,
+    "fps": 61,
+    "transferredKB": 143,
+    "errors": [],
+    "failed": [],
+    "screenshot": "/home/user/spectre/forge-projects/gold-barberia-centrale/shots-final/heroes_b_html-mobile.png",
+    "title": "B — Il gesto",
+    "overflow": false,
+    "scrollW": 390,
+    "viewW": 390,
+    "overflowing": [
+      "path.[object"
+    ],
+    "clipped": [],
+    "emptySections": [],
+    "hiddenText": [],
+    "minContrast": 16.58,
+    "worstContrast": {
+      "t": "Una passata\n      sola, fatt",
+      "r": 16.58
+    },
+    "cta": {
+      "w": 350,
+      "h": 47,
+      "contrast": 16.58
+    },
+    "headings": [
+      "H1:Una passata\n      sola, fatta\n      come si de"
+    ],
+    "fontsUsed": [
+      "Fraunces Variable",
+      "Instrument Sans Variable"
+    ]
+  },
+  {
+    "page": "heroes/c.html",
+    "viewport": "desktop",
+    "status": 200,
+    "fps": 13,
+    "transferredKB": 787,
+    "errors": [],
+    "failed": [],
+    "screenshot": "/home/user/spectre/forge-projects/gold-barberia-centrale/shots-final/heroes_c_html-desktop.png",
+    "title": "C — Specchio appannato",
+    "overflow": false,
+    "scrollW": 1440,
+    "viewW": 1440,
+    "overflowing": [],
+    "clipped": [],
+    "emptySections": [],
+    "hiddenText": [],
+    "minContrast": 11.58,
+    "worstContrast": {
+      "t": "Chiama per l'appuntamento",
+      "r": 11.58
+    },
+    "cta": {
+      "w": 251,
+      "h": 47,
+      "contrast": 11.58
+    },
+    "headings": [
+      "H1:BarberiaCentrale"
+    ],
+    "fontsUsed": [
+      "Archivo Black",
+      "Instrument Sans Variable"
+    ]
+  },
+  {
+    "page": "heroes/c.html",
+    "viewport": "mobile",
+    "status": 200,
+    "fps": 61,
+    "transferredKB": 58,
+    "errors": [],
+    "failed": [],
+    "screenshot": "/home/user/spectre/forge-projects/gold-barberia-centrale/shots-final/heroes_c_html-mobile.png",
+    "title": "C — Specchio appannato",
+    "overflow": false,
+    "scrollW": 390,
+    "viewW": 390,
+    "overflowing": [],
+    "clipped": [],
+    "emptySections": [],
+    "hiddenText": [],
+    "minContrast": 11.58,
+    "worstContrast": {
+      "t": "Chiama per l'appuntamento",
+      "r": 11.58
+    },
+    "cta": {
+      "w": 350,
+      "h": 47,
+      "contrast": 11.58
+    },
+    "headings": [
+      "H1:BarberiaCentrale"
+    ],
+    "fontsUsed": [
+      "Archivo Black",
+      "Instrument Sans Variable"
+    ]
+  }
+]
