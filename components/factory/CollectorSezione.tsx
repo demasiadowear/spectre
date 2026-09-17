@@ -68,6 +68,24 @@ export default function CollectorSezione() {
     );
   }
 
+  // Un elenco vuoto va detto, non mostrato come una tendina muta: senza
+  // questo si resta a fissare un campo vuoto senza capire se e un
+  // difetto o se davvero non c'e niente.
+  if (leads.length === 0) {
+    return (
+      <GlassCard className="p-4">
+        <p className="font-ui text-[11px] font-semibold uppercase tracking-[0.12em] text-text2">
+          Lead su cui raccogliere
+        </p>
+        <p className="mt-2 text-xs leading-snug text-text2">
+          Nessun lead disponibile. Il collector parte sempre da un lead esistente,
+          quindi finché la pipeline è vuota — o il database non è raggiungibile da
+          questo ambiente — non c&apos;è niente su cui raccogliere.
+        </p>
+      </GlassCard>
+    );
+  }
+
   return (
     <div className="space-y-3">
       <GlassCard className="p-4">
