@@ -36,6 +36,23 @@ export function idempotencyKeyFor(leadId: string, kind: JobKind): string {
   return `${leadId}|${kind}`;
 }
 
+/**
+ * Chiave con AMBITO, per i job che possono esistere in piu varianti
+ * sullo stesso lead.
+ *
+ * Una raccolta completa e una che rilancia le sole fasi fallite sono
+ * due richieste diverse e devono poter convivere; due raccolte complete
+ * sullo stesso lead no. Senza l'ambito nella chiave, o si bloccano a
+ * vicenda o non si bloccano affatto.
+ *
+ * L'ambito e ordinato, cosi ["media","places"] e ["places","media"]
+ * danno la stessa chiave: sono la stessa richiesta scritta in due modi.
+ */
+export function dedupKeyFor(kind: JobKind, leadId: string, scope: string[] = []): string {
+  const ambito = scope.length ? scope.slice().sort().join("+") : "full";
+  return `${kind}:${leadId}:${ambito}`;
+}
+
 export function backoffMs(attempts: number): number {
   return BACKOFF_BASE_MS * Math.pow(BACKOFF_FACTOR, Math.max(0, attempts - 1));
 }
@@ -53,9 +70,15 @@ export interface EnqueueInput {
   forge_project_id?: string;
   /** false = consente più job dello stesso tipo sul lead (rari casi). */
   idempotent?: boolean;
+  /** Chiave esplicita, quando `lead|kind` non basta a distinguere due
+   *  richieste legittimamente diverse. Vedi `dedupKeyFor`. */
+  dedup_key?: string;
 }
 
 export interface EnqueueResult {
+  /** L'id del job da eseguire: quello appena creato, oppure — quando
+   *  esisteva gia un job vivo con la stessa chiave — quello esistente.
+   *  Non e MAI un id che nel database non c'e. */
   id: string;
   /** false = esisteva già un job vivo per (lead, kind): nessun doppione. */
   created: boolean;
@@ -68,8 +91,9 @@ export async function enqueueJob(input: EnqueueInput): Promise<EnqueueResult> {
   const id = randomUUID();
   // null (non "") quando il job è volutamente ripetibile: l'indice
   // unico su idempotency_key è totale e SQLite non fa collidere i null.
-  const idem =
-    input.idempotent === false ? null : idempotencyKeyFor(input.lead_id, input.kind);
+  const idem = input.idempotent === false
+    ? null
+    : (input.dedup_key ?? idempotencyKeyFor(input.lead_id, input.kind));
 
   // Il job "vivo" è quello non ancora concluso. Un job chiuso non deve
   // bloccare per sempre il rifacimento: alla chiusura la chiave viene
@@ -94,7 +118,23 @@ export async function enqueueJob(input: EnqueueInput): Promise<EnqueueResult> {
       idem,
     ],
   });
-  return { id, created: rs.rowsAffected > 0 };
+  if (rs.rowsAffected > 0) return { id, created: true };
+
+  // Conflitto: esiste gia un job VIVO con questa chiave. Prima si
+  // restituiva `id`, cioe l'UUID appena generato e mai inserito: chi
+  // chiamava si ritrovava in mano l'identificativo di un job che nel
+  // database non esiste, e provando a eseguirlo non trovava niente.
+  // Due clic ravvicinati producevano cosi un secondo "job" fantasma.
+  //
+  // Ora si restituisce il job esistente, e chi ha premuto si collega a
+  // quello: una sola esecuzione, un solo dossier.
+  if (idem === null) return { id, created: false };
+  const esistente = await turso.execute({
+    sql: `select id from agent_jobs where idempotency_key = ? limit 1`,
+    args: [idem],
+  });
+  const riga = esistente.rows[0] as Record<string, unknown> | undefined;
+  return { id: riga ? String(riga.id) : "", created: false };
 }
 
 /** Libera la chiave di idempotenza: il job resta, la storia si conserva,

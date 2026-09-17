@@ -164,8 +164,16 @@ export async function ensureFactorySchema(): Promise<void> {
     create index if not exists idx_demo_views_project on demo_views(forge_project_id, viewed_at);
   `);
 
-  // Colonne sulla pipeline esistente: una per una, "duplicate column"
-  // = già migrata. Nessuna tabella preesistente viene ricreata.
+  // Colonne sulla pipeline esistente: una per una, e nessuna tabella
+  // preesistente viene ricreata.
+  //
+  // Il catch e STRETTO di proposito. Un catch vuoto attorno a un ALTER
+  // nasconde anche «syntax error» e i guasti di connessione: la
+  // migrazione sembrerebbe riuscita mentre non ha fatto niente, e il
+  // difetto salterebbe fuori mesi dopo come una colonna che non c'e.
+  // Qui si ignorano solo i due casi previsti — colonna gia presente, e
+  // tabella non ancora creata perche l'Autopilot non e mai partito — e
+  // ogni altro errore risale.
   for (const ddl of [
     "alter table autopilot_pipeline add column website_status text default ''",
     "alter table autopilot_pipeline add column website_opportunity_score integer not null default 0",
@@ -175,8 +183,10 @@ export async function ensureFactorySchema(): Promise<void> {
   ]) {
     try {
       await turso.execute(ddl);
-    } catch {
-      /* colonna già presente (o pipeline non ancora creata) */
+    } catch (e) {
+      const m = (e as Error).message ?? "";
+      const previsto = /duplicate column/i.test(m) || /no such table/i.test(m);
+      if (!previsto) throw e;
     }
   }
 

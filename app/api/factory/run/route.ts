@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { isCronAuthorized } from "@/lib/autopilot/cron-auth";
 import { statoOperativo } from "@/lib/collector/pronto";
+import { guardiaRichiesta } from "@/lib/guardia-richiesta";
 import { DEFAULT_BATCH, MAX_BATCH, runWorker, type WorkerResult } from "@/lib/factory/orchestrator";
 import type { ApiResponse } from "@/types";
 import type { JobKind } from "@/types/factory";
@@ -76,6 +77,16 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   if (!(await authorize(req))) return unauthorized();
+  // Il cron si autentica col bearer e non manda `Origin`: qui l'Origin
+  // e obbligatorio solo quando NON c'e il bearer, cioe quando la
+  // richiesta arriva da una pagina.
+  const daBrowser = !isCronAuthorized(req);
+  const g = guardiaRichiesta(req, { richiediOrigin: daBrowser });
+  if (!g.ok) {
+    return NextResponse.json<ApiResponse<never>>(
+      { success: false, error: g.error }, { status: g.status },
+    );
+  }
   const bloccato = await bloccoOperativo();
   if (bloccato) return bloccato;
   try {

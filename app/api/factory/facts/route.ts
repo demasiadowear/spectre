@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { decideFact, logActivity } from "@/lib/factory/db";
+import { guardiaRichiesta } from "@/lib/guardia-richiesta";
 import type { ApiResponse } from "@/types";
 
 // ============================================================
@@ -15,6 +16,12 @@ export const dynamic = "force-dynamic";
 
 export async function PATCH(req: Request) {
   try {
+    const g = guardiaRichiesta(req, { metodi: ["PATCH"] });
+    if (!g.ok) {
+      return NextResponse.json<ApiResponse<never>>(
+        { success: false, error: g.error }, { status: g.status },
+      );
+    }
     const body: unknown = await req.json().catch(() => ({}));
     const raw = (body ?? {}) as Record<string, unknown>;
     const id = typeof raw.id === "string" ? raw.id.trim() : "";

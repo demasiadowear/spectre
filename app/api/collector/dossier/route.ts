@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { decidiMedia, decisioniMedia, leggiDossier } from "@/lib/collector/db";
 import { logActivity } from "@/lib/factory/db";
+import { guardiaRichiesta } from "@/lib/guardia-richiesta";
 import type { ApiResponse } from "@/types";
 import type { BusinessDossier, PhaseState } from "@/types/dossier";
 
@@ -85,6 +86,12 @@ export async function GET(req: Request) {
 /** Approva o blocca una singola immagine. */
 export async function PATCH(req: Request) {
   try {
+    const g = guardiaRichiesta(req, { metodi: ["PATCH"] });
+    if (!g.ok) {
+      return NextResponse.json<ApiResponse<never>>(
+        { success: false, error: g.error }, { status: g.status },
+      );
+    }
     const body: unknown = await req.json().catch(() => ({}));
     const raw = (body ?? {}) as Record<string, unknown>;
     const leadId = typeof raw.lead_id === "string" ? raw.lead_id.trim() : "";

@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { leggiDossier } from "@/lib/collector/db";
 import { statoOperativo } from "@/lib/collector/pronto";
 import { getLeadById } from "@/lib/data";
-import { enqueueJob } from "@/lib/factory/queue";
+import { guardiaRichiesta } from "@/lib/guardia-richiesta";
+import { dedupKeyFor, enqueueJob } from "@/lib/factory/queue";
 import { runJobNow } from "@/lib/factory/orchestrator";
 import { FASI, type CollectPhase } from "@/types/dossier";
 import type { ApiResponse } from "@/types";
@@ -27,8 +28,25 @@ import type { ApiResponse } from "@/types";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
+/** GET su una rotta che muta: 405, mai una mutazione. */
+export async function GET() {
+  return NextResponse.json<ApiResponse<never>>(
+    { success: false, error: "metodo GET non ammesso: questa rotta avvia un job e accetta solo POST" },
+    { status: 405 },
+  );
+}
+
 export async function POST(req: Request) {
   try {
+    // Prima di leggere il corpo: una richiesta da rifiutare non si
+    // legge nemmeno.
+    const g = guardiaRichiesta(req);
+    if (!g.ok) {
+      return NextResponse.json<ApiResponse<never>>(
+        { success: false, error: g.error }, { status: g.status },
+      );
+    }
+
     const body: unknown = await req.json().catch(() => ({}));
     const raw = (body ?? {}) as Record<string, unknown>;
     const leadId = typeof raw.lead_id === "string" ? raw.lead_id.trim() : "";
@@ -75,10 +93,19 @@ export async function POST(req: Request) {
       payload: solo.length ? { solo } : {},
       budget: 6,
       priority: 10,
-      // Un rilancio parziale deve poter convivere con un job gia chiuso
-      // sullo stesso lead: e una richiesta nuova di una persona.
-      idempotent: solo.length === 0,
+      // Chiave con ambito: due raccolte complete sullo stesso lead si
+      // escludono, una completa e un rilancio parziale convivono. Se un
+      // job vivo con questa chiave esiste gia, `enqueueJob` restituisce
+      // QUELLO invece di crearne un secondo — che e cio che succedeva
+      // premendo due volte di seguito.
+      dedup_key: dedupKeyFor("collect_business_intelligence", leadId, solo),
     });
+
+    if (!accodato.id) {
+      return NextResponse.json<ApiResponse<never>>(
+        { success: false, error: "impossibile accodare il job" }, { status: 500 },
+      );
+    }
 
     // Si esegue QUESTO job, non «un job di questo tipo»: chi preme il
     // bottone su un lead si aspetta che giri quello. Il worker

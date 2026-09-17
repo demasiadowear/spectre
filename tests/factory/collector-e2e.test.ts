@@ -6,9 +6,11 @@ import { after, before, test } from "node:test";
 import { readFileSync, rmSync } from "node:fs";
 import { createClient } from "@libsql/client";
 
-import { ensureCollectorSchema, leggiDossier, salvaDossier } from "../../lib/collector/db";
-import { ensureFactorySchema } from "../../lib/factory/db";
-import { claimSpecificJob, enqueueJob, getJob } from "../../lib/factory/queue";
+import {
+  ensureCollectorSchema, leggiDossier, resetCollectorSchemaCache, salvaDossier,
+} from "../../lib/collector/db";
+import { ensureFactorySchema, resetFactorySchemaCache } from "../../lib/factory/db";
+import { claimSpecificJob, dedupKeyFor, enqueueJob, getJob } from "../../lib/factory/queue";
 import { runJobNow } from "../../lib/factory/orchestrator";
 import { raccogli, type ClientPlaces } from "../../lib/collector/collect";
 import { diagnosticaDatabase } from "../../lib/collector/diagnostica";
@@ -30,6 +32,11 @@ import type { EsitoPlaces, PlacesScheda } from "../../lib/collector/places";
 // ============================================================
 
 const db = createClient({ url: process.env.TURSO_DATABASE_URL as string });
+
+const numeroJob = async (): Promise<number> => {
+  const rs = await db.execute("select count(*) as n from agent_jobs");
+  return Number((rs.rows[0] as Record<string, unknown>).n);
+};
 
 const LEAD = "lead-e2e-1";
 const ALTRO = "lead-e2e-2";
@@ -257,6 +264,162 @@ test("e2e: dossier e manifest completi, salvati e riletti dal database", async (
   assert.equal(riletto?.dossier.media.candidates.length, dossier.media.candidates.length);
   assert.equal(riletto?.recommendation, "REVIEW");
   assert.equal(riletto?.phases.length, phases.length);
+});
+
+// ----- Idempotenza dell'accodamento ------------------------------
+
+test("e2e: due richieste CONCORRENTI sullo stesso lead creano UN job solo", async () => {
+  const chiave = dedupKeyFor("collect_business_intelligence", ALTRO);
+  const prima = await numeroJob();
+
+  // Partono insieme, come due clic ravvicinati o due schede aperte.
+  const [a, b] = await Promise.all([
+    enqueueJob({ lead_id: ALTRO, kind: "collect_business_intelligence",
+      reason: "clic 1", budget: 2, dedup_key: chiave }),
+    enqueueJob({ lead_id: ALTRO, kind: "collect_business_intelligence",
+      reason: "clic 2", budget: 2, dedup_key: chiave }),
+  ]);
+
+  assert.equal(await numeroJob(), prima + 1, "deve esistere un job solo");
+  // Entrambe devono avere in mano lo STESSO id, e un id che esiste
+  // davvero: prima la seconda riceveva un UUID mai inserito.
+  assert.equal(a.id, b.id, "le due richieste devono puntare allo stesso job");
+  assert.ok(a.id, "l'id non puo essere vuoto");
+  assert.ok(await getJob(a.id), "l'id restituito deve esistere nel database");
+  assert.equal([a.created, b.created].filter(Boolean).length, 1,
+    "una sola delle due lo ha creato");
+
+  // E una sola esecuzione: la seconda trova il job gia preso.
+  const [x, y] = await Promise.all([runJobNow(a.id), runJobNow(b.id)]);
+  const eseguiti = [x, y].filter((r) => r.stato === "completed" || r.stato === "failed");
+  assert.equal(eseguiti.length, 1, "una sola esecuzione");
+  assert.equal([x, y].filter((r) => r.stato === "not_claimed").length, 1,
+    "l'altra deve dichiarare di non aver preso niente");
+
+  const j = await getJob(a.id);
+  assert.equal(j?.attempts, 1, "un solo tentativo");
+});
+
+test("e2e: una raccolta completa e un rilancio parziale sono due richieste diverse", async () => {
+  const piena = dedupKeyFor("collect_business_intelligence", LEAD);
+  const parziale = dedupKeyFor("collect_business_intelligence", LEAD, ["places"]);
+  assert.notEqual(piena, parziale, "ambiti diversi, chiavi diverse");
+
+  // L'ordine dell'ambito non conta: e la stessa richiesta scritta in
+  // due modi.
+  assert.equal(
+    dedupKeyFor("collect_business_intelligence", LEAD, ["media", "places"]),
+    dedupKeyFor("collect_business_intelligence", LEAD, ["places", "media"]),
+  );
+  assert.match(piena, /^collect_business_intelligence:.+:full$/);
+});
+
+test("e2e: dopo la chiusura un rilancio esplicito e consentito", async () => {
+  const chiave = dedupKeyFor("analyze_website", ALTRO);
+  const primo = await enqueueJob({
+    lead_id: ALTRO, kind: "analyze_website", reason: "primo giro",
+    budget: 1, dedup_key: chiave,
+  });
+  assert.equal(primo.created, true);
+
+  // Finche e vivo, non se ne crea un altro.
+  const durante = await enqueueJob({
+    lead_id: ALTRO, kind: "analyze_website", reason: "doppione",
+    budget: 1, dedup_key: chiave,
+  });
+  assert.equal(durante.created, false);
+  assert.equal(durante.id, primo.id);
+
+  await runJobNow(primo.id);
+
+  // Chiuso: la chiave si libera e un rilancio esplicito passa.
+  const dopo = await enqueueJob({
+    lead_id: ALTRO, kind: "analyze_website", reason: "rilancio voluto",
+    budget: 1, dedup_key: chiave,
+  });
+  assert.equal(dopo.created, true, "dopo la chiusura si puo rifare");
+  assert.notEqual(dopo.id, primo.id);
+});
+
+test("e2e: due POST concorrenti lasciano UNA sola revisione del dossier", async () => {
+  const chiave = dedupKeyFor("collect_business_intelligence", LEAD, ["reconcile"]);
+  const [a, b] = await Promise.all([
+    enqueueJob({ lead_id: LEAD, kind: "collect_business_intelligence",
+      reason: "concorrente 1", budget: 2, dedup_key: chiave,
+      payload: { solo: ["reconcile"] } }),
+    enqueueJob({ lead_id: LEAD, kind: "collect_business_intelligence",
+      reason: "concorrente 2", budget: 2, dedup_key: chiave,
+      payload: { solo: ["reconcile"] } }),
+  ]);
+  await Promise.all([runJobNow(a.id), runJobNow(b.id)]);
+
+  // Un lead ha UN dossier corrente: la raccolta successiva sostituisce
+  // la precedente, quindi qui deve esserci una riga sola.
+  const rs = await db.execute({
+    sql: "select count(*) as n from business_dossiers where lead_id = ?",
+    args: [LEAD],
+  });
+  assert.equal(Number((rs.rows[0] as Record<string, unknown>).n), 1,
+    "un solo dossier per lead, non uno per clic");
+});
+
+// ----- Migrazioni concorrenti ------------------------------------
+
+test("e2e: due avvii concorrenti delle migrazioni non si pestano i piedi", async () => {
+  resetFactorySchemaCache();
+  resetCollectorSchemaCache();
+
+  // Due processi che partono insieme: e cio che succede quando due
+  // lambda si svegliano nello stesso istante.
+  const esiti = await Promise.allSettled([
+    Promise.all([ensureFactorySchema(), ensureCollectorSchema()]),
+    Promise.all([ensureFactorySchema(), ensureCollectorSchema()]),
+  ]);
+  for (const e of esiti) {
+    assert.equal(e.status, "fulfilled",
+      `una migrazione concorrente ha fallito: ${e.status === "rejected" ? e.reason : ""}`);
+  }
+
+  // Nessun duplicato: le tabelle e gli indici sono uno per nome.
+  const tab = await db.execute(
+    "select name, count(*) as n from sqlite_master where type in ('table','index') group by name having n > 1",
+  );
+  assert.equal(tab.rows.length, 0, "nessun oggetto di schema duplicato");
+
+  // E le colonne aggiunte sono una sola ciascuna.
+  const col = await db.execute("select name from pragma_table_info('agent_jobs')");
+  const nomi = col.rows.map((r) => String((r as Record<string, unknown>).name));
+  assert.equal(new Set(nomi).size, nomi.length, "nessuna colonna duplicata");
+});
+
+test("e2e: la migrazione inghiotte SOLO duplicate-column, non ogni errore", async () => {
+  // Un catch vuoto attorno a un ALTER nasconde anche «no such table» e
+  // «syntax error», e la migrazione sembra riuscita mentre non ha fatto
+  // niente. Qui si verifica che l'errore riconosciuto sia quello giusto.
+  let messaggio = "";
+  try {
+    await db.execute("alter table agent_jobs add column kind text");
+  } catch (e) {
+    messaggio = (e as Error).message;
+  }
+  assert.match(messaggio, /duplicate column/i,
+    "e questo il solo errore che la migrazione ha il diritto di ignorare");
+
+  let altro = "";
+  try {
+    await db.execute("alter table tabella_inesistente add column x text");
+  } catch (e) {
+    altro = (e as Error).message;
+  }
+  assert.ok(altro && !/duplicate column/i.test(altro),
+    "un errore diverso deve restare distinguibile da duplicate-column");
+
+  // E la migrazione deve RILANCIARE tutto cio che non e previsto: un
+  // catch vuoto farebbe sembrare riuscita una migrazione che non ha
+  // fatto niente, e il difetto uscirebbe mesi dopo.
+  const sorgente = readFileSync("lib/factory/db.ts", "utf8");
+  assert.match(sorgente, /if \(!previsto\) throw e;/,
+    "il catch delle migrazioni deve rilanciare gli errori non previsti");
 });
 
 // ----- Nessun outreach ------------------------------------------
