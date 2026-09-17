@@ -230,8 +230,113 @@ recuperati rimettendo il job in `pending`.
 
 ## 11. Risultati finali
 
-Vedi la sezione finale di questo documento, aggiornata al termine
-dell'implementazione, e i commit elencati nel riepilogo di consegna.
+### 11.1 Verifiche
+
+| Controllo | Esito |
+|---|---|
+| `npx tsc --noEmit` | **pulito** |
+| `npm run lint` | **pulito** sui file nuovi (restano 2 warning preesistenti in `components/zone/ZoneClientSheet.tsx` e `lib/autopilot/study.ts`, non toccati) |
+| `npm run build` | **compila**, 24/24 pagine; `/factory` e `/preview/[slug]` presenti |
+| `npm test` | **183 test, 183 passati** |
+
+Il test runner prima non esisteva: aggiunti `tsx` (unica dipendenza
+nuova, dev-only) e `node --test`. `scripts/test.mjs` imposta
+`TSX_TSCONFIG_PATH` in modo portabile (su `cmd.exe` `VAR=x comando` non
+funziona, e `cross-env` non valeva una dipendenza).
+`tsconfig.test.json` serve perché il tsconfig principale tiene
+`jsx: "preserve"` per Next: fuori da Next i componenti andrebbero
+compilati col runtime classico e cercherebbero un `React` in scope che
+giustamente non importano.
+
+### 11.2 Difetti trovati e corretti durante il lavoro
+
+1. **`on conflict(col)` su indice parziale** — l'idempotenza della coda
+   usava `create unique index … where idempotency_key <> ''`, ma SQLite
+   non accetta un indice **parziale** come bersaglio di
+   `on conflict(col)`: ogni `enqueueJob` falliva con *"ON CONFLICT clause
+   does not match any PRIMARY KEY or UNIQUE constraint"*. Corretto con
+   indice **totale** e chiave `null` (non stringa vuota) quando assente:
+   SQLite considera i `null` tutti distinti. Lo stesso difetto era
+   presente su `followups.dedup_key`, corretto insieme.
+2. **`auditSummary` ordinava per ordine di controllo** — teneva i primi
+   quattro rilievi nell'ordine in cui i check girano, quindi il rilievo
+   che pesa più poteva restare fuori dal messaggio. Ora ordina per punti.
+3. **Tre pattern anti-affermazione troppo stretti** — `testimonial` non
+   copriva *"i nostri clienti dicono che…"* (la forma che un modello
+   produce davvero), `guarantee` non copriva *"garantita/garantito"* (solo
+   tre forme elencate a mano) e `superlative` non copriva il plurale
+   *"i migliori"*. `results` non aveva alcun caso di test. Tutti corretti,
+   e un test verifica che ogni pattern dichiarato abbia il suo caso.
+
+### 11.3 Limiti noti che restano
+
+- **La ricerca non arricchisce davvero.** `research_business` promuove a
+  fatti ciò che è già in `leads.meta`; non legge il sito del prospect né
+  i social. La struttura per farlo c'è (`contact_facts` con banda ed
+  evidenza), il raccoglitore no.
+- **I servizi non vengono mai popolati.** Nessuna fonte verificata li
+  fornisce, quindi la sezione resta vuota e il campo è marcato
+  `incomplete`. È voluto: preferibile una sezione assente a servizi
+  inventati.
+- **Nessuna immagine reale.** Il renderer disegna un segnaposto: usare le
+  foto Google del locale su un dominio nostro è un problema di licenza,
+  non un dettaglio estetico.
+- **Leads senza sito solo dallo Scout.** `runScout` qualifica solo chi
+  non ha sito (`lib/autopilot/scout.ts`), quindi il ramo "sito debole"
+  dell'analisi si esercita solo sui lead arruolati a mano via
+  `POST /api/factory/jobs`. Non ho cambiato la regola dello Scout: è una
+  decisione commerciale preesistente, non un difetto.
+- **QA bocciato = intervento manuale.** Non c'è rigenerazione automatica:
+  in loop brucerebbe quota senza cambiare il risultato.
+- **Screenshot non attivi per default.** Si abilitano per singolo job
+  (`payload.screenshots = true`); il QA non li richiede perché non deve
+  dipendere dal browser per dare un verdetto.
+- **`SPECTRE_PASSWORD` vuota lascia l'app aperta.** Preesistente,
+  segnalato in §9, non introdotto qui.
+
+### 11.4 Variabili d'ambiente (solo NOMI)
+
+Già in uso: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `GEMINI_API_KEY`,
+`CRON_SECRET`, `SPECTRE_PASSWORD`, `NEXTAUTH_SECRET`,
+`GOOGLE_PLACES_API_KEY`, `INTENT_CHROME_PATH`.
+
+Nuove, tutte opzionali:
+
+| Nome | Ruolo | Senza di essa |
+|---|---|---|
+| `FACTORY_PUBLIC_URL` | base pubblica dei link demo | si ripiega su `VERCEL_URL`, poi su `http://localhost:3000` |
+| `FACTORY_PAUSED` | freno globale (`1`/`true`/`on`) | la Factory lavora |
+| `FACTORY_CHROME_PATH` | Chrome locale per gli screenshot | si ripiega su `INTENT_CHROME_PATH`, poi sui percorsi noti |
+
+### 11.5 Provare in locale
+
+```bash
+npm install
+npm test          # 183 test, nessuna rete, nessuna chiave richiesta
+npx tsc --noEmit
+npm run build
+npm run dev
+```
+
+Poi, con Turso configurato: `/factory` → "Prova senza eseguire" mostra
+cosa farebbe il worker senza toccare niente. Per mettere un lead in
+lavorazione: `POST /api/factory/jobs` con `{"lead_id":"…"}`.
+Senza Turso la dashboard resta vuota (nessun mock: la coda non deve
+fingere di girare).
+
+I test girano contro un **libSQL vero in memoria** (`:memory:`), non
+contro un finto database: i vincoli che contano (unicità del dedup, un
+solo fatto applicato per campo, esclusività del claim) li fa rispettare
+il database. La concorrenza del claim è provata con dieci worker su tre
+job.
+
+### 11.6 Prossima fase consigliata
+
+Il raccoglitore di dati reali per `research_business`: leggere il sito
+del prospect e le pagine social per proporre servizi, orari ed email
+come fatti con banda `probable`, da approvare a mano. È il pezzo che
+oggi rende le bozze povere, ed è l'unico che sblocca la sezione servizi.
+Tutto il resto (evidenza, approvazione, timeline) è già in piedi.
 
 ---
 
