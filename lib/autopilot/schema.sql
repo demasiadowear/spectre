@@ -57,9 +57,11 @@ create table if not exists wa_messages (
   created_at   text default (datetime('now'))
 );
 
--- NESSUNA tabella build: SPECTRE non genera demo (decisione 12/06/2026).
--- Le demo le prepara Puccio fuori; demo_url/demo_sent_at vivono sulla
--- pipeline e il worker invia il link solo dietro approvazione.
+-- SUPERATO (17/09/2026): la decisione del 12/06/2026 era "SPECTRE non
+-- genera demo, le prepara Puccio fuori". Ora le genera la Factory
+-- (lib/factory/*, tabella forge_projects). Resta vero che l'INVIO al
+-- prospect è manuale: demo_url/demo_sent_at su questa pipeline valgono
+-- ancora, e possono essere compilati a mano come prima.
 
 -- Notifiche per Puccio (escalation, demo pronte, anomalie).
 create table if not exists autopilot_alerts (

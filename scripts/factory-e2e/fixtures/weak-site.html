@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>Ristorante Il Glicine - Modugno</title>
+<!--
+  Fixture "sito debole", scritta per somigliare a quello che si trova
+  davvero addosso alle attività di quartiere: pagina vecchia, senza
+  viewport (quindi illeggibile da telefono), tabella di layout, font
+  tag, nessun contatto cliccabile, contenuto scarno.
+
+  Porta però un JSON-LD LocalBusiness completo, che è l'altra cosa che
+  si trova davvero: il tema o il plugin SEO lo emette anche quando la
+  pagina è un disastro. È da lì che research_business tira fuori
+  telefono, indirizzo, orari e servizi, con la loro fonte.
+-->
+<meta name="description" content="Ristorante Il Glicine, cucina pugliese a Modugno. Sala interna e giardino.">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Restaurant",
+  "name": "Ristorante Il Glicine",
+  "description": "Cucina pugliese di stagione, sala interna e giardino estivo.",
+  "telephone": "+39 080 5327441",
+  "email": "prenotazioni@ilglicinemodugno.it",
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "Via Giuseppe Di Vittorio 14",
+    "postalCode": "70026",
+    "addressLocality": "Modugno",
+    "addressRegion": "BA"
+  },
+  "openingHoursSpecification": [
+    { "@type": "OpeningHoursSpecification", "dayOfWeek": ["Tuesday","Wednesday","Thursday"], "opens": "12:30", "closes": "15:00" },
+    { "@type": "OpeningHoursSpecification", "dayOfWeek": ["Friday","Saturday"], "opens": "19:30", "closes": "23:30" },
+    { "@type": "OpeningHoursSpecification", "dayOfWeek": ["Sunday"], "opens": "12:30", "closes": "15:30" },
+    { "@type": "OpeningHoursSpecification", "dayOfWeek": ["Monday"], "opens": "00:00", "closes": "00:00" }
+  ],
+  "hasOfferCatalog": {
+    "@type": "OfferCatalog",
+    "name": "Servizi",
+    "itemListElement": [
+      { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Pranzo di lavoro" } },
+      { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Cena alla carta" } },
+      { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Giardino estivo" } },
+      { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Cerimonie e banchetti" } },
+      { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Sala per gruppi" } }
+    ]
+  },
+  "areaServed": ["Modugno", "Bari"],
+  "sameAs": [
+    "https://www.facebook.com/ilglicinemodugno",
+    "https://www.instagram.com/ilglicinemodugno"
+  ],
+  "aggregateRating": {
+    "@type": "AggregateRating",
+    "ratingValue": "4.6",
+    "reviewCount": "214"
+  }
+}
+</script>
+</head>
+<body bgcolor="#ffffff">
+<table width="100%" border="0">
+<tr><td>
+<font size="5" face="Arial"><b>Ristorante Il Glicine</b></font><br>
+<font size="2" face="Arial">Modugno (BA)</font>
+</td></tr>
+<tr><td>
+<p><font size="2" face="Arial">Benvenuti nel nostro sito.</font></p>
+<p><font size="2" face="Arial">Siamo aperti dal marted&igrave; alla domenica.</font></p>
+<p><font size="2" face="Arial">Tel 080 5327441</font></p>
+</td></tr>
+</table>
+</body>
+</html>
