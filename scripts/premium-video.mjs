@@ -63,9 +63,24 @@ for (let i = 1; i <= passi; i++) {
   await page.evaluate((y) => window.scrollTo({ top: y, behavior: "instant" }), (altezza - H) * (i / passi));
   await page.waitForTimeout(28);
 }
-await page.waitForTimeout(1200);
+await page.waitForTimeout(900);
 
-// 3. Ritorno su, più rapido.
+// 3. I gesti: l'interazione che ogni sito ha di suo (aprire una
+//    portata, aprire una tappa del percorso, scegliere una nuance).
+//    Si dichiarano con GESTI, che e un elenco JSON di selettori: uno
+//    scroll non basta a mostrare un'animazione che risponde a un clic.
+const gesti = process.env.GESTI ? JSON.parse(process.env.GESTI) : [];
+for (const g of gesti) {
+  const el = page.locator(g.sel).first();
+  if (await el.count() === 0) continue;
+  await el.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(500);
+  await el.click({ force: true });
+  await page.waitForTimeout(g.attesa ?? 1100);
+}
+if (gesti.length) await page.waitForTimeout(700);
+
+// 4. Ritorno su, più rapido.
 for (let i = passi; i >= 0; i--) {
   await page.evaluate((y) => window.scrollTo({ top: y, behavior: "instant" }), (altezza - H) * (i / passi));
   await page.waitForTimeout(12);
