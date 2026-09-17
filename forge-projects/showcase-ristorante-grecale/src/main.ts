@@ -17,9 +17,6 @@
 // ============================================================
 
 import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
-
-gsap.registerPlugin(ScrollTrigger);
 
 const ridotto = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const grande = matchMedia("(min-width: 900px)").matches;
@@ -48,17 +45,26 @@ if (!ridotto) {
 // Solo `transform` su elementi che NON contengono parole: se una di
 // queste immagini non si muovesse, non mancherebbe niente di leggibile.
 
+// ScrollTrigger serve solo qui, e qui non ci si arriva mai su telefono:
+// la parallasse e desktop. Importarlo in cima significava far scaricare
+// e compilare a ogni telefono un plugin che non esegue una riga. Con
+// l'import dinamico il telefono non lo vede proprio, e il desktop si
+// comporta esattamente come prima.
 if (!ridotto && grande) {
-  for (const sel of [".cucina-forno img", ".sala-fascia img"]) {
-    const img = document.querySelector<HTMLElement>(sel);
-    if (!img) continue;
-    gsap.fromTo(img,
-      { yPercent: -4 },
-      {
-        yPercent: 4, ease: "none",
-        scrollTrigger: { trigger: img.closest("figure"), start: "top bottom", end: "bottom top", scrub: 0.6 },
-      });
-  }
+  void import("gsap/ScrollTrigger").then(({ ScrollTrigger }) => {
+    gsap.registerPlugin(ScrollTrigger);
+
+    for (const sel of [".cucina-forno img", ".sala-fascia img"]) {
+      const img = document.querySelector<HTMLElement>(sel);
+      if (!img) continue;
+      gsap.fromTo(img,
+        { yPercent: -4 },
+        {
+          yPercent: 4, ease: "none",
+          scrollTrigger: { trigger: img.closest("figure"), start: "top bottom", end: "bottom top", scrub: 0.6 },
+        });
+    }
+  });
 }
 
 // ----- 3. La scheda demo ------------------------------------------

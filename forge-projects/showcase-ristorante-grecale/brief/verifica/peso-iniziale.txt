@@ -1,12 +1,12 @@
 
 Peso scaricato prima di qualunque interazione (390x844, DPR 2, gzip attivo)
 
-  documento      1 file      7.3 KB
-  font           2 file    133.6 KB
+  documento      1 file      7.4 KB
+  font           2 file     97.6 KB
   immagini       3 file    156.4 KB
-  javascript     1 file     45.7 KB
+  javascript     1 file     29.2 KB
   css            1 file      4.2 KB
-  TOTALE         8 file    347.4 KB
+  TOTALE         8 file    294.8 KB
 
   immagini 156.4 KB su un tetto di 2560,0 KB — sotto
 
