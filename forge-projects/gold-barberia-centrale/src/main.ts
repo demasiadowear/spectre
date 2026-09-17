@@ -127,8 +127,11 @@ if (!ridotto) {
   // Il rasoio si apre: la lama ruota attorno al perno, come in mano.
   const lama = host?.querySelector<SVGGElement>(".rasoio-lama");
   if (lama) {
-    gsap.set(lama, { rotation: -167, transformOrigin: "249px 72.5px" });
-    tl.to(lama, { rotation: 0, duration: 1.15, ease: "power3.out" }, 0.25);
+    // 0 = chiusa dentro il manico, -140 = aperta. Lo stato finale è lo
+    // stesso che l'SVG ha già nell'attributo `transform`: senza JS, o con
+    // prefers-reduced-motion, il rasoio resta aperto e riconoscibile.
+    gsap.set(lama, { rotation: 0, svgOrigin: "215 195" });
+    tl.to(lama, { rotation: -140, svgOrigin: "215 195", duration: 1.25, ease: "power3.out" }, 0.25);
     // Il riflesso corre sull'acciaio appena la lama è aperta: è il
     // dettaglio che fa leggere il metallo come metallo.
     const brillio = host?.querySelector(".rasoio-brillio");

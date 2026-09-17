@@ -1,0 +1,86 @@
+[
+  {
+    "page": "index.html",
+    "viewport": "desktop",
+    "status": 200,
+    "fps": 61,
+    "transferredKB": 204,
+    "errors": [],
+    "failed": [],
+    "screenshot": "/home/user/spectre/forge-projects/gold-barberia-centrale/shots-v31/index_html-desktop.png",
+    "title": "Barberia Centrale — Barbiere in via Putignani, Bari",
+    "overflow": false,
+    "scrollW": 1440,
+    "viewW": 1440,
+    "overflowing": [
+      "a.salta"
+    ],
+    "clipped": [],
+    "emptySections": [],
+    "hiddenText": [],
+    "minContrast": 6.72,
+    "worstContrast": {
+      "t": "Oggi, giovedì",
+      "r": 6.72
+    },
+    "cta": {
+      "w": 290,
+      "h": 56,
+      "contrast": 13.2
+    },
+    "headings": [
+      "H1:Una passata sola,\n        fatta come si deve.",
+      "H2:Il lavoro",
+      "H2:Quando siamo aperti",
+      "H2:Dove siamo"
+    ],
+    "fontsUsed": [
+      "system-ui",
+      "Instrument Sans Variable",
+      "Fraunces Variable"
+    ]
+  },
+  {
+    "page": "index.html",
+    "viewport": "mobile",
+    "status": 200,
+    "fps": 60,
+    "transferredKB": 204,
+    "errors": [],
+    "failed": [],
+    "screenshot": "/home/user/spectre/forge-projects/gold-barberia-centrale/shots-v31/index_html-mobile.png",
+    "title": "Barberia Centrale — Barbiere in via Putignani, Bari",
+    "overflow": false,
+    "scrollW": 390,
+    "viewW": 390,
+    "overflowing": [
+      "a.salta",
+      "g.[object",
+      "rect.[object"
+    ],
+    "clipped": [],
+    "emptySections": [],
+    "hiddenText": [],
+    "minContrast": 6.72,
+    "worstContrast": {
+      "t": "Oggi, giovedì",
+      "r": 6.72
+    },
+    "cta": {
+      "w": 346,
+      "h": 56,
+      "contrast": 13.2
+    },
+    "headings": [
+      "H1:Una passata sola,\n        fatta come si deve.",
+      "H2:Il lavoro",
+      "H2:Quando siamo aperti",
+      "H2:Dove siamo"
+    ],
+    "fontsUsed": [
+      "system-ui",
+      "Instrument Sans Variable",
+      "Fraunces Variable"
+    ]
+  }
+]

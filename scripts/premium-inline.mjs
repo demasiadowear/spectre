@@ -24,7 +24,13 @@ function inlineFontUrls(css, cssDir) {
   return css.replace(/url\(([^)]+)\)/g, (intero, grezzo) => {
     const ref = grezzo.trim().replace(/^["']|["']$/g, "");
     if (/^data:|^https?:/.test(ref)) return intero;
-    const file = resolve(cssDir, ref.split("?")[0]);
+    const senzaQuery = ref.split("?")[0];
+    // Un riferimento che parte da "/" è relativo alla radice del sito,
+    // non alla cartella del CSS: resolve() lo prenderebbe per un percorso
+    // assoluto sul disco e non troverebbe nulla.
+    const file = senzaQuery.startsWith("/")
+      ? join(DIST, senzaQuery)
+      : resolve(cssDir, senzaQuery);
     if (!existsSync(file)) return intero;
     const ext = file.slice(file.lastIndexOf("."));
     const mime = MIME_FONT[ext];
@@ -64,6 +70,9 @@ html = html.replace(
 
 // I modulepreload non servono più: il modulo è dentro la pagina.
 html = html.replace(/<link[^>]+rel=["']modulepreload["'][^>]*>/g, "");
+// Nemmeno i preload dei font: sono dentro il CSS come data URI, e un
+// preload verso un file che non esiste è solo una richiesta fallita.
+html = html.replace(/<link[^>]+rel=["']preload["'][^>]*as=["']font["'][^>]*>\s*/g, "");
 
 writeFileSync(OUT, html);
 const kb = Math.round(statSync(OUT).size / 1024);

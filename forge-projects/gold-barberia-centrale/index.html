@@ -12,6 +12,11 @@
 <meta property="og:type" content="website">
 <meta property="og:locale" content="it_IT">
 <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iOCIgZmlsbD0iIzBEMkUyNiIvPjx0ZXh0IHg9IjMyIiB5PSI0MyIgZm9udC1mYW1pbHk9Ikdlb3JnaWEsc2VyaWYiIGZvbnQtc2l6ZT0iMzAiIGZvbnQtd2VpZ2h0PSI0MDAiIGZpbGw9IiNDNDlBNTYiIHRleHQtYW5jaG9yPSJtaWRkbGUiPkJDPC90ZXh0Pjwvc3ZnPg==">
+<!-- I caratteri partono con l'HTML, non dopo il CSS: il titolo è il
+     primo elemento della pagina e se il carattere arriva dopo il primo
+     paint, si ricompone e tutto quello che sta sotto scatta. -->
+<link rel="preload" href="/font/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/font/instrument-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="./src/styles.css">
 </head>
 <body>
@@ -23,10 +28,17 @@
      Prima era una fascia d'ottone larga quanto la pagina, incollata
      sotto il piede, e distruggeva la chiusura.
      ============================================================ -->
-<div class="nota-concept" role="note">
-  <span class="nota-tag">Concept demo</span>
-  <span class="nota-testo">Attività di esempio, non reale. Nome, telefono e recensioni sono dati fittizi.</span>
-</div>
+<!-- Pill fissa, apribile, fuori dalla composizione: non spinge il
+     layout e non compete con testata e apertura. `details` nativo,
+     quindi funziona anche senza JavaScript. -->
+<details class="nota-concept">
+  <summary>Concept demo</summary>
+  <p>
+    Anteprima dimostrativa. <strong>Barberia Centrale non è un'attività
+    reale</strong>: nome, telefono, indirizzo e recensioni sono dati di
+    esempio, usati per mostrare il formato del sito.
+  </p>
+</details>
 
 <a class="salta" href="#contatti">Salta al contatto</a>
 
@@ -40,7 +52,6 @@
     <a href="#orari">Orari</a>
     <a href="#contatti">Dove siamo</a>
   </nav>
-  <a class="tel-testata" href="tel:+390805240918">080 5240918</a>
 </header>
 
 <main id="top">
@@ -67,76 +78,103 @@
         </p>
       </div>
     </div>
-    <div class="apertura-oggetto"><svg class="rasoio" viewBox="0 0 520 140" fill="none" role="img"
-     aria-label="Rasoio a mano libera aperto" focusable="false">
+    <div class="apertura-oggetto"><svg class="rasoio" viewBox="20 30 490 235" fill="none" role="img"
+     aria-label="Rasoio a mano libera aperto, con la lama ruotata fuori dal manico"
+     focusable="false">
   <defs>
     <linearGradient id="r-lama" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%"   stop-color="#AFC0C8"/>
-      <stop offset="46%"  stop-color="#D5E0E5"/>
-      <stop offset="100%" stop-color="#9DB0B9"/>
+      <stop offset="0%"   stop-color="#A9BAC3"/>
+      <stop offset="30%"  stop-color="#E3ECF0"/>
+      <stop offset="62%"  stop-color="#BDCCD4"/>
+      <stop offset="100%" stop-color="#8FA3AE"/>
     </linearGradient>
     <linearGradient id="r-corno" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%"   stop-color="#33241A"/>
-      <stop offset="55%"  stop-color="#160E09"/>
-      <stop offset="100%" stop-color="#2A1C13"/>
+      <stop offset="0%"   stop-color="#3A2A1D"/>
+      <stop offset="52%"  stop-color="#150D08"/>
+      <stop offset="100%" stop-color="#2E2016"/>
     </linearGradient>
     <linearGradient id="r-brillio" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0%"   stop-color="#fff" stop-opacity="0"/>
-      <stop offset="50%"  stop-color="#fff" stop-opacity=".95"/>
+      <stop offset="50%"  stop-color="#fff" stop-opacity=".9"/>
       <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
     </linearGradient>
+    <!-- Il profilo del corpo lama, riusato per ritagliare il riflesso. -->
     <clipPath id="r-taglio">
-      <path d="M288 50 L444 47 Q476 47 486 60 Q494 72 472 79 L296 92
-               Q282 93 281 82 L282 60 Q283 50 288 50 Z"/>
+      <path d="M224 177 L241 166 L401 166 Q412 166 412 177 L412 210
+               Q412 221 401 221 L239 221 Q224 221 222 206 Z"/>
     </clipPath>
   </defs>
 
-  <!-- Guance del manico, in corno scuro, con i perni d'ottone -->
+  <!-- ------------------------------------------------------------------
+       Il manico (le "guance", in corno). Sta fermo: è la lama che gira.
+       È più lungo della lama, perché la lama ci si deve poter richiudere
+       dentro: è la proporzione che distingue un rasoio da un coltello.
+       ------------------------------------------------------------------ -->
   <g class="rasoio-manico">
-    <path d="M26 56 L250 63 Q266 64 266 72.5 Q266 81 250 82 L26 89
-             Q10 89 10 72.5 Q10 56 26 56 Z"
-          fill="url(#r-corno)" stroke="#C49A56" stroke-width="1.2" stroke-opacity=".6"/>
-    <circle cx="24" cy="72.5" r="3.2" fill="#C49A56"/>
-    <circle cx="248" cy="72.5" r="3.6" fill="#C49A56"/>
+    <path d="M232 179 L470 181 Q488 182 488 195 Q488 208 470 209 L232 211
+             Q214 211 214 195 Q214 179 232 179 Z"
+          fill="url(#r-corno)"/>
+    <path d="M236 184 L468 186" stroke="#6A5236" stroke-width="1.4"
+          opacity=".55" stroke-linecap="round"/>
+    <circle cx="468" cy="195" r="3.4" fill="#C49A56"/>
+    <circle cx="468" cy="195" r="1.3" fill="#6B4E23"/>
   </g>
 
-  <!-- La lama ruota attorno al perno: è il gesto vero del mestiere -->
-  <g class="rasoio-lama">
-    <!-- codolo, con le tacche per il pollice -->
-    <path d="M246 62 L286 53 L288 93 L246 84 Z" fill="#8296A0"/>
-    <g fill="#5C6E78">
-      <rect x="256" y="79" width="3.4" height="6" rx="1.2"/>
-      <rect x="264" y="81" width="3.4" height="6" rx="1.2"/>
-      <rect x="272" y="83" width="3.4" height="6" rx="1.2"/>
+  <!-- ------------------------------------------------------------------
+       La lama. Disegnata CHIUSA (rotazione 0: coricata dentro il manico,
+       col filo rivolto verso il manico, come sta davvero da chiusa).
+       A riposo la pagina la mostra aperta a 140°, e il JS anima 0 → -140.
+       Così senza JavaScript, e con prefers-reduced-motion, il rasoio si
+       vede comunque aperto.
+       ------------------------------------------------------------------ -->
+  <g class="rasoio-lama" transform="rotate(-140 215 195)">
+
+    <!-- Il codolo: sporge OLTRE il perno, dalla parte opposta alla lama.
+         È il pezzo che si spinge col pollice per aprirla, ed è il
+         dettaglio che rende l'oggetto riconoscibile come pieghevole. -->
+    <path d="M152 185 L214 181 L214 209 L152 205 Q142 195 152 185 Z"
+          fill="#8DA0A9"/>
+    <g fill="#5A6C76">
+      <rect x="162" y="197" width="4" height="7.6" rx="1.4"/>
+      <rect x="172" y="198" width="4" height="7.6" rx="1.4"/>
+      <rect x="182" y="199" width="4" height="7.6" rx="1.4"/>
     </g>
 
-    <!-- corpo della lama: fondo quasi piatto -->
+    <!-- Il corpo: spalla al tallone, dorso dritto, punta quadra.
+         190 × 55, rapporto 3,4:1 — la proporzione di una lama da rasoio,
+         non di una lama da coltello. -->
     <path class="rasoio-corpo"
-          d="M288 50 L444 47 Q476 47 486 60 Q494 72 472 79 L296 92
-             Q282 93 281 82 L282 60 Q283 50 288 50 Z"
+          d="M224 177 L241 166 L401 166 Q412 166 412 177 L412 210
+             Q412 221 401 221 L239 221 Q224 221 222 206 Z"
           fill="url(#r-lama)"/>
 
-    <!-- dorso: la costa spessa, dritta. È il segno che distingue un
-         rasoio a colpo d'occhio da una lametta qualsiasi. -->
-    <path d="M288 52.5 L446 49.5 Q474 49.5 483 61"
-          stroke="#28363D" stroke-width="7" stroke-linecap="round" fill="none"/>
-    <path d="M289 57 L446 54" stroke="#EAF2F5" stroke-width="1.3"
-          stroke-linecap="round" opacity=".75"/>
+    <!-- Il dorso: la costa spessa, dritta, che un coltello non ha. -->
+    <path d="M243 171 L402 171" stroke="#2A3841" stroke-width="10"
+          stroke-linecap="round"/>
+    <path d="M245 168.5 L401 168.5" stroke="#EEF5F8" stroke-width="1.6"
+          stroke-linecap="round" opacity=".55"/>
 
-    <!-- sguscio: due linee incise, non un riflesso -->
-    <path d="M296 70 L468 65" stroke="#8CA0AA" stroke-width="1.1" opacity=".8"/>
-    <path d="M296 76 L466 71" stroke="#8CA0AA" stroke-width="1.1" opacity=".45"/>
+    <!-- La sguscia: l'incavo concavo dell'acciaio. -->
+    <path d="M236 190 Q320 183 406 189" stroke="#7E939F" stroke-width="1.3"
+          opacity=".8" fill="none"/>
+    <path d="M234 200 Q320 194 408 199" stroke="#7E939F" stroke-width="1.3"
+          opacity=".45" fill="none"/>
 
-    <!-- filo: la linea che taglia, esattamente sul contorno basso -->
-    <path class="rasoio-filo" d="M292 90 L470 77"
-          stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round"/>
+    <!-- Il filo. -->
+    <path class="rasoio-filo" d="M232 219.6 L404 219.6"
+          stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round"/>
 
-    <!-- riflesso che corre sull'acciaio quando la lama si apre -->
+    <!-- Il riflesso che corre sull'acciaio quando la lama finisce di aprirsi. -->
     <g clip-path="url(#r-taglio)">
-      <rect class="rasoio-brillio" x="240" y="34" width="78" height="74"
+      <rect class="rasoio-brillio" x="200" y="150" width="76" height="90"
             fill="url(#r-brillio)" opacity=".6"/>
     </g>
   </g>
+
+  <!-- Il perno. Fuori dal gruppo che ruota: è il punto fermo attorno a
+       cui gira tutto, e si deve vedere. -->
+  <circle cx="215" cy="195" r="7" fill="#C49A56"/>
+  <circle cx="215" cy="195" r="2.6" fill="#6B4E23"/>
 </svg></div>
   </section>
 
@@ -148,8 +186,8 @@
       <div class="sez-riga">
         <h2 class="titolo-sez" id="t-lavoro">Il lavoro</h2>
         <p class="sez-nota">
-          Il prezzo si dice al telefono prima di cominciare, perché dipende
-          da quanto c'è da fare. Nessun listino appeso al muro.
+          Il prezzo viene confermato prima di iniziare, in base al
+          servizio richiesto.
         </p>
       </div>
     </div>
@@ -225,11 +263,7 @@
         <li>Parcheggio più vicino in corso Cavour, cinque minuti a piedi.</li>
       </ul>
       <div class="dove-azioni">
-        <a class="azione azione-piena" href="tel:+390805240918">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z"/></svg>
-          080 5240918
-        </a>
-        <a class="azione azione-vuota" href="https://www.google.com/maps/search/?api=1&amp;query=Via+Nicol%C3%B2+Putignani+71%2C+70121+Bari"
+        <a class="azione azione-piena" href="https://www.google.com/maps/search/?api=1&amp;query=Via+Nicol%C3%B2+Putignani+71%2C+70121+Bari"
            target="_blank" rel="noopener nofollow">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>
           Apri su Maps
@@ -241,7 +275,7 @@
 
 <footer class="piede">
   <p class="piede-nome">Barberia Centrale</p>
-  <p class="piede-dati">Via Nicolò Putignani 71, Bari. Telefono 080 5240918.</p>
+  <p class="piede-dati">Bari</p>
 </footer>
 
 <!-- Chiamata a portata di pollice, ma solo dopo l'apertura: prima

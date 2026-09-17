@@ -3,8 +3,35 @@
    Font e librerie da npm: nessun CDN, così il QA fotografa la pagina
    vera e non un fallback silenzioso.
    ============================================================ */
-@import "@fontsource-variable/fraunces/index.css";
-@import "@fontsource-variable/instrument-sans/index.css";
+/* I due caratteri sono dichiarati qui, con nomi di file stabili, invece
+   di importare il CSS di fontsource: solo così si possono precaricare
+   dall'HTML. Senza preload il carattere arrivava dopo il primo paint e
+   il titolo si ricomponeva — Lighthouse misurava CLS 0,073, ed era
+   tutto in quell'unico scatto. */
+@font-face{
+  font-family:"Fraunces Variable";font-style:normal;font-weight:100 900;
+  font-display:swap;
+  src:url(/font/fraunces-latin.woff2) format("woff2-variations");
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face{
+  font-family:"Fraunces Variable";font-style:normal;font-weight:100 900;
+  font-display:swap;
+  src:url(/font/fraunces-latin-ext.woff2) format("woff2-variations");
+  unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
+}
+@font-face{
+  font-family:"Instrument Sans Variable";font-style:normal;font-weight:100 900;
+  font-display:swap;
+  src:url(/font/instrument-latin.woff2) format("woff2-variations");
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face{
+  font-family:"Instrument Sans Variable";font-style:normal;font-weight:100 900;
+  font-display:swap;
+  src:url(/font/instrument-latin-ext.woff2) format("woff2-variations");
+  unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
+}
 
 :root{
   /* Verde smalto. Le sezioni alternano due valori: è il ritmo che nella
@@ -13,8 +40,8 @@
   --fondo-cupo:#0A241E;
   --osso:#F6F3EC;
   /* Alzato da .58 a .78: a 17px su telefono il .58 non si leggeva. */
-  --osso-fioco:rgba(246,243,236,.78);
-  --osso-tenue:rgba(246,243,236,.62);
+  --osso-fioco:rgba(246,243,236,.86);
+  --osso-tenue:rgba(246,243,236,.66);
   --riga:rgba(246,243,236,.16);
   --ottone:#D4A961;      /* i perni del rasoio */
   --acciaio:#C9D6DB;     /* la lama */
@@ -47,17 +74,30 @@ body{
    dell'attività. Prima era una fascia d'ottone larga quanto la pagina,
    incollata sotto il piede, e distruggeva la chiusura. */
 .nota-concept{
-  display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;
-  padding:9px var(--gutter);
-  background:#151B19;border-bottom:1px solid rgba(246,243,236,.10);
+  position:fixed;left:14px;bottom:14px;z-index:60;
+  max-width:min(340px,calc(100vw - 28px));
   font-family:system-ui,-apple-system,sans-serif;
-  font-size:12.5px;line-height:1.35;color:rgba(246,243,236,.66);
 }
-.nota-tag{
-  flex:none;padding:2px 8px;border-radius:3px;
-  background:rgba(246,243,236,.12);color:rgba(246,243,236,.92);
-  font-size:11px;font-weight:600;letter-spacing:.02em;
+.nota-concept summary{
+  display:inline-flex;align-items:center;gap:7px;cursor:pointer;
+  padding:7px 13px;border-radius:40px;list-style:none;
+  background:rgba(16,22,20,.92);border:1px solid rgba(246,243,236,.22);
+  color:rgba(246,243,236,.88);font-size:12px;font-weight:600;
+  backdrop-filter:blur(6px);
 }
+.nota-concept summary::-webkit-details-marker{display:none}
+.nota-concept summary::before{
+  content:"";width:7px;height:7px;border-radius:50%;
+  background:var(--ottone);flex:none;
+}
+.nota-concept summary:hover{border-color:rgba(246,243,236,.4)}
+.nota-concept p{
+  margin:8px 0 0;padding:12px 14px;border-radius:8px;
+  background:rgba(16,22,20,.96);border:1px solid rgba(246,243,236,.18);
+  color:rgba(246,243,236,.82);font-size:13px;line-height:1.5;
+  backdrop-filter:blur(6px);
+}
+.nota-concept strong{color:rgba(246,243,236,.97)}
 
 /* ----- Testata ----- */
 .testata{
@@ -66,13 +106,11 @@ body{
 }
 .marchio{display:flex;align-items:baseline;gap:9px;text-decoration:none;color:inherit}
 .marchio-nome{font-family:"Fraunces Variable",Georgia,serif;
-  font-variation-settings:"SOFT" 20,"WONK" 1,"opsz" 36;
   font-weight:400;font-size:20px;letter-spacing:-.01em}
 .marchio-luogo{color:var(--osso-tenue);font-size:14px}
 .testata nav{display:flex;gap:24px;margin-left:auto}
 .testata a{color:var(--osso-fioco);text-decoration:none}
 .testata a:hover{color:var(--osso)}
-.tel-testata{color:var(--ottone)!important;font-weight:600}
 
 section{padding:clamp(60px,9vh,116px) var(--gutter)}
 /* Sezioni alterne: il ritmo viene dal fondo, non da un'altra linea. */
@@ -90,7 +128,6 @@ section{padding:clamp(60px,9vh,116px) var(--gutter)}
 
 .titolo{
   font-family:"Fraunces Variable",Georgia,"Times New Roman",serif;
-  font-variation-settings:"SOFT" 0,"WONK" 1,"opsz" 144;
   font-weight:300;margin:0;
   line-height:.96;letter-spacing:-.025em;
   font-size:clamp(2.7rem,6.4vw,5.6rem);
@@ -113,11 +150,14 @@ section{padding:clamp(60px,9vh,116px) var(--gutter)}
 /* ----- Il rasoio ----- */
 .apertura-oggetto{min-width:0;display:flex;align-items:center}
 .rasoio{
-  width:104%;max-width:none;height:auto;overflow:visible;display:block;
-  transform:rotate(-16deg);transform-origin:50% 50%;
-  filter:drop-shadow(0 18px 34px rgba(0,0,0,.38));
+  width:100%;max-width:none;height:auto;overflow:visible;display:block;
+  /* Nessuna rotazione sull'intero oggetto: l'angolo che conta è quello
+     FRA lama e manico, e una seconda inclinazione lo confondeva. */
+  filter:drop-shadow(0 16px 30px rgba(0,0,0,.34));
 }
-.rasoio-lama{transform-origin:249px 72.5px}
+/* Lo stato a riposo della lama sta nell'attributo `transform` dell'SVG:
+   in CSS l'origine in pixel non si riferisce al viewBox e la lama
+   finiva fuori posto, sopra la CTA. */
 
 /* ----- Azioni ----- */
 .azione{
@@ -137,12 +177,12 @@ section{padding:clamp(60px,9vh,116px) var(--gutter)}
 .sez-riga{display:flex;flex-wrap:wrap;align-items:flex-end;gap:14px 42px}
 .titolo-sez{
   font-family:"Fraunces Variable",Georgia,serif;
-  font-variation-settings:"SOFT" 20,"WONK" 1,"opsz" 72;
   font-weight:300;margin:0;
   font-size:clamp(2rem,4vw,3.2rem);letter-spacing:-.02em;
   line-height:1.02;text-wrap:balance;
 }
-.sez-nota{margin:0;max-width:var(--misura);color:var(--osso-fioco);font-size:16px}
+.sez-nota{margin:0;max-width:34ch;color:var(--osso-fioco);
+  font-size:16.5px;line-height:1.58}
 /* La passata: il tratto affilato che apre la sezione. Stessa curvatura
    del filo della lama, così il motivo torna senza ripetere l'oggetto. */
 .passata{display:block;width:min(100%,360px);height:12px;color:var(--ottone);
@@ -166,7 +206,6 @@ section{padding:clamp(60px,9vh,116px) var(--gutter)}
 .elenco li:hover,.elenco li:focus-within{padding-left:10px}
 .voce-num{
   font-family:"Fraunces Variable",Georgia,serif;
-  font-variation-settings:"SOFT" 0,"WONK" 0,"opsz" 24;
   font-size:15px;color:var(--ottone);
   font-variant-numeric:tabular-nums;transition:color .25s ease;
 }
@@ -174,11 +213,11 @@ section{padding:clamp(60px,9vh,116px) var(--gutter)}
 .voce-testi{display:flex;flex-direction:column;gap:5px;min-width:0}
 .voce-nome{
   font-family:"Fraunces Variable",Georgia,serif;
-  font-variation-settings:"SOFT" 30,"WONK" 1,"opsz" 48;
   font-weight:300;font-size:clamp(1.55rem,3.6vw,2.5rem);
   letter-spacing:-.018em;line-height:1.08;
 }
-.voce-desc{color:var(--osso-fioco);font-size:16px;line-height:1.5}
+.voce-desc{color:var(--osso-fioco);font-size:16.5px;line-height:1.58;
+  max-width:46ch}
 
 /* ----- Orari -----
    Oggi è il dato per cui si apre la pagina: ha la dimensione che
@@ -191,18 +230,18 @@ section{padding:clamp(60px,9vh,116px) var(--gutter)}
 .oggi-ore{
   margin:.12em 0 0;
   font-family:"Fraunces Variable",Georgia,serif;
-  font-variation-settings:"SOFT" 10,"WONK" 1,"opsz" 96;
   font-weight:300;font-size:clamp(2.4rem,5.6vw,4.2rem);line-height:1;
   letter-spacing:-.03em;font-variant-numeric:tabular-nums;
 }
-.oggi-stato{margin:14px 0 0;color:var(--osso-fioco);font-size:16px;max-width:32ch}
+.oggi-stato{margin:14px 0 0;color:var(--osso-fioco);font-size:16.5px;
+  line-height:1.55;max-width:32ch}
 
 .settimana{margin:0;display:flex;flex-direction:column}
 .settimana > div{display:flex;justify-content:space-between;gap:20px;
   padding:13px 0;border-bottom:1px solid var(--riga)}
 .settimana > div:first-child{border-top:1px solid var(--riga)}
-.settimana dt{color:var(--osso-fioco);font-size:16px}
-.settimana dd{margin:0;font-size:16px;font-variant-numeric:tabular-nums}
+.settimana dt{color:var(--osso-fioco);font-size:16.5px}
+.settimana dd{margin:0;font-size:16.5px;font-variant-numeric:tabular-nums}
 .settimana .chiuso dt,.settimana .chiuso dd{color:var(--osso-tenue)}
 .settimana .oggi-riga dt{color:var(--ottone);font-weight:600}
 .settimana .oggi-riga dd{color:var(--ottone)}
@@ -212,13 +251,12 @@ section{padding:clamp(60px,9vh,116px) var(--gutter)}
   grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start}
 address{font-style:normal;grid-column:1/-1;
   font-family:"Fraunces Variable",Georgia,serif;
-  font-variation-settings:"SOFT" 30,"WONK" 1,"opsz" 72;
   font-weight:300;font-size:clamp(1.9rem,4.6vw,3.1rem);line-height:1.16;
   letter-spacing:-.02em;margin-bottom:6px}
 address .cap{color:var(--osso-tenue)}
 .indicazioni{list-style:none;margin:0;padding:0;
-  display:flex;flex-direction:column;gap:9px;max-width:var(--misura);
-  color:var(--osso-fioco);font-size:16px}
+  display:flex;flex-direction:column;gap:11px;max-width:40ch;
+  color:var(--osso-fioco);font-size:16.5px;line-height:1.55}
 .indicazioni li{padding-left:16px;position:relative}
 .indicazioni li::before{content:"";position:absolute;left:0;top:.62em;
   width:7px;height:1px;background:var(--ottone)}
@@ -231,9 +269,8 @@ address .cap{color:var(--osso-tenue)}
   align-items:baseline;
 }
 .piede-nome{margin:0;font-family:"Fraunces Variable",Georgia,serif;
-  font-variation-settings:"SOFT" 20,"WONK" 1,"opsz" 36;
   font-weight:400;font-size:19px}
-.piede-dati{margin:0;color:var(--osso-fioco);font-size:15px}
+.piede-dati{margin:0;color:var(--osso-fioco);font-size:16px}
 
 .chiama-fisso{display:none}
 
@@ -242,41 +279,49 @@ address .cap{color:var(--osso-tenue)}
    ============================================================ */
 @media (max-width:860px){
   .apertura{grid-template-columns:1fr;gap:26px}
-  .rasoio{width:148%;margin-left:-24%;transform:rotate(-13deg)}
+  /* Niente bleed oltre il margine: tagliare il manico rendeva l'oggetto
+     irriconoscibile, restava in vista solo la lama e leggeva come una
+     penna. Su telefono il rasoio si vede intero. */
+  .rasoio{width:100%;margin-left:0}
   .orari-corpo,.dove-corpo{grid-template-columns:1fr}
   .dove-azioni{align-self:start}
 }
 
 @media (max-width:760px){
   .testata nav{display:none}          /* pagina corta: il menu è ingombro */
-  .tel-testata{margin-left:auto;display:inline-flex;align-items:center;
-    min-height:44px;padding-left:8px}
   .apertura{padding-top:22px;padding-bottom:clamp(44px,8vh,72px)}
   .apertura-azioni .azione{width:100%}
   .elenco li{gap:14px}
   .elenco li:hover{padding-left:0}    /* l'hover non esiste col dito */
   .dove-azioni{width:100%}
   .dove-azioni .azione{flex:1 1 100%}
-  .piede{padding-bottom:86px}         /* spazio per la chiamata fissa */
+  .piede{padding-bottom:96px}         /* spazio per chiamata fissa e pill */
+  .nota-concept{left:10px;bottom:10px}
+  .nota-concept summary{font-size:11.5px;padding:6px 11px}
 
   /* Barra di chiamata discreta: compare dopo l'apertura, così non
      copre la CTA che c'è già lì sopra. */
+  /* A destra, non al centro: al centro finiva accanto alla pastiglia
+     "Concept demo" in basso a sinistra, e le due si davano fastidio. */
   .chiama-fisso{
-    position:fixed;left:50%;bottom:14px;z-index:40;
+    position:fixed;right:14px;bottom:14px;z-index:40;
     display:inline-flex;align-items:center;gap:9px;
     padding:13px 24px;min-height:48px;border-radius:40px;
     background:var(--osso);color:var(--fondo);
     text-decoration:none;font-weight:700;font-size:16px;
     box-shadow:0 8px 26px rgba(0,0,0,.42);
-    transform:translate(-50%,120%);opacity:0;pointer-events:none;
+    transform:translateY(120%);opacity:0;pointer-events:none;
     transition:transform .3s ease,opacity .3s ease;
   }
-  .chiama-fisso.visibile{transform:translate(-50%,0);opacity:1;pointer-events:auto}
+  .chiama-fisso.visibile{transform:translateY(0);opacity:1;pointer-events:auto}
   .chiama-fisso svg{width:18px;height:18px}
 }
 
 @media (prefers-reduced-motion:reduce){
   .azione,.elenco li,.voce-num,.chiama-fisso{transition:none}
   .azione-piena:hover{transform:none}
-  .chiama-fisso{transform:translate(-50%,0);opacity:1;pointer-events:auto}
+  /* La chiamata fissa resta governata dallo scroll: farla comparire
+     sempre la metteva sopra la CTA dell'apertura, che è la stessa cosa
+     detta due volte. Senza movimento, appare e basta. */
+  .chiama-fisso.visibile{transform:none}
 }

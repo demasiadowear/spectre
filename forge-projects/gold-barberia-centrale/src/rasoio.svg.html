@@ -1,0 +1,98 @@
+<svg class="rasoio" viewBox="20 30 490 235" fill="none" role="img"
+     aria-label="Rasoio a mano libera aperto, con la lama ruotata fuori dal manico"
+     focusable="false">
+  <defs>
+    <linearGradient id="r-lama" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#A9BAC3"/>
+      <stop offset="30%"  stop-color="#E3ECF0"/>
+      <stop offset="62%"  stop-color="#BDCCD4"/>
+      <stop offset="100%" stop-color="#8FA3AE"/>
+    </linearGradient>
+    <linearGradient id="r-corno" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#3A2A1D"/>
+      <stop offset="52%"  stop-color="#150D08"/>
+      <stop offset="100%" stop-color="#2E2016"/>
+    </linearGradient>
+    <linearGradient id="r-brillio" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#fff" stop-opacity="0"/>
+      <stop offset="50%"  stop-color="#fff" stop-opacity=".9"/>
+      <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <!-- Il profilo del corpo lama, riusato per ritagliare il riflesso. -->
+    <clipPath id="r-taglio">
+      <path d="M224 177 L241 166 L401 166 Q412 166 412 177 L412 210
+               Q412 221 401 221 L239 221 Q224 221 222 206 Z"/>
+    </clipPath>
+  </defs>
+
+  <!-- ------------------------------------------------------------------
+       Il manico (le "guance", in corno). Sta fermo: è la lama che gira.
+       È più lungo della lama, perché la lama ci si deve poter richiudere
+       dentro: è la proporzione che distingue un rasoio da un coltello.
+       ------------------------------------------------------------------ -->
+  <g class="rasoio-manico">
+    <path d="M232 179 L470 181 Q488 182 488 195 Q488 208 470 209 L232 211
+             Q214 211 214 195 Q214 179 232 179 Z"
+          fill="url(#r-corno)"/>
+    <path d="M236 184 L468 186" stroke="#6A5236" stroke-width="1.4"
+          opacity=".55" stroke-linecap="round"/>
+    <circle cx="468" cy="195" r="3.4" fill="#C49A56"/>
+    <circle cx="468" cy="195" r="1.3" fill="#6B4E23"/>
+  </g>
+
+  <!-- ------------------------------------------------------------------
+       La lama. Disegnata CHIUSA (rotazione 0: coricata dentro il manico,
+       col filo rivolto verso il manico, come sta davvero da chiusa).
+       A riposo la pagina la mostra aperta a 140°, e il JS anima 0 → -140.
+       Così senza JavaScript, e con prefers-reduced-motion, il rasoio si
+       vede comunque aperto.
+       ------------------------------------------------------------------ -->
+  <g class="rasoio-lama" transform="rotate(-140 215 195)">
+
+    <!-- Il codolo: sporge OLTRE il perno, dalla parte opposta alla lama.
+         È il pezzo che si spinge col pollice per aprirla, ed è il
+         dettaglio che rende l'oggetto riconoscibile come pieghevole. -->
+    <path d="M152 185 L214 181 L214 209 L152 205 Q142 195 152 185 Z"
+          fill="#8DA0A9"/>
+    <g fill="#5A6C76">
+      <rect x="162" y="197" width="4" height="7.6" rx="1.4"/>
+      <rect x="172" y="198" width="4" height="7.6" rx="1.4"/>
+      <rect x="182" y="199" width="4" height="7.6" rx="1.4"/>
+    </g>
+
+    <!-- Il corpo: spalla al tallone, dorso dritto, punta quadra.
+         190 × 55, rapporto 3,4:1 — la proporzione di una lama da rasoio,
+         non di una lama da coltello. -->
+    <path class="rasoio-corpo"
+          d="M224 177 L241 166 L401 166 Q412 166 412 177 L412 210
+             Q412 221 401 221 L239 221 Q224 221 222 206 Z"
+          fill="url(#r-lama)"/>
+
+    <!-- Il dorso: la costa spessa, dritta, che un coltello non ha. -->
+    <path d="M243 171 L402 171" stroke="#2A3841" stroke-width="10"
+          stroke-linecap="round"/>
+    <path d="M245 168.5 L401 168.5" stroke="#EEF5F8" stroke-width="1.6"
+          stroke-linecap="round" opacity=".55"/>
+
+    <!-- La sguscia: l'incavo concavo dell'acciaio. -->
+    <path d="M236 190 Q320 183 406 189" stroke="#7E939F" stroke-width="1.3"
+          opacity=".8" fill="none"/>
+    <path d="M234 200 Q320 194 408 199" stroke="#7E939F" stroke-width="1.3"
+          opacity=".45" fill="none"/>
+
+    <!-- Il filo. -->
+    <path class="rasoio-filo" d="M232 219.6 L404 219.6"
+          stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round"/>
+
+    <!-- Il riflesso che corre sull'acciaio quando la lama finisce di aprirsi. -->
+    <g clip-path="url(#r-taglio)">
+      <rect class="rasoio-brillio" x="200" y="150" width="76" height="90"
+            fill="url(#r-brillio)" opacity=".6"/>
+    </g>
+  </g>
+
+  <!-- Il perno. Fuori dal gruppo che ruota: è il punto fermo attorno a
+       cui gira tutto, e si deve vedere. -->
+  <circle cx="215" cy="195" r="7" fill="#C49A56"/>
+  <circle cx="215" cy="195" r="2.6" fill="#6B4E23"/>
+</svg>
