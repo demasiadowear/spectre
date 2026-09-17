@@ -277,10 +277,17 @@ export interface CollectProgress {
   error: string;
 }
 
-/** Capacita del runtime. SOLO booleani: mai valori, prefissi o lunghezze. */
+/** Capacita del runtime. SOLO booleani: mai valori, prefissi o lunghezze.
+ *  `database_configured` dice che le variabili ci sono; `_reachable` che
+ *  l'host risponde; `_schema_present` che le tabelle esistono. Sono tre
+ *  guasti diversi che si sistemano in tre modi diversi, e unirli in un
+ *  solo booleano costringe a indovinare quale dei tre sia. */
 export interface CapabilityReport {
-  google_places_configured: boolean;
+  authentication_configured: boolean;
   database_configured: boolean;
+  database_reachable: boolean;
+  database_schema_present: boolean;
+  google_places_configured: boolean;
   storage_configured: boolean;
   browser_worker_configured: boolean;
   /** Nomi delle variabili che mancano, e in quale scope. Nomi, non valori. */

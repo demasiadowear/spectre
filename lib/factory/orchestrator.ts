@@ -23,6 +23,7 @@ import { prepareOutreach } from "./outreach";
 import { qaSummary, runQa } from "./qa";
 import {
   claimJob,
+  claimSpecificJob,
   completeJob,
   enqueueJob,
   failJob,
@@ -764,6 +765,68 @@ async function planDryRun(opts: RunWorkerOptions): Promise<WorkerResult> {
 }
 
 /** Esegue fino a `batch` job. Un job che fallisce non blocca gli altri. */
+export interface EsitoRunNow {
+  job_id: string;
+  lead_id: string;
+  kind: JobKind;
+  /** queued -> running -> completed | failed. */
+  stato: "completed" | "failed" | "not_claimed" | "paused" | "no_db";
+  outcome: string;
+  error: string;
+  ms: number;
+}
+
+/**
+ * Esegue UN job preciso, subito, fino in fondo.
+ *
+ * Serve all'operatore che ha premuto un bottone su un lead: accodare e
+ * basta lo lascerebbe ad aspettare il cron, e `runWorker` potrebbe
+ * prendere il job di un altro lead perche sceglie per priorita.
+ *
+ * Idempotente per costruzione: il claim e un UPDATE condizionale su
+ * `status = 'pending'`. Premere due volte non esegue due volte — la
+ * seconda trova il job gia preso e torna `not_claimed`.
+ *
+ * `FACTORY_PAUSED` viene rispettata: e l'interruttore con cui si ferma
+ * tutto, e un'azione manuale non deve poterlo scavalcare. Il tetto
+ * giornaliero invece no: quello governa i lotti automatici, mentre qui
+ * c'e una persona che ha chiesto esplicitamente questo lead.
+ */
+export async function runJobNow(jobId: string): Promise<EsitoRunNow> {
+  const t0 = Date.now();
+  const vuoto: EsitoRunNow = {
+    job_id: jobId, lead_id: "", kind: "collect_business_intelligence",
+    stato: "no_db", outcome: "", error: "", ms: 0,
+  };
+  if (!turso) return { ...vuoto, error: "database non configurato" };
+  if (isFactoryPaused()) {
+    return { ...vuoto, stato: "paused", error: "FACTORY_PAUSED attiva: nessun job viene eseguito" };
+  }
+
+  await ensureFactorySchema();
+  await recoverExpiredLeases();
+
+  const workerId = `run-now-${Date.now()}`;
+  const job = await claimSpecificJob(jobId, workerId);
+  if (!job) {
+    return { ...vuoto, stato: "not_claimed",
+      error: "job non piu in attesa: e gia stato preso, e gia finito, o non esiste" };
+  }
+
+  try {
+    const outcome = await HANDLERS[job.kind](job);
+    await completeJob(job.id, outcome);
+    return { job_id: job.id, lead_id: job.lead_id, kind: job.kind,
+      stato: "completed", outcome, error: "", ms: Date.now() - t0 };
+  } catch (err) {
+    const message = (err as Error).message;
+    const fatal = err instanceof FatalJobError;
+    await failJob(job.id, message, { fatal });
+    return { job_id: job.id, lead_id: job.lead_id, kind: job.kind,
+      stato: "failed", outcome: "", error: message, ms: Date.now() - t0 };
+  }
+}
+
 export async function runWorker(opts: RunWorkerOptions = {}): Promise<WorkerResult> {
   const batch = Math.min(Math.max(1, opts.batch ?? DEFAULT_BATCH), MAX_BATCH);
   const workerId = opts.workerId ?? `worker-${process.pid}-${Date.now()}`;

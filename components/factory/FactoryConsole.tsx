@@ -108,15 +108,21 @@ export default function FactoryConsole() {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
   const [lastRun, setLastRun] = useState<WorkerRun | null>(null);
+  // Finche autenticazione e database non sono pronti i comandi restano
+  // spenti: un worker che gira su un database irraggiungibile brucia
+  // tentativi e segna come falliti job che non ha nemmeno provato.
+  const [pronto, setPronto] = useState<{ pronto: boolean; motivi: string[] } | null>(null);
 
   const load = useCallback(async () => {
     setError("");
     try {
-      const [q, p, f] = await Promise.all([
+      const [q, p, f, st] = await Promise.all([
         api<JobsPayload>("/api/factory/jobs?limit=60"),
         api<ForgeProject[]>("/api/factory/projects?limit=100"),
         api<Followup[]>("/api/factory/followups?open=1"),
+        api<{ pronto: boolean; motivi: string[] }>("/api/collector/capability"),
       ]);
+      setPronto({ pronto: st.pronto, motivi: st.motivi });
       setJobs(q.jobs);
       setCounts(q.counts);
       setProjects(p);
@@ -218,12 +224,24 @@ export default function FactoryConsole() {
 
       {/* ----- Comandi + stato coda ----- */}
       <GlassCard className="p-4">
+        {pronto && !pronto.pronto && (
+          <div className="mb-3 rounded-sm border border-danger/40 bg-danger/5 p-2.5">
+            <p className="flex items-center gap-1.5 text-[11px] font-medium text-danger">
+              <AlertTriangle className="h-3.5 w-3.5" aria-hidden /> Comandi disabilitati
+            </p>
+            <ul className="mt-1 space-y-1">
+              {pronto.motivi.map((m) => (
+                <li key={m} className="text-[11px] leading-snug text-text2">— {m}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-2">
-          <NeonButton size="sm" variant="ghost" onClick={() => void runWorker(true)} disabled={running}>
+          <NeonButton size="sm" variant="ghost" onClick={() => void runWorker(true)} disabled={running || !pronto?.pronto}>
             <ShieldQuestion className="h-3.5 w-3.5" aria-hidden />
             Prova senza eseguire
           </NeonButton>
-          <NeonButton size="sm" filled onClick={() => void runWorker(false)} disabled={running}>
+          <NeonButton size="sm" filled onClick={() => void runWorker(false)} disabled={running || !pronto?.pronto}>
             {running ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
             ) : (

@@ -1,22 +1,39 @@
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import { authState, ENV_AUTH_SECRET } from "./auth-mode";
 
 // ============================================================
-// AYRO SPECTRE — single-tenant auth (NextAuth v4, Credentials).
-// One operator. Username + password live in env. When no password
-// is configured the whole app runs OPEN (dev bypass + banner) so
-// SPECTRE never blocks a zero-config demo. JWT sessions, no DB.
+// AYRO SPECTRE — autenticazione a operatore unico (NextAuth v4).
+//
+// La regola e in lib/auth-mode.ts e qui si applica soltanto. Due cose
+// che prima erano sbagliate e ora non lo sono:
+//
+//  1. l'assenza della password NON apre piu l'applicazione. Apre solo
+//     una opt-in esplicita, e solo in locale;
+//  2. `NEXTAUTH_SECRET` non ha piu un valore di ripiego. Il ripiego era
+//     una stringa fissa scritta in un repository pubblico: chiunque
+//     l'avesse letta poteva firmarsi un token valido, anche con la
+//     password configurata. In modalita `enforced` il segreto deve
+//     esserci, e senza non si firma niente.
 // ============================================================
 
 export const SPECTRE_USER = process.env.SPECTRE_USER || "puccio";
 const SPECTRE_PASSWORD = process.env.SPECTRE_PASSWORD ?? "";
 
-/** Dev fallback so the app boots even without NEXTAUTH_SECRET (demo mode). */
-export const AUTH_SECRET =
-  process.env.NEXTAUTH_SECRET || "spectre-dev-secret-not-for-production";
+const STATO = authState();
 
-/** True when no password is set → auth is bypassed and the DEV banner shows. */
-export const AUTH_DISABLED = SPECTRE_PASSWORD.length === 0;
+/** Vero SOLO in modalita sviluppo aperta, chiesta esplicitamente.
+ *  `not_configured` non e "aperto": e chiuso, e risponde 503. */
+export const AUTH_DISABLED = STATO.open;
+export const AUTH_MODE = STATO.mode;
+export const AUTH_STATE = STATO;
+
+/** Il segreto di firma. In `dev_open` si usa un valore locale, che non
+ *  protegge niente ma nemmeno pretende di farlo; altrove e quello
+ *  configurato, e se manca la modalita e `not_configured` e nessuna
+ *  richiesta arriva fin qui. */
+export const AUTH_SECRET =
+  process.env[ENV_AUTH_SECRET] || (STATO.open ? "spectre-dev-solo-locale" : "");
 
 export const authOptions: NextAuthOptions = {
   secret: AUTH_SECRET,
@@ -30,8 +47,11 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Codice", type: "password" },
       },
       authorize(credentials) {
-        // No password configured → accept the operator unconditionally.
-        if (AUTH_DISABLED) {
+        // Senza configurazione non si entra: prima questo ramo
+        // accettava chiunque ogni volta che la password mancava.
+        if (STATO.mode === "not_configured") return null;
+
+        if (STATO.open) {
           return { id: "spectre", name: SPECTRE_USER };
         }
         if (

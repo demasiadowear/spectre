@@ -185,6 +185,38 @@ export async function claimJob(workerId: string, kinds?: JobKind[]): Promise<Age
   return null;
 }
 
+/**
+ * Claim atomico di UN job preciso.
+ *
+ * `claimJob` prende il piu urgente del tipo richiesto, che puo essere
+ * di un altro lead: va bene per il worker periodico, non per un
+ * operatore che ha premuto un bottone su un lead specifico e si
+ * aspetta che giri quello.
+ *
+ * Stessa tecnica: UPDATE condizionale su `status = 'pending'`. Se
+ * qualcun altro l'ha gia preso, `rowsAffected` e 0 e qui torna null
+ * invece di rubarlo.
+ */
+export async function claimSpecificJob(id: string, workerId: string): Promise<AgentJob | null> {
+  if (!turso) return null;
+  await ensureFactorySchema();
+  const now = nowIso();
+  const rs = await turso.execute({
+    sql: `update agent_jobs
+             set status = 'running', worker_id = ?, leased_until = ?,
+                 started_at = ?, attempts = attempts + 1, updated_at = ?
+           where id = ? and status = 'pending' and due_at <= ?
+           returning id`,
+    args: [workerId, plus(LEASE_MS), now, now, id, now],
+  });
+  if (rs.rows.length === 0) return null;
+  const claimed = await turso.execute({
+    sql: "select * from agent_jobs where id = ? limit 1",
+    args: [id],
+  });
+  return claimed.rows[0] ? rowToJob(claimed.rows[0] as Record<string, unknown>) : null;
+}
+
 /** Prolunga il lease di un job lungo (QA con browser, ricerche). */
 export async function extendLease(id: string, workerId: string): Promise<boolean> {
   if (!turso) return false;

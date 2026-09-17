@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { isCronAuthorized } from "@/lib/autopilot/cron-auth";
+import { statoOperativo } from "@/lib/collector/pronto";
 import { DEFAULT_BATCH, MAX_BATCH, runWorker, type WorkerResult } from "@/lib/factory/orchestrator";
 import type { ApiResponse } from "@/types";
 import type { JobKind } from "@/types/factory";
@@ -26,6 +27,7 @@ export const maxDuration = 300;
 const VALID_KINDS: JobKind[] = [
   "analyze_website",
   "research_business",
+  "collect_business_intelligence",
   "generate_site",
   "run_site_qa",
   "prepare_outreach",
@@ -44,8 +46,23 @@ const unauthorized = () =>
     { status: 401 },
   );
 
+/** Nessun job viene accodato o processato finche autenticazione e
+ *  database non sono pronti. Vale per il cron quanto per l'operatore:
+ *  un worker che gira su un database irraggiungibile brucia tentativi e
+ *  segna come falliti job che non ha nemmeno provato. */
+async function bloccoOperativo(): Promise<NextResponse | null> {
+  const stato = await statoOperativo();
+  if (stato.pronto) return null;
+  return NextResponse.json<ApiResponse<never>>(
+    { success: false, error: stato.motivi.join(" · ") },
+    { status: 503 },
+  );
+}
+
 export async function GET(req: Request) {
   if (!(await authorize(req))) return unauthorized();
+  const bloccato = await bloccoOperativo();
+  if (bloccato) return bloccato;
   try {
     const result = await runWorker({ batch: DEFAULT_BATCH });
     return NextResponse.json<ApiResponse<WorkerResult>>({ success: true, data: result });
@@ -59,6 +76,8 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   if (!(await authorize(req))) return unauthorized();
+  const bloccato = await bloccoOperativo();
+  if (bloccato) return bloccato;
   try {
     const body: unknown = await req.json().catch(() => ({}));
     const raw = (body ?? {}) as Record<string, unknown>;

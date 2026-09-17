@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import GlassCard from "@/components/ui/spectre/GlassCard";
 import CollectorPanel from "./CollectorPanel";
+import PannelloStato, { type StatoRuntime } from "./PannelloStato";
 import type { ApiResponse, Lead } from "@/types";
 
 // ============================================================
@@ -22,6 +23,7 @@ const CHIAVE = "specter.collector.lead";
 
 export default function CollectorSezione() {
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [stato, setStato] = useState<StatoRuntime | null>(null);
   const [leadId, setLeadId] = useState("");
   const [caricamento, setCaricamento] = useState(true);
   const [errore, setErrore] = useState("");
@@ -30,7 +32,16 @@ export default function CollectorSezione() {
     let vivo = true;
     void (async () => {
       try {
-        const res = await fetch("/api/leads");
+        // Lo stato del runtime si legge PRIMA dei lead: se il database
+        // non e raggiungibile, un elenco vuoto non vuol dire «nessun
+        // lead», vuol dire «non l'ho potuto chiedere».
+        const [resStato, res] = await Promise.all([
+          fetch("/api/collector/capability"),
+          fetch("/api/leads"),
+        ]);
+        const jStato = (await resStato.json()) as ApiResponse<StatoRuntime>;
+        if (vivo && jStato.success && jStato.data) setStato(jStato.data);
+
         const j = (await res.json()) as ApiResponse<Lead[]>;
         if (!vivo) return;
         if (!j.success) throw new Error(j.error ?? "impossibile leggere i lead");
@@ -68,26 +79,30 @@ export default function CollectorSezione() {
     );
   }
 
-  // Un elenco vuoto va detto, non mostrato come una tendina muta: senza
-  // questo si resta a fissare un campo vuoto senza capire se e un
-  // difetto o se davvero non c'e niente.
+  // Un elenco vuoto non e piu una frase sola per quattro cause: il
+  // pannello di stato dice QUALE delle cinque situazioni e, e cosa
+  // fare. Qui si aggiunge solo la conseguenza sul collector.
   if (leads.length === 0) {
     return (
-      <GlassCard className="p-4">
-        <p className="font-ui text-[11px] font-semibold uppercase tracking-[0.12em] text-text2">
-          Lead su cui raccogliere
-        </p>
-        <p className="mt-2 text-xs leading-snug text-text2">
-          Nessun lead disponibile. Il collector parte sempre da un lead esistente,
-          quindi finché la pipeline è vuota — o il database non è raggiungibile da
-          questo ambiente — non c&apos;è niente su cui raccogliere.
-        </p>
-      </GlassCard>
+      <div className="space-y-3">
+        {stato && <PannelloStato stato={stato} />}
+        <GlassCard className="p-4">
+          <p className="font-ui text-[11px] font-semibold uppercase tracking-[0.12em] text-text2">
+            Lead su cui raccogliere
+          </p>
+          <p className="mt-2 text-xs leading-snug text-text2">
+            {stato?.database.stato === "database_empty"
+              ? "Il database risponde e lo schema c'è, ma la tabella dei lead è vuota: non c'è ancora niente su cui raccogliere."
+              : "Elenco dei lead non disponibile: vedi lo stato del runtime qui sopra per il motivo preciso."}
+          </p>
+        </GlassCard>
+      </div>
     );
   }
 
   return (
     <div className="space-y-3">
+      {stato && <PannelloStato stato={stato} />}
       <GlassCard className="p-4">
         <label htmlFor="collector-lead" className="block font-ui text-[11px] font-semibold uppercase tracking-[0.12em] text-text2">
           Lead su cui raccogliere

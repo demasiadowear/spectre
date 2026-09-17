@@ -9,9 +9,10 @@ import GlassCard from "@/components/ui/spectre/GlassCard";
 import NeonButton from "@/components/ui/spectre/NeonButton";
 import { cn } from "@/lib/utils";
 import type {
-  BusinessDossier, CapabilityReport, CollectPhase, IdentityCandidate,
+  BusinessDossier, CollectPhase, IdentityCandidate,
   MediaCandidate, PhaseState, RightsStatus,
 } from "@/types/dossier";
+import type { StatoRuntime } from "./PannelloStato";
 
 // ============================================================
 // «Raccogli dati e fotografie».
@@ -80,7 +81,7 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
 
 export default function CollectorPanel({ leadId, leadName }: { leadId: string; leadName?: string }) {
   const [dati, setDati] = useState<RispostaDossier | null>(null);
-  const [cap, setCap] = useState<(CapabilityReport & { note: string[] }) | null>(null);
+  const [cap, setCap] = useState<StatoRuntime | null>(null);
   const [inCorso, setInCorso] = useState(false);
   const [faseCorrente, setFaseCorrente] = useState<CollectPhase | null>(null);
   const [errore, setErrore] = useState("");
@@ -90,7 +91,7 @@ export default function CollectorPanel({ leadId, leadName }: { leadId: string; l
     try {
       const [d, c] = await Promise.all([
         api<RispostaDossier>(`/api/collector/dossier?lead_id=${encodeURIComponent(leadId)}`),
-        api<CapabilityReport & { note: string[] }>("/api/collector/capability"),
+        api<StatoRuntime>("/api/collector/capability"),
       ]);
       setDati(d);
       setCap(c);
@@ -142,6 +143,9 @@ export default function CollectorPanel({ leadId, leadName }: { leadId: string; l
 
   const d = dati?.dossier ?? null;
   const fallite = (dati?.phases ?? []).filter((p) => p.status === "failed");
+  // Il bottone e spento finche il runtime non e pronto, e la stessa
+  // funzione decide sul server: se e acceso qui, la rotta accetta.
+  const bloccato = cap ? !cap.pronto : true;
 
   return (
     <GlassCard className="p-4 sm:p-5">
@@ -161,7 +165,7 @@ export default function CollectorPanel({ leadId, leadName }: { leadId: string; l
           size="md"
           // Bersaglio pieno su telefono, compatto da 640px in su.
           className="w-full sm:w-auto min-h-[44px]"
-          disabled={inCorso || cap?.google_places_configured === false}
+          disabled={inCorso || bloccato}
           onClick={() => void avvia()}
         >
           {inCorso
@@ -170,8 +174,23 @@ export default function CollectorPanel({ leadId, leadName }: { leadId: string; l
         </NeonButton>
       </div>
 
-      {/* Capacita mancanti: si dicono per nome, mai col valore. */}
-      {cap && cap.note.length > 0 && (
+      {/* Perche il bottone e spento. Il dettaglio completo sta nel
+          pannello di stato sopra: qui si dice solo la conseguenza. */}
+      {cap && !cap.pronto && (
+        <div className="mt-3 rounded-sm border border-danger/40 bg-danger/5 p-2.5">
+          <p className="flex items-center gap-1.5 text-[11px] font-medium text-danger">
+            <AlertTriangle className="h-3.5 w-3.5" /> «Raccogli» è disabilitato
+          </p>
+          <ul className="mt-1 space-y-1">
+            {cap.motivi.map((m) => (
+              <li key={m} className="text-[11px] leading-snug text-text2">— {m}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Capacita presenti ma parziali: non bloccano, ma cambiano l'esito. */}
+      {cap && cap.pronto && cap.note.length > 0 && (
         <ul className="mt-3 space-y-1">
           {cap.note.map((n) => (
             <li key={n} className="flex gap-2 text-[11px] leading-snug text-text2">
@@ -226,6 +245,7 @@ export default function CollectorPanel({ leadId, leadName }: { leadId: string; l
           <NeonButton
             variant="magenta" size="sm"
             className="mt-2 min-h-[40px] w-full sm:w-auto"
+            disabled={bloccato}
             onClick={() => void avvia(fallite.map((p) => p.phase))}
           >
             <RefreshCw className="h-3.5 w-3.5" /> Riprova solo queste

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { capabilities } from "@/lib/collector/capability";
 import { leggiDossier } from "@/lib/collector/db";
+import { statoOperativo } from "@/lib/collector/pronto";
 import { getLeadById } from "@/lib/data";
 import { enqueueJob } from "@/lib/factory/queue";
-import { runWorker } from "@/lib/factory/orchestrator";
+import { runJobNow } from "@/lib/factory/orchestrator";
 import { FASI, type CollectPhase } from "@/types/dossier";
 import type { ApiResponse } from "@/types";
 
@@ -41,21 +41,22 @@ export async function POST(req: Request) {
 
     // Il lead deve esistere davvero: un id inventato non deve nemmeno
     // arrivare a mettere un job in coda.
+    // Si controlla PRIMA di toccare qualunque cosa: finche
+    // autenticazione e database non sono pronti non si accoda nulla e
+    // non si esegue nulla. La stessa funzione accende o spegne il
+    // bottone nella dashboard, cosi non esistono due idee di «pronto».
+    const stato = await statoOperativo();
+    if (!stato.pronto) {
+      return NextResponse.json<ApiResponse<never>>(
+        { success: false, error: stato.motivi.join(" · ") },
+        { status: 503 },
+      );
+    }
+
     const lead = await getLeadById(leadId);
     if (!lead) {
       return NextResponse.json<ApiResponse<never>>(
         { success: false, error: "lead inesistente" }, { status: 404 },
-      );
-    }
-
-    const cap = capabilities();
-    if (!cap.google_places_configured) {
-      return NextResponse.json<ApiResponse<never>>(
-        {
-          success: false,
-          error: `GOOGLE_PLACES_API_KEY non configurata in questo scope (${cap.missing.find((m) => m.name === "GOOGLE_PLACES_API_KEY")?.scope ?? "?"}): senza Places la raccolta non ha un'ancora e non parte.`,
-        },
-        { status: 412 },
       );
     }
 
@@ -79,26 +80,32 @@ export async function POST(req: Request) {
       idempotent: solo.length === 0,
     });
 
-    // Si esegue subito: chi preme il bottone si aspetta un esito, non
-    // una promessa. Il lotto e uno solo e del solo tipo richiesto, cosi
-    // il bottone non trascina dentro altro lavoro della Factory.
-    const run = await runWorker({ batch: 1, kinds: ["collect_business_intelligence"] });
+    // Si esegue QUESTO job, non «un job di questo tipo»: chi preme il
+    // bottone su un lead si aspetta che giri quello. Il worker
+    // periodico sceglie per priorita e poteva prendere il job di un
+    // altro lead, il che in un collaudo e indistinguibile da un difetto.
+    const run = await runJobNow(accodato.id);
     const salvato = await leggiDossier(leadId);
 
     return NextResponse.json<ApiResponse<{
       job_id: string;
+      lead_id: string;
       enqueued: boolean;
-      eseguito: boolean;
+      stato: string;
       esito: string;
+      errore: string;
+      ms: number;
       recommendation: string;
     }>>({
       success: true,
       data: {
-        job_id: accodato.id,
+        job_id: run.job_id || accodato.id,
+        lead_id: run.lead_id || leadId,
         enqueued: accodato.created,
-        eseguito: run.succeeded > 0,
-        esito: run.details.map((d) => d.outcome).join(" · ")
-          || (run.paused ? "Factory in pausa (FACTORY_PAUSED)" : "nessun job eseguito"),
+        stato: run.stato,
+        esito: run.outcome,
+        errore: run.error,
+        ms: run.ms,
         recommendation: salvato?.recommendation ?? "",
       },
     });

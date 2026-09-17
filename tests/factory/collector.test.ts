@@ -158,7 +158,9 @@ test("capability: restituisce booleani e nomi, mai valori", () => {
   const nomi = c.missing.map((m) => m.name);
   assert.ok(nomi.includes("MEDIA_STORAGE_URL"));
   assert.ok(nomi.includes("BROWSER_WORKER_URL"));
-  assert.equal(c.missing[0].scope, "preview");
+  // Lo scope distingue Preview da Production: e li che si sbaglia, e
+  // "preview" da solo non lo direbbe.
+  assert.equal(c.missing[0].scope, "vercel:preview");
 });
 
 test("capability: una variabile vuota o di soli spazi non e configurata", () => {

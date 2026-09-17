@@ -11,7 +11,9 @@
 // racconta quale servizio l'ha emessa.
 // ============================================================
 
+import { authState, ENV_AUTH_PASSWORD, ENV_AUTH_SECRET } from "@/lib/auth-mode";
 import type { CapabilityReport } from "@/types/dossier";
+import type { DiagnosiDatabase } from "./diagnostica";
 
 /** Presenza, e basta. Il valore non esce da questa funzione. */
 function configurata(env: NodeJS.ProcessEnv, nome: string): boolean {
@@ -30,7 +32,18 @@ export const ENV_STORAGE = "MEDIA_STORAGE_URL";
 /** Browser Playwright remoto: la fase successiva del collector. */
 export const ENV_BROWSER = "BROWSER_WORKER_URL";
 
-export function capabilities(env: NodeJS.ProcessEnv = process.env): CapabilityReport {
+/**
+ * `diagnosi` arriva da chi ha gia interrogato il database: qui non si
+ * tocca la rete, cosi questa funzione resta pura e testabile. Senza
+ * diagnosi si riporta solo cio che si sa dalle variabili, e
+ * raggiungibilita e schema restano falsi — che e la verita, non un
+ * ottimismo.
+ */
+export function capabilities(
+  env: NodeJS.ProcessEnv = process.env,
+  diagnosi?: DiagnosiDatabase,
+): CapabilityReport {
+  const auth = authState(env);
   const google = configurata(env, ENV_GOOGLE);
   const db = configurata(env, ENV_DB_URL) && configurata(env, ENV_DB_TOKEN);
   const storage = configurata(env, ENV_STORAGE);
@@ -39,8 +52,9 @@ export function capabilities(env: NodeJS.ProcessEnv = process.env): CapabilityRe
   // Lo scope conta quanto il nome: una variabile presente in Production
   // e assente in Preview fa fallire il branch e non la produzione, e
   // senza questa riga si passerebbe un'ora a cercare il motivo.
-  const scope = env.VERCEL_ENV || (env.VERCEL ? "vercel" : "locale");
+  const scope = auth.scope;
   const missing: CapabilityReport["missing"] = [];
+  for (const n of auth.missing) missing.push({ name: n, scope });
   if (!google) missing.push({ name: ENV_GOOGLE, scope });
   if (!configurata(env, ENV_DB_URL)) missing.push({ name: ENV_DB_URL, scope });
   if (!configurata(env, ENV_DB_TOKEN)) missing.push({ name: ENV_DB_TOKEN, scope });
@@ -48,18 +62,33 @@ export function capabilities(env: NodeJS.ProcessEnv = process.env): CapabilityRe
   if (!browser) missing.push({ name: ENV_BROWSER, scope });
 
   return {
-    google_places_configured: google,
+    // `enforced` e l'unico stato in cui l'autenticazione protegge
+    // qualcosa: `dev_open` e aperta per scelta, `not_configured` e
+    // chiusa perche rotta, e nessuna delle due e "configurata".
+    authentication_configured: auth.mode === "enforced",
     database_configured: db,
+    database_reachable: diagnosi
+      ? diagnosi.stato !== "database_not_configured" && diagnosi.stato !== "database_unreachable"
+      : false,
+    database_schema_present: diagnosi
+      ? diagnosi.stato === "database_empty" || diagnosi.stato === "database_ready"
+      : false,
+    google_places_configured: google,
     storage_configured: storage,
     browser_worker_configured: browser,
     missing,
   };
 }
 
+export { ENV_AUTH_PASSWORD, ENV_AUTH_SECRET };
+
 /** Quello che si puo fare senza una capacita, detto in italiano, per la
  *  dashboard. Nessuna capacita mancante deve produrre un errore opaco. */
 export function spiegaCapacita(c: CapabilityReport): string[] {
   const note: string[] = [];
+  if (!c.authentication_configured) {
+    note.push(`Autenticazione non in vigore: servono ${ENV_AUTH_PASSWORD} e ${ENV_AUTH_SECRET}. Finche non ci sono, nessuna azione e abilitata.`);
+  }
   if (!c.google_places_configured) {
     note.push(`${ENV_GOOGLE} non configurata in questo scope: senza, la fonte Places non parte e il dossier non ha un'ancora.`);
   }
