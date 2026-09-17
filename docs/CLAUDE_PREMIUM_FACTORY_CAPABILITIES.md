@@ -273,3 +273,126 @@ worker separato.
    della Fase 4, e la sua regola editoriale ("se una parte del piano
    somiglia al default, riscrivila") è stata applicata prima di scrivere
    codice.
+
+---
+
+# Inventario PC locale
+
+> Aggiunto il 2026-09-17, seconda sessione. La sezione precedente
+> riguarda lo stesso ambiente e **resta valida per confronto**: non è
+> stata cancellata, ma due delle sue conclusioni erano sbagliate e sono
+> corrette qui sotto.
+
+## 1. La sessione NON gira su un PC personale
+
+Verificato prima di qualsiasi altra cosa:
+
+| Controllo | Esito |
+|---|---|
+| hostname / utente / home | `vm` · `root` · `/root` |
+| `CCR_AGENT_PROXY_ENABLED`, `CCR_UPSTREAM_PROXY_ENABLED` | **presenti** (Claude Code Remote) |
+| `/opt/claude-code`, `/opt/pw-browsers` | presenti (immagine del container) |
+| `/mnt/c`, `/Users`, `~/Desktop` | **nessuno montato** |
+| working directory | `/home/user/spectre`, stesso clone, stesso branch |
+
+Non esiste un `%USERPROFILE%` da ispezionare. È lo stesso container
+remoto della sessione precedente.
+
+## 2. Due errori del mio inventario precedente
+
+### 2.1 `/mnt/skills` non era stato cercato
+
+La ricerca precedente guardava solo `~/.claude/skills` e le stringhe
+dentro il binario della CLI. **Esiste un albero di skill in
+`/mnt/skills`** che contiene skill di design vere. L'affermazione
+«nessuna skill di web design è installata» era **falsa**.
+
+```
+find / -name "SKILL.md" -not -path "*/node_modules/*"
+```
+
+### 2.2 Lighthouse è disponibile
+
+`npx lighthouse --version` → **13.4.1**. La sezione precedente lo dava
+per non installato e dichiarava che non avrei riportato punteggi. Ora i
+punteggi ci sono, misurati (vedi §5).
+
+## 3. Inventario completo
+
+| Nome | Tipo | Percorso | Descrizione | Utilità per Forge | Portabile | Licenza |
+|---|---|---|---|---|---|---|
+| `frontend-design` | **skill** | `/mnt/skills/public/frontend-design` | Direzione visiva, tipografia, elenco dei tell delle pagine generate | **Altissima** | **sì, copiata** | Apache 2.0 |
+| `algorithmic-art` | skill | `/mnt/skills/examples/algorithmic-art` | Arte generativa con p5.js | media | sì ma non copiata | Apache 2.0 |
+| `canvas-design` | skill | `/mnt/skills/examples/canvas-design` | Poster e PDF statici | bassa | sì ma non copiata | Apache 2.0 |
+| `theme-factory` | skill | `/mnt/skills/examples/theme-factory` | 10 temi preconfezionati | **negativa** | no per scelta | Apache 2.0 |
+| `brand-guidelines` | skill | `/mnt/skills/examples/brand-guidelines` | Identità **di Anthropic** | nessuna | no per scelta | Apache 2.0 |
+| `web-artifacts-builder` | skill | `/mnt/skills/examples/web-artifacts-builder` | React + Tailwind + shadcn | **negativa** | no per scelta | Apache 2.0 |
+| `paint` | skill | `/mnt/skills/examples/paint` | Illustrazione ad acquerello via codice | bassa | sì ma non copiata | Apache 2.0 |
+| `skill-creator` | skill | `/mnt/skills/examples/skill-creator` | Creare e valutare skill | **alta (strumento)** | non serve nel runner | Apache 2.0 |
+| `built-in-browser`, `computer-use` | skill | `/mnt/skills/examples/` | Browser e desktop dell'utente | nessuna qui | **no**: il campo `compatibility` le limita all'app desktop | Apache 2.0 |
+| `docx`, `pdf`, `pptx`, `xlsx`, `file-reading`, `product-self-knowledge` | skill | `/mnt/skills/public/` | Documenti e fogli | nessuna | — | Apache 2.0 |
+| altre 20 in `/mnt/skills/examples/` | skill | — | spesa, viaggi, ricette, ricerca… | nessuna | — | Apache 2.0 |
+| `session-start-hook`, `docx`, `import-memory`, `morning`, `pdf`, `pptx`, `skill-creator`, `xlsx` | skill | `~/.claude/skills/` | sincronizzate dall'account | nessuna per il design | — | — |
+| `artifact-design`, `dataviz`, `code-review`, `simplify`, `security-review`, … | **capacità CLI** | dentro il binario, nessun percorso | invocabili con `Skill` | media | no | — |
+| `design` + altri 15 | **plugin** | catalogo claude.ai | processo, non costruzione | nessuna | no | — |
+| Vercel, GitHub, Canva, Notion… | **MCP** | — | deploy, repo, asset | varia | no | — |
+| `gsap`, `three`, `lenis`, `@fontsource*`, `vite` | **libreria npm** | registro npm | — | alta | sì (package.json) | MIT/OFL |
+| `playwright-core` + Chromium | libreria + binario | `/opt/pw-browsers/chromium` | QA visivo | alta | sì | Apache 2.0 |
+| `lighthouse` | **libreria npm** | via `npx` (13.4.1) | audit | alta | sì | Apache 2.0 |
+| skill GSAP / Three.js / motion / SEO / visual QA | **NON esistono** | — | — | — | — | — |
+
+**GSAP e Three.js sono librerie npm, non skill.** Non esiste nessuna
+skill che le riguardi: le competenze le porta il modello.
+
+## 4. Skill rese portabili nel repository
+
+In `.claude/skills/`, con `PROVENIENZA.md` che elenca licenze, origine e
+le esclusioni motivate. Niente symlink: nel runner cloud non
+funzionerebbero.
+
+- **copiata**: `frontend-design` (Apache 2.0, `LICENSE.txt` accanto,
+  `SKILL.md` non modificato);
+- **scritte**: `forge-creative-direction`, `typography-editorial`,
+  `gsap-motion-design`, `threejs-webgl-direction`, `asset-art-direction`,
+  `responsive-mobile-first`, `visual-qa`, `performance-accessibility`,
+  `conversion-copy`.
+
+Non è stata scritta `premium-frontend-design`: sarebbe stata un doppione
+di `frontend-design`, e due skill che dicono le stesse cose con parole
+diverse si contraddicono al primo disaccordo. Le nove scritte
+**rimandano** a `frontend-design` invece di ripeterla.
+
+## 5. Test di portabilità
+
+Eseguito con `claude -p` da una sessione nuova nella root del repo.
+
+| Test | Esito |
+|---|---|
+| Elenca le skill della Premium Factory | **9 su 9** elencate correttamente |
+| `frontend-design` è scoperta dal repo? | **sì** |
+| Sa quando usare GSAP e la regola che non si viola? | **sì** — due gesti; il movimento allo scroll non sposta né nasconde il contenuto; offset solo via GSAP |
+| Sa quando rifiutare Three.js? | **sì** — i quattro test, e cita i 19 fps che hanno bocciato una direzione |
+| Richiede file presenti solo sul PC? | **no** — nessun percorso assoluto nei `SKILL.md` |
+| Accede a credenziali? | **no** — nessun riferimento a segreti o `.env` |
+
+## 6. Lighthouse, misurato
+
+Sul sito gold standard servito in locale, Lighthouse 13.4.1:
+
+| Categoria | Prima | Dopo |
+|---|---|---|
+| Performance | 99 | **99** |
+| Accessibility | 100 | **100** |
+| Best Practices | 96 | **100** |
+| SEO | 54 | **54** |
+
+FCP 1,7 s · LCP 1,7 s · CLS 0,005 · TBT 0 ms.
+
+**SEO 54 è voluto**: gli unici due controlli falliti sono *"Page is
+blocked from indexing"* e *"robots.txt is not valid"*, cioè il
+`noindex, nofollow` che una pagina dimostrativa deve avere. Su un sito
+vero si toglie e il punteggio sale.
+
+Best Practices è passato da 96 a 100 togliendo l'unico errore in
+console: un 404 sul favicon, che il browser chiede da solo. Risolto con
+un'icona SVG inline come data URI — nessuna richiesta in più.
