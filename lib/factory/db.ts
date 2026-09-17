@@ -90,7 +90,12 @@ export async function ensureFactorySchema(): Promise<void> {
       finished_at      text,
       outcome          text default '',
       error            text default '',
-      idempotency_key  text default '',
+      -- null = nessuna chiave (job concluso o volutamente ripetibile).
+      -- NON stringa vuota: l'indice unico qui sotto è TOTALE, perché
+      -- "on conflict(col)" in SQLite non accetta un indice parziale come
+      -- bersaglio. SQLite considera i null tutti distinti, quindi più
+      -- job senza chiave convivono senza collidere.
+      idempotency_key  text,
       created_at       text default (datetime('now')),
       updated_at       text default (datetime('now'))
     );
@@ -132,7 +137,8 @@ export async function ensureFactorySchema(): Promise<void> {
       due_at           text not null,
       completed_at     text,
       assigned_to      text default 'puccio',
-      dedup_key        text default '',
+      -- Come idempotency_key: null = nessun dedup, indice unico totale.
+      dedup_key        text,
       created_at       text default (datetime('now')),
       updated_at       text default (datetime('now'))
     );
@@ -145,7 +151,7 @@ export async function ensureFactorySchema(): Promise<void> {
       viewed_at        text default (datetime('now'))
     );
     create unique index if not exists idx_agent_jobs_idem
-      on agent_jobs(idempotency_key) where idempotency_key <> '';
+      on agent_jobs(idempotency_key);
     create index if not exists idx_agent_jobs_claim on agent_jobs(status, due_at, priority);
     create index if not exists idx_agent_jobs_lead on agent_jobs(lead_id, kind);
     create index if not exists idx_forge_lead on forge_projects(lead_id);
@@ -154,7 +160,7 @@ export async function ensureFactorySchema(): Promise<void> {
     create index if not exists idx_contact_facts_lead on contact_facts(lead_id, field);
     create index if not exists idx_followups_due on followups(due_at, completed_at);
     create unique index if not exists idx_followups_dedup
-      on followups(dedup_key) where dedup_key <> '';
+      on followups(dedup_key);
     create index if not exists idx_demo_views_project on demo_views(forge_project_id, viewed_at);
   `);
 

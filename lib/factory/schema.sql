@@ -55,7 +55,10 @@ create table if not exists agent_jobs (
   outcome          text default '',
   error            text default '',
   -- Un solo job vivo per (lead, kind): anti-duplicato del dispatcher.
-  idempotency_key  text default '',
+  -- null = nessuna chiave. NON stringa vuota: l'indice unico è TOTALE
+  -- perché "on conflict(col)" non accetta un indice parziale come
+  -- bersaglio, e SQLite considera i null tutti distinti.
+  idempotency_key  text,
   created_at       text default (datetime('now')),
   updated_at       text default (datetime('now'))
 );
@@ -108,7 +111,8 @@ create table if not exists followups (
   completed_at     text,
   assigned_to      text default 'puccio',
   -- lead + titolo normalizzato + giorno: niente promemoria doppi.
-  dedup_key        text default '',
+  -- null = nessun dedup (come idempotency_key sopra).
+  dedup_key        text,
   created_at       text default (datetime('now')),
   updated_at       text default (datetime('now'))
 );
@@ -124,7 +128,7 @@ create table if not exists demo_views (
 );
 
 create unique index if not exists idx_agent_jobs_idem
-  on agent_jobs(idempotency_key) where idempotency_key <> '';
+  on agent_jobs(idempotency_key);
 create index if not exists idx_agent_jobs_claim on agent_jobs(status, due_at, priority);
 create index if not exists idx_agent_jobs_lead on agent_jobs(lead_id, kind);
 create index if not exists idx_forge_lead on forge_projects(lead_id);
@@ -133,7 +137,7 @@ create index if not exists idx_activities_lead on activities(lead_id, occurred_a
 create index if not exists idx_contact_facts_lead on contact_facts(lead_id, field);
 create index if not exists idx_followups_due on followups(due_at, completed_at);
 create unique index if not exists idx_followups_dedup
-  on followups(dedup_key) where dedup_key <> '';
+  on followups(dedup_key);
 create index if not exists idx_demo_views_project on demo_views(forge_project_id, viewed_at);
 
 -- Colonne aggiunte a autopilot_pipeline (ALTER protetto da try/catch
