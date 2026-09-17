@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Studio Cardine — studio dentistico</title>
+<meta name="description" content="Concept dimostrativo di uno studio dentistico. Il percorso di cura spiegato tappa per tappa: cosa succede, quanto dura, cosa si sente.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#ECEEF1">
+<meta property="og:title" content="Studio Cardine">
+<meta property="og:description" content="Concept dimostrativo. Studio inventato, non reale.">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="it_IT">
+<link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiBmaWxsPSIjRUNFRUYxIi8+PHBhdGggZD0iTTIwIDI0YzAtOCA1LTEyIDEyLTEyczEyIDQgMTIgMTJjMCA3LTMgMTAtNSAyMGwtMiAxMGMtMSA1LTUgNS02IDBsLTItMTBjMC0zLTQtMy00IDBsLTIgMTBjLTEgNS01IDUtNiAwbC0yLTEwYy0yLTEwLTUtMTMtNS0yMHoiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzIyMzQ2RSIgc3Ryb2tlLXdpZHRoPSIzIi8+PC9zdmc+">
+<link rel="preload" href="/font/instrument-serif.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/font/schibsted.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="./src/styles.css">
+</head>
+<body>
+
+<details class="nota-concept">
+  <summary>Concept demo</summary>
+  <p><strong>Questo studio non esiste.</strong> È una dimostrazione di
+  direzione creativa. Nessun indirizzo, nessun telefono, nessun medico,
+  nessuna certificazione: tempi, trattamenti e orari sono di esempio e
+  la richiesta di visita non viene inviata a nessuno.</p>
+</details>
+
+<a class="salta" href="#visita">Vai alla richiesta di visita</a>
+
+<header class="testata">
+  <a class="marchio" href="#">Studio Cardine</a>
+  <nav aria-label="Sezioni">
+    <a href="#percorso">Il percorso</a>
+    <a href="#trattamenti">Trattamenti</a>
+    <a href="#studio">Lo studio</a>
+  </nav>
+  <a class="tasto-testata" href="#visita">Prima visita</a>
+</header>
+
+<main id="contenuto">
+
+  <!-- ============================================================
+       Apertura: una tavola da disegno tecnico. Il cartiglio, che in un
+       disegno vero porta titolo e scala, qui porta il titolo della
+       pagina e la richiesta di visita. Niente fotografie: nessun
+       paziente, nessun medico, nessun prima e dopo.
+       ============================================================ -->
+  <section class="tavola-sez" aria-labelledby="t-apertura">
+    <div class="tavola">
+      <span class="croce croce-a" aria-hidden="true"></span>
+      <span class="croce croce-b" aria-hidden="true"></span>
+      <span class="croce croce-c" aria-hidden="true"></span>
+      <span class="croce croce-d" aria-hidden="true"></span>
+
+      <div class="cartiglio">
+        <p class="cartiglio-riga">Tav. 1 — molare inferiore, sezione</p>
+        <h1 id="t-apertura">Le diciamo prima cosa succede, quanto dura
+          e cosa sentirà.</h1>
+        <p class="sommario">Studio dentistico. Si lavora su appuntamento,
+          una persona per volta, e la prima visita serve solo a
+          guardare e a spiegare.</p>
+        <a class="tasto" href="#visita" data-cta>Richiedi una prima visita</a>
+      </div>
+
+      <figure class="disegno">
+        <svg class="sezione" viewBox="0 0 400 540" role="img"
+             aria-label="Disegno in sezione di un molare, con quattro richiami numerati"
+             focusable="false">
+          <!-- Riga graduata: la precisione si fa col tratto, non si dichiara. -->
+          <g stroke="#8C97A3" stroke-width="1" fill="none">
+            <path d="M28 130 L28 500"/>
+            <path d="M28 130 h14 M28 176 h8 M28 222 h8 M28 268 h14 M28 314 h8
+                     M28 360 h8 M28 406 h14 M28 452 h8 M28 500 h14"/>
+          </g>
+
+          <!-- Corona larga con le cuspidi, due radici lunghe. Una corona
+               piu alta che larga non legge come molare: legge come arco. -->
+          <path d="M84 292
+                   C84 214 90 168 112 148 C126 136 138 140 146 150
+                   C160 164 176 168 190 154 C204 140 220 136 236 144
+                   C252 152 262 150 272 154 C290 172 296 216 296 292
+                   C294 340 286 406 278 462 C275 492 254 494 250 462
+                   C245 408 238 356 226 336 C215 318 185 318 174 336
+                   C162 356 155 408 150 462 C146 494 125 492 122 462
+                   C114 406 88 340 84 292 Z"
+                fill="#FFFFFF" stroke="#101418" stroke-width="1.6"/>
+          <!-- Limite dello smalto: sopra questa linea il dente e rivestito. -->
+          <path d="M86 276 C130 296 250 296 294 276"
+                fill="none" stroke="#101418" stroke-width="1.2" stroke-dasharray="6 4"/>
+          <!-- Camera pulpare e canali: un tratto solo, su e giu dalle radici. -->
+          <path d="M146 440 C150 392 158 344 162 316 C162 286 152 262 156 238
+                   C162 214 218 214 224 238 C228 262 218 286 218 316
+                   C222 344 230 392 234 440"
+                fill="none" stroke="#22346E" stroke-width="1.7"/>
+          <!-- Linea gengivale. -->
+          <path d="M50 292 L330 292" stroke="#8C97A3" stroke-width="1" stroke-dasharray="2 5"/>
+
+          <!-- La riga che scandisce: passa una volta sola al caricamento. -->
+          <g class="scansione" aria-hidden="true">
+            <rect x="28" y="-26" width="344" height="26" fill="#22346E" opacity=".07"/>
+            <path d="M28 0 L372 0" stroke="#22346E" stroke-width="1.4"/>
+          </g>
+
+          <g class="richiami" font-family="Schibsted Grotesk Variable, sans-serif"
+             font-size="15" font-weight="600">
+            <g class="richiamo"><path d="M339 178 L282 198" stroke="#22346E" stroke-width="1"/>
+              <circle cx="352" cy="178" r="13" fill="#22346E"/>
+              <text x="352" y="183" fill="#ECEEF1" text-anchor="middle">1</text></g>
+            <g class="richiamo"><path d="M71 242 L116 248" stroke="#22346E" stroke-width="1"/>
+              <circle cx="58" cy="242" r="13" fill="#22346E"/>
+              <text x="58" y="247" fill="#ECEEF1" text-anchor="middle">2</text></g>
+            <g class="richiamo"><path d="M339 240 L228 232" stroke="#22346E" stroke-width="1"/>
+              <circle cx="352" cy="240" r="13" fill="#22346E"/>
+              <text x="352" y="245" fill="#ECEEF1" text-anchor="middle">3</text></g>
+            <g class="richiamo"><path d="M71 430 L138 436" stroke="#22346E" stroke-width="1"/>
+              <circle cx="58" cy="430" r="13" fill="#22346E"/>
+              <text x="58" y="435" fill="#ECEEF1" text-anchor="middle">4</text></g>
+          </g>
+        </svg>
+      </figure>
+
+      <ol class="legenda">
+        <li><span class="leg-n">1</span><span class="leg-t"><b>Smalto.</b>
+          Lo strato esterno. È duro e non si rigenera: quello che si
+          consuma non torna.</span></li>
+        <li><span class="leg-n">2</span><span class="leg-t"><b>Dentina.</b>
+          Sotto lo smalto, più tenera e attraversata da canalini. Quando
+          è scoperta, il freddo si sente.</span></li>
+        <li><span class="leg-n">3</span><span class="leg-t"><b>Polpa.</b>
+          Nervo e vasi. Quando la carie arriva qui il dolore diventa
+          continuo, e la cura cambia.</span></li>
+        <li><span class="leg-n">4</span><span class="leg-t"><b>Radice.</b>
+          Tiene il dente nell'osso. Le gengive infiammate la scoprono, ed
+          è lì che i denti cominciano a muoversi.</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       Il percorso: cinque tappe in ordine di tempo. I numeri qui sono
+       legittimi perche e una sequenza, non un elenco ornato.
+       ============================================================ -->
+  <section class="percorso" id="percorso" aria-labelledby="t-percorso">
+    <div class="sez-testa">
+      <h2 id="t-percorso">Il percorso</h2>
+      <p>Dalla prima visita al controllo. Apra una tappa per sapere cosa
+        succede, quanto dura e cosa si sente.</p>
+    </div>
+
+    <ol class="tappe">
+      <li class="tappa">
+        <details name="tappa" open>
+          <summary>
+            <span class="tappa-n">1</span>
+            <span class="tappa-nome">La prima visita</span>
+            <span class="tappa-durata">40 minuti</span>
+          </summary>
+          <div class="tappa-corpo">
+            <p>Si guarda, si fanno le radiografie solo se servono, e si
+              ascolta. Al primo appuntamento non si cura niente: serve a
+              capire a che punto siamo.</p>
+            <dl class="schede">
+              <div><dt>Cosa si sente</dt><dd>Niente. Si resta seduti e si parla.</dd></div>
+              <div><dt>Cosa porta a casa</dt><dd>Una risposta chiara su cosa c'è da fare.</dd></div>
+            </dl>
+          </div>
+        </details>
+      </li>
+      <li class="tappa">
+        <details name="tappa">
+          <summary>
+            <span class="tappa-n">2</span>
+            <span class="tappa-nome">Il piano di cura</span>
+            <span class="tappa-durata">20 minuti</span>
+          </summary>
+          <div class="tappa-corpo">
+            <p>Le mostriamo cosa c'è da fare, in che ordine e in quante
+              sedute. Il preventivo è scritto, si legge a casa, e si
+              decide dopo.</p>
+            <dl class="schede">
+              <div><dt>Cosa si sente</dt><dd>Niente.</dd></div>
+              <div><dt>Se non va bene</dt><dd>Si rivede l'ordine: quasi sempre si può cominciare dall'urgente.</dd></div>
+            </dl>
+          </div>
+        </details>
+      </li>
+      <li class="tappa">
+        <details name="tappa">
+          <summary>
+            <span class="tappa-n">3</span>
+            <span class="tappa-nome">L'igiene</span>
+            <span class="tappa-durata">45 minuti</span>
+          </summary>
+          <div class="tappa-corpo">
+            <p>Si comincia sempre da qui. Su gengive infiammate nessuna
+              otturazione e nessuna protesi durano, quindi la pulizia non
+              è un accessorio: è il primo passo.</p>
+            <dl class="schede">
+              <div><dt>Cosa si sente</dt><dd>Vibrazione e acqua fredda. Fastidio breve, si può fermare quando vuole.</dd></div>
+              <div><dt>Dopo</dt><dd>Gengive sensibili per un giorno o due.</dd></div>
+            </dl>
+          </div>
+        </details>
+      </li>
+      <li class="tappa">
+        <details name="tappa">
+          <summary>
+            <span class="tappa-n">4</span>
+            <span class="tappa-nome">La cura</span>
+            <span class="tappa-durata">una seduta per volta</span>
+          </summary>
+          <div class="tappa-corpo">
+            <p>Si procede nell'ordine deciso insieme, una seduta alla
+              volta. L'anestesia si usa quando serve e si dice prima.</p>
+            <dl class="schede">
+              <div><dt>Cosa si sente</dt><dd>La puntura dell'anestesia, pochi secondi. Poi pressione, non dolore.</dd></div>
+              <div><dt>Se qualcosa non va</dt><dd>Alzi la mano: ci si ferma.</dd></div>
+            </dl>
+          </div>
+        </details>
+      </li>
+      <li class="tappa">
+        <details name="tappa">
+          <summary>
+            <span class="tappa-n">5</span>
+            <span class="tappa-nome">I controlli</span>
+            <span class="tappa-durata">15 minuti</span>
+          </summary>
+          <div class="tappa-corpo">
+            <p>Ogni sei mesi, un quarto d'ora. È la parte che si salta
+              per prima ed è quella che evita di rifare tutto da capo.</p>
+            <dl class="schede">
+              <div><dt>Cosa si sente</dt><dd>Niente.</dd></div>
+              <div><dt>Promemoria</dt><dd>Lo fissiamo insieme prima di uscire.</dd></div>
+            </dl>
+          </div>
+        </details>
+      </li>
+    </ol>
+  </section>
+
+  <!-- ===== Trattamenti: una tabella, non delle card ===== -->
+  <section class="trattamenti" id="trattamenti" aria-labelledby="t-tratt">
+    <div class="sez-testa">
+      <h2 id="t-tratt">Trattamenti</h2>
+      <p>Quante sedute servono e cosa comporta ciascuno. I tempi sono
+        indicativi: dipendono da quello che si trova.</p>
+    </div>
+    <table class="tabella">
+      <thead>
+        <tr><th scope="col">Trattamento</th><th scope="col">Sedute</th><th scope="col">Cosa comporta</th></tr>
+      </thead>
+      <tbody>
+        <tr><th scope="row">Igiene e prevenzione</th><td>1</td>
+          <td>Rimozione del tartaro, lucidatura, e come lavarsi i denti nei punti che sfuggono.</td></tr>
+        <tr><th scope="row">Conservativa</th><td>1 — 2</td>
+          <td>Si toglie la carie e si ricostruisce il dente con materiale del colore giusto.</td></tr>
+        <tr><th scope="row">Endodonzia</th><td>1 — 2</td>
+          <td>Si cura il nervo dall'interno. In anestesia, e il dente resta al suo posto.</td></tr>
+        <tr><th scope="row">Protesi</th><td>3 — 5</td>
+          <td>Impronta, prova, correzione, cementazione. Fra una seduta e l'altra passa qualche giorno.</td></tr>
+        <tr><th scope="row">Ortodonzia</th><td>percorso lungo</td>
+          <td>Controlli ogni quattro-otto settimane, per un tempo che si stabilisce all'inizio.</td></tr>
+        <tr><th scope="row">Chirurgia</th><td>1</td>
+          <td>Estrazioni e piccoli interventi, con le indicazioni scritte per i giorni dopo.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ===== Lo studio: una pianta, non una foto ===== -->
+  <section class="studio" id="studio" aria-labelledby="t-studio">
+    <div class="sez-testa">
+      <h2 id="t-studio">Lo studio</h2>
+      <p>Sei stanze. La sterilizzazione ha la sua, separata dagli studi:
+        gli strumenti escono imbustati, con la data sopra.</p>
+    </div>
+    <div class="studio-corpo">
+      <div class="pianta" role="img"
+           aria-label="Pianta dello studio: sala d'attesa, accettazione, due studi, sterilizzazione e radiologia">
+        <div class="stanza s-attesa"><b>Sala d'attesa</b><span>l'ingresso</span></div>
+        <div class="stanza s-studio1"><b>Studio 1</b></div>
+        <div class="stanza s-studio2"><b>Studio 2</b></div>
+        <div class="stanza s-accett"><b>Accettazione</b></div>
+        <div class="stanza s-steril"><b>Sterilizzazione</b><span>stanza chiusa, solo strumenti</span></div>
+        <div class="stanza s-radio"><b>Radiologia</b><span>radiografie digitali</span></div>
+      </div>
+      <div class="studio-testo">
+        <p>Una persona per volta in ogni studio. Fra un appuntamento e
+          l'altro restano venti minuti: servono a pulire davvero, non di
+          corsa.</p>
+        <table class="orari">
+          <caption>Quando siamo aperti</caption>
+          <tbody>
+            <tr><th scope="row">Lunedì — Giovedì</th><td>9 — 13 · 15 — 19</td></tr>
+            <tr><th scope="row">Venerdì</th><td>9 — 14</td></tr>
+            <tr><th scope="row">Sabato e domenica</th><td>chiuso</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Prima visita ===== -->
+  <section class="visita" id="visita" aria-labelledby="t-visita">
+    <div class="visita-corpo">
+      <div class="visita-testo">
+        <h2 id="t-visita">Richiedi una prima visita</h2>
+        <p>Ci lasci come preferisce essere richiamato e quando le è
+          comodo. Nessun impegno: alla prima visita si guarda e si
+          spiega, e basta.</p>
+      </div>
+      <form class="modulo" id="modulo-visita" novalidate>
+        <div class="campo campo-largo">
+          <label for="v-nome">Nome</label>
+          <input type="text" id="v-nome" name="nome" autocomplete="name" required>
+        </div>
+        <div class="campo campo-largo">
+          <label for="v-contatto">Come richiamarla</label>
+          <input type="text" id="v-contatto" name="contatto"
+                 placeholder="un recapito a sua scelta" required>
+        </div>
+        <div class="campo">
+          <label for="v-quando">Quando le è comodo</label>
+          <select id="v-quando" name="quando">
+            <option>Mattina</option><option>Primo pomeriggio</option>
+            <option>Tardo pomeriggio</option><option>Indifferente</option>
+          </select>
+        </div>
+        <div class="campo">
+          <label for="v-motivo">Motivo</label>
+          <select id="v-motivo" name="motivo">
+            <option>Controllo</option><option>Igiene</option>
+            <option>Un dente che fa male</option><option>Un preventivo</option>
+          </select>
+        </div>
+        <button class="tasto tasto-pieno" type="submit">Richiedi una prima visita</button>
+        <p class="esito" id="esito-visita" role="status" hidden></p>
+      </form>
+    </div>
+  </section>
+</main>
+
+<footer class="piede">
+  <span class="piede-nome">Studio Cardine</span>
+  <span class="piede-riga">Studio dentistico — si lavora su appuntamento</span>
+</footer>
+
+<script type="module" src="./src/main.ts"></script>
+</body>
+</html>

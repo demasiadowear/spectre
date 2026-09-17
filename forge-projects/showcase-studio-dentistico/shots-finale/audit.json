@@ -1,0 +1,82 @@
+[
+  {
+    "page": "index.html",
+    "viewport": "desktop",
+    "status": 200,
+    "fps": 62,
+    "transferredKB": 166,
+    "errors": [],
+    "failed": [],
+    "screenshot": "/home/user/spectre/forge-projects/showcase-studio-dentistico/shots-finale/index_html-desktop.png",
+    "title": "Studio Cardine — studio dentistico",
+    "overflow": false,
+    "scrollW": 1440,
+    "viewW": 1440,
+    "overflowing": [],
+    "clipped": [],
+    "emptySections": [],
+    "hiddenText": [],
+    "minContrast": 5.54,
+    "worstContrast": {
+      "t": "Dalla prima visita al contro",
+      "r": 5.54
+    },
+    "cta": {
+      "w": 249,
+      "h": 60,
+      "contrast": 11.77
+    },
+    "headings": [
+      "H1:Le diciamo prima cosa succede, quanto dura\n   ",
+      "H2:Il percorso",
+      "H2:Trattamenti",
+      "H2:Lo studio",
+      "H2:Richiedi una prima visita"
+    ],
+    "fontsUsed": [
+      "system-ui",
+      "Schibsted Grotesk Variable",
+      "Instrument Serif"
+    ]
+  },
+  {
+    "page": "index.html",
+    "viewport": "mobile",
+    "status": 200,
+    "fps": 61,
+    "transferredKB": 166,
+    "errors": [],
+    "failed": [],
+    "screenshot": "/home/user/spectre/forge-projects/showcase-studio-dentistico/shots-finale/index_html-mobile.png",
+    "title": "Studio Cardine — studio dentistico",
+    "overflow": false,
+    "scrollW": 390,
+    "viewW": 390,
+    "overflowing": [],
+    "clipped": [],
+    "emptySections": [],
+    "hiddenText": [],
+    "minContrast": 5.54,
+    "worstContrast": {
+      "t": "Dalla prima visita al contro",
+      "r": 5.54
+    },
+    "cta": {
+      "w": 316,
+      "h": 60,
+      "contrast": 11.77
+    },
+    "headings": [
+      "H1:Le diciamo prima cosa succede, quanto dura\n   ",
+      "H2:Il percorso",
+      "H2:Trattamenti",
+      "H2:Lo studio",
+      "H2:Richiedi una prima visita"
+    ],
+    "fontsUsed": [
+      "system-ui",
+      "Schibsted Grotesk Variable",
+      "Instrument Serif"
+    ]
+  }
+]
