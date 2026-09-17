@@ -26,7 +26,12 @@ yarn-debug.log*
 yarn-error.log*
 
 # local env files
-.env*.local
+# `.env*.local` da solo copriva .env.local ma NON .env, .env.production
+# o .env.development: bastava che uno di quelli comparisse una volta per
+# mandare delle chiavi dentro la storia del repository, dove restano.
+.env
+.env.*
+!.env*.example
 
 # db backups (test data dumps)
 backup_*.json
@@ -57,3 +62,55 @@ worker/worker-run.log
 
 ayrobackup-leads-*.json
 worker/.worker.lock
+
+# Artefatti dell'harness end-to-end della Factory (DB locale, screenshot,
+# report): si rigenerano con `node scripts/factory-e2e/run.mjs`.
+scripts/factory-e2e/out/
+
+# Progetti Forge: dipendenze e build si rigenerano
+forge-projects/*/node_modules/
+forge-projects/*/dist/
+# Screenshot dei cicli QA intermedi: si rigenerano, tengo solo v4 e reduced
+forge-projects/*/shots-v1/
+forge-projects/*/shots-v2/
+forge-projects/*/shots-v3/
+# Artefatti rigenerabili del sito premium
+forge-projects/*/dist-autonomo/
+forge-projects/*/video/
+forge-projects/*/autonomo-test/
+forge-projects/*/artefatto-test/
+forge-projects/*/shots-autonomo/
+forge-projects/*/shots-artefatto/
+forge-projects/*/barberia-centrale-autonomo.html
+forge-projects/*/artefatto-barberia-centrale.html
+forge-projects/*/shots-r1/
+forge-projects/*/shots-r2/
+forge-projects/*/shots-v3a/
+forge-projects/*/shots-v3b/
+forge-projects/*/shots-v3c/
+forge-projects/*/shots-v3d/
+forge-projects/*/prove-shots/
+!forge-projects/showcase-studio-dentistico/prove-shots/
+forge-projects/*/rasoio-vicino.png
+forge-projects/*/mobile-scroll.png
+
+# Showcase della Factory: si versionano gli screenshot consegnati e le
+# prove che hanno deciso qualcosa. Gli stati intermedi dei cicli di QA,
+# i video e i file autonomi si rigenerano con un comando e peserebbero
+# decine di megabyte.
+forge-projects/*/shots-c1/
+forge-projects/*/shots-c2/
+forge-projects/*/shots-c3/
+forge-projects/*/shots-c3-nojs/
+forge-projects/*/shots-c3-reduced/
+forge-projects/*/shots-nojs/
+forge-projects/*/shots-reduced/
+forge-projects/*/shots-ritagli/
+forge-projects/showcase-*/*-autonomo.html
+forge-projects/showcase-*/anteprima-*.html
+forge-projects/*/videate-c1/
+forge-projects/*/videate-c2/
+forge-projects/*/videate-nojs/
+forge-projects/*/scatti-finale/
+forge-projects/*/scatti-nojs/
+forge-projects/*/scatti-ridotto/

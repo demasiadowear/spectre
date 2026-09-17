@@ -1,0 +1,11 @@
+{
+  // Config usata SOLO dal test runner (node --import tsx).
+  // Il tsconfig principale tiene jsx "preserve" perché è Next a
+  // compilare il JSX in build; fuori da Next serve il runtime
+  // automatico, altrimenti i componenti girano col runtime classico e
+  // cercano un React in scope che non importano (e non devono importare).
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react-jsx"
+  }
+}

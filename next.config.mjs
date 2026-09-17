@@ -10,11 +10,13 @@ const nextConfig = {
     outputFileTracingIncludes: {
       // Ogni route che lancia il chromium serverless deve includerne i
       // binari brotli nella propria lambda (il file tracing non segue i
-      // path costruiti a runtime): intent scout, aste scout (cron), e
-      // Hunter (sorgente aste selezionabile in ricerca).
+      // path costruiti a runtime): intent scout, aste scout (cron),
+      // Hunter (sorgente aste selezionabile in ricerca) e il worker
+      // Factory (screenshot del QA).
       "/api/intent/scout": ["./node_modules/@sparticuz/chromium/bin/**"],
       "/api/intent/aste": ["./node_modules/@sparticuz/chromium/bin/**"],
       "/api/hunt": ["./node_modules/@sparticuz/chromium/bin/**"],
+      "/api/factory/run": ["./node_modules/@sparticuz/chromium/bin/**"],
     },
   },
 };
