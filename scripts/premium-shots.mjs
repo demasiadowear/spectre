@@ -92,7 +92,7 @@ async function main() {
         requestAnimationFrame(tick);
       }));
 
-      const audit = process.env.NOJS === "1" ? { title: "", overflow: false, scrollW: 0, viewW: vp.width, overflowing: [], clipped: [], emptySections: [], hiddenText: [], minContrast: null, worstContrast: null, cta: null, headings: [], fontsUsed: [] } : await pg.evaluate(() => {
+      const audit = process.env.NOJS === "1" ? { title: "", overflow: false, scrollW: 0, viewW: vp.width, overflowing: [], clipped: [], emptySections: [], hiddenText: [], minContrast: null, worstContrast: null, sottoSoglia: [], cta: null, headings: [], fontsUsed: [] } : await pg.evaluate(() => {
         const d = document, de = d.documentElement;
         const viewW = de.clientWidth;
         const over = [];
@@ -102,9 +102,22 @@ async function main() {
             over.push(`${el.tagName.toLowerCase()}.${String(el.className).split(" ")[0] || "-"}`);
           }
         });
+        // "Testo troncato" deve voler dire testo: un contenitore con un
+        // elemento decorativo che deborda di proposito (una figura in
+        // overflow:hidden) faceva scattare l'allarme con una stringa di
+        // soli a-capo, e un allarme senza testo non si puo nemmeno
+        // andare a cercare nello screenshot.
+        const propria = (el) => [...el.childNodes]
+          .filter((n) => n.nodeType === 3).map((n) => n.nodeValue ?? "").join("").trim();
         const clipped = [];
         d.querySelectorAll("h1,h2,h3,p,li,a,dd,dt,span,b").forEach((el) => {
-          if (el.scrollWidth > el.clientWidth + 2 && el.clientWidth > 0) clipped.push((el.textContent ?? "").slice(0, 40));
+          // Un elemento nascosto alla vista ma leggibile dai lettori di
+          // schermo (lo skip link, l'intestazione di una tabella che su
+          // telefono diventa elenco) e largo un pixel per costruzione: non
+          // e testo troncato.
+          if (el.scrollWidth > el.clientWidth + 2 && el.clientWidth > 8 && propria(el)) {
+            clipped.push(propria(el).slice(0, 40));
+          }
         });
         const empty = [];
         d.querySelectorAll("section").forEach((s) => {
@@ -133,19 +146,50 @@ async function main() {
         // fuori schermo o senza testo non va misurato affatto. Senza
         // questi tre filtri l'auditor segnalava "contrasto 1" su cose
         // perfettamente leggibili, e il rumore nasconde i difetti veri.
+        // Lo sfondo vero di un elemento è quello del primo antenato
+        // opaco, non quello del body: su una pagina fatta di pannelli
+        // chiari appoggiati su un campo colorato, confrontare col body
+        // dava "contrasto 2,65" su un testo scuro perfettamente
+        // leggibile, e un auditor rumoroso nasconde i difetti veri.
+        const opacoDi = (cs) => {
+          const c = par(cs.backgroundColor);
+          if (!c) return null;
+          const m = cs.backgroundColor.match(/rgba\([^)]*,\s*([\d.]+)\s*\)/);
+          return m && parseFloat(m[1]) < 0.85 ? null : c;
+        };
+        const fondoDi = (el) => {
+          for (let n = el; n && n !== d.documentElement; n = n.parentElement) {
+            const c = opacoDi(getComputedStyle(n));
+            if (c) return c;
+          }
+          return bg;
+        };
         const contrasts = [];
-        d.querySelectorAll("h1,h2,p,a,dd,li,th,td,address").forEach((el) => {
+        d.querySelectorAll("h1,h2,h3,p,a,dd,li,th,td,address,button,summary,label,caption").forEach((el) => {
           const cs = getComputedStyle(el);
           const testo = (el.textContent ?? "").trim();
           if (!testo) return;
-          const proprio = par(cs.backgroundColor);
-          const opaco = proprio && !/rgba\([^)]*,\s*0\s*\)/.test(cs.backgroundColor);
           const r = el.getBoundingClientRect();
           if (r.width === 0 || r.right < 0 || r.left > de.clientWidth) return;
           const fg = par(cs.color);
-          if (fg) contrasts.push({ t: testo.slice(0, 28), r: +ratio(fg, opaco ? proprio : bg).toFixed(2) });
+          if (!fg) return;
+          // WCAG: il testo grande (>= 24px, o >= 18.7px in grassetto) ha
+          // soglia 3, non 4,5. Senza questa distinzione un titolo da
+          // 7rem risultava insufficiente pur essendo a norma, e la
+          // correzione sarebbe stata peggiorare il titolo.
+          const px = parseFloat(cs.fontSize);
+          const peso = parseInt(cs.fontWeight, 10) || 400;
+          const grande = px >= 24 || (px >= 18.66 && peso >= 700);
+          contrasts.push({
+            t: testo.slice(0, 28),
+            r: +ratio(fg, fondoDi(el)).toFixed(2),
+            soglia: grande ? 3 : 4.5,
+          });
         });
-        const cta = d.querySelector("a[href^='tel:']");
+        // La CTA principale si dichiara con data-cta: ogni sito ha la
+        // sua (telefono, prenotazione, modulo) e cercare `tel:` valeva
+        // solo per la barberia.
+        const cta = d.querySelector("[data-cta]") ?? d.querySelector("a[href^='tel:']");
         const cr = cta?.getBoundingClientRect();
         const ctaCs = cta ? getComputedStyle(cta) : null;
         const ctaFg = ctaCs ? par(ctaCs.color) : null;
@@ -159,6 +203,8 @@ async function main() {
           emptySections: empty,
           hiddenText: hidden.slice(0, 6),
           minContrast: contrasts.length ? Math.min(...contrasts.map((c) => c.r)) : null,
+          sottoSoglia: contrasts.filter((c) => c.r < c.soglia)
+            .sort((a, b) => a.r - b.r).slice(0, 4),
           worstContrast: contrasts.sort((a, b) => a.r - b.r)[0] ?? null,
           cta: cr ? { w: Math.round(cr.width), h: Math.round(cr.height), contrast: ctaFg && ctaBg ? +ratio(ctaFg, ctaBg).toFixed(2) : null } : null,
           headings: [...d.querySelectorAll("h1,h2")].map((h) => `${h.tagName}:${(h.textContent ?? "").trim().slice(0, 46)}`),
@@ -191,7 +237,7 @@ async function main() {
     if (r.hiddenText.length) add(`testo invisibile a riposo: ${r.hiddenText.join(" | ")}`);
     if (r.errors.length) add(`console: ${r.errors.join(" | ")}`);
     if (r.failed.length) add(`richieste fallite: ${r.failed.join(" | ")}`);
-    if (r.minContrast !== null && r.minContrast < 4.5) add(`contrasto ${r.minContrast} < 4.5`);
+    for (const c of r.sottoSoglia ?? []) add(`contrasto ${c.r} < ${c.soglia} ("${c.t}")`);
     if (r.cta && r.cta.h < 44 && r.viewport === "mobile") add(`CTA alta ${r.cta.h}px < 44`);
     if (r.cta && r.cta.contrast !== null && r.cta.contrast < 4.5) add(`contrasto CTA ${r.cta.contrast} < 4.5`);
     if (r.fps !== null && r.fps < 50 && r.viewport === "desktop") add(`${r.fps} fps`);

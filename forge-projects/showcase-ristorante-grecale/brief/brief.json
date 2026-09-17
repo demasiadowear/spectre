@@ -1,0 +1,36 @@
+{
+  "progetto": "Grecale — ristorante contemporaneo pugliese",
+  "natura": "concept dimostrativo, attivita inventata, nessun dato reale",
+  "pubblico": "chi sta decidendo stasera dove mangiare: residenti e chi e di passaggio",
+  "obiettivo_unico": "far prenotare un tavolo",
+  "identita": "terra, forno, ceramica. Una cucina che parte dalla materia e la dice per nome.",
+  "deve_comunicare": ["materia", "gusto", "territorio", "atmosfera", "carta", "prenotazione"],
+  "direzione_artistica": {
+    "nome": "Campo terracotta",
+    "concetto": "La pagina è un muro di maioliche posate su argilla. Ogni contenuto e una piastrella.",
+    "palette": {
+      "terra": "#A93D24",
+      "terra-cotta": "#8F2F1B",
+      "calce": "#F6EFE1",
+      "oliva": "#4C5E2A",
+      "grano-arso": "#2A1C14"
+    },
+    "tipografia": {
+      "display": "Bricolage Grotesque Variable (assi wdth + wght)",
+      "testo": "Newsreader Variable (asse wght)",
+      "nota": "coppia invertita rispetto alla barberia: sans in display, serif nel testo"
+    },
+    "geometria": "moduli quadrati, bordi spessi, rotazioni fra 0,4 e 1,2 gradi, raggio zero",
+    "movimento": "imbandire: le piastrelle si posano a scalare, back.out corto",
+    "interazione": "apri la portata: la piastrella gira e scopre i piatti",
+    "immagini": "nessuna fotografia. Motivi di maiolica disegnati in SVG e grana di semola in canvas."
+  },
+  "ordine_sezioni": ["apertura", "prenota", "la carta", "la materia", "la sala", "piede"],
+  "cta": "Prenota un tavolo",
+  "vincoli": [
+    "nessun indirizzo, telefono, recensione, premio o certificazione",
+    "nessuna fotografia di persone o di piatti",
+    "nessun prezzo",
+    "noindex"
+  ]
+}

@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grecale — cucina di grano, fuoco e orto</title>
+<meta name="description" content="Concept dimostrativo di un ristorante contemporaneo pugliese. Carta che cambia ogni settimana, trentadue coperti, prenotazione dal sito.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#A93D24">
+<meta property="og:title" content="Grecale">
+<meta property="og:description" content="Concept dimostrativo. Attività inventata, non reale.">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="it_IT">
+<link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiBmaWxsPSIjQTkzRDI0Ii8+PGNpcmNsZSBjeD0iMzIiIGN5PSIzMiIgcj0iMTgiIGZpbGw9IiNGNkVGRTEiLz48Y2lyY2xlIGN4PSIzMiIgY3k9IjMyIiByPSI4IiBmaWxsPSIjNEM1RTJBIi8+PC9zdmc+">
+<link rel="preload" href="/font/bricolage.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/font/newsreader.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="./src/styles.css">
+</head>
+<body>
+
+<!-- Nota di chi pubblica. Fuori dalla composizione: carattere di
+     sistema, grigio neutro, pastiglia fissa in un angolo. Si deve
+     leggere come chrome dello strumento, non come una sezione del
+     ristorante. -->
+<details class="nota-concept">
+  <summary>Concept demo</summary>
+  <p><strong>Questa attività non esiste.</strong> È una dimostrazione di
+  direzione creativa. Nessun indirizzo, nessun telefono, nessuna
+  recensione: i piatti e gli orari sono di esempio e la prenotazione non
+  viene inviata a nessuno.</p>
+</details>
+
+<a class="salta" href="#prenota">Vai alla prenotazione</a>
+
+<!-- I motivi delle maioliche. Disegnati a mano, riusati per riferimento
+     nelle piastrelle: sei disegni, nessuna fotografia, nessuno stock. -->
+<svg class="sprite" aria-hidden="true" focusable="false" width="0" height="0">
+  <defs>
+    <symbol id="m-stella" viewBox="0 0 100 100">
+      <path d="M50 8 L58 36 L86 28 L66 50 L86 72 L58 64 L50 92 L42 64 L14 72 L34 50 L14 28 L42 36 Z"
+            fill="none" stroke="currentColor" stroke-width="4.5" stroke-linejoin="round"/>
+      <circle cx="50" cy="50" r="7.5" fill="currentColor"/>
+    </symbol>
+    <symbol id="m-onda" viewBox="0 0 100 100">
+      <g fill="none" stroke="currentColor" stroke-width="4.5" stroke-linecap="round">
+        <path d="M6 26 Q22 6 39 26 Q56 46 72 26 Q86 9 96 24"/>
+        <path d="M6 52 Q22 32 39 52 Q56 72 72 52 Q86 35 96 50"/>
+        <path d="M6 78 Q22 58 39 78 Q56 98 72 78 Q86 61 96 76"/>
+      </g>
+    </symbol>
+    <symbol id="m-fiore" viewBox="0 0 100 100">
+      <g fill="currentColor">
+        <path d="M50 12 Q68 32 50 48 Q32 32 50 12 Z"/>
+        <path d="M88 50 Q68 68 52 50 Q68 32 88 50 Z"/>
+        <path d="M50 88 Q32 68 50 52 Q68 68 50 88 Z"/>
+        <path d="M12 50 Q32 32 48 50 Q32 68 12 50 Z"/>
+      </g>
+      <circle cx="50" cy="50" r="5.5" fill="none" stroke="currentColor" stroke-width="4"/>
+    </symbol>
+    <symbol id="m-reticolo" viewBox="0 0 100 100">
+      <g fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round">
+        <path d="M2 34 L34 2 M2 66 L66 2 M2 98 L98 2 M34 98 L98 34 M66 98 L98 66"/>
+        <path d="M2 66 L34 98 M2 34 L66 98 M2 2 L98 98 M34 2 L98 66 M66 2 L98 34"/>
+      </g>
+    </symbol>
+    <symbol id="m-cerchi" viewBox="0 0 100 100">
+      <g fill="none" stroke="currentColor" stroke-width="4.5">
+        <circle cx="50" cy="50" r="40"/><circle cx="50" cy="50" r="26"/>
+      </g>
+      <circle cx="50" cy="50" r="11" fill="currentColor"/>
+    </symbol>
+    <symbol id="m-foglia" viewBox="0 0 100 100">
+      <path d="M50 94 C50 60 50 34 50 8" fill="none" stroke="currentColor" stroke-width="4"/>
+      <g fill="currentColor">
+        <path d="M50 26 C34 22 24 32 26 44 C40 46 50 38 50 26 Z"/>
+        <path d="M50 46 C66 42 76 52 74 64 C60 66 50 58 50 46 Z"/>
+        <path d="M50 66 C34 62 24 72 26 84 C40 86 50 78 50 66 Z"/>
+      </g>
+    </symbol>
+  </defs>
+</svg>
+
+<header class="testata">
+  <a class="marchio" href="#"><span class="marchio-nome">Grecale</span></a>
+  <nav aria-label="Sezioni">
+    <a href="#carta">La carta</a>
+    <a href="#materia">La materia</a>
+    <a href="#sala">La sala</a>
+  </nav>
+</header>
+
+<main id="contenuto">
+
+  <!-- ===== Apertura: il muro di maioliche ===== -->
+  <section class="muro-sez" aria-labelledby="t-apertura">
+    <div class="muro">
+      <div class="t t-motivo" aria-hidden="true"><svg viewBox="0 0 100 100"><use href="#m-stella"/></svg></div>
+      <div class="t t-motivo t-oliva" aria-hidden="true"><svg viewBox="0 0 100 100"><use href="#m-onda"/></svg></div>
+      <div class="t t-motivo" aria-hidden="true"><svg viewBox="0 0 100 100"><use href="#m-reticolo"/></svg></div>
+      <div class="t t-motivo t-oliva t-solo-largo" aria-hidden="true"><svg viewBox="0 0 100 100"><use href="#m-fiore"/></svg></div>
+      <div class="t t-motivo t-solo-largo" aria-hidden="true"><svg viewBox="0 0 100 100"><use href="#m-cerchi"/></svg></div>
+      <div class="t t-motivo t-solo-largo" aria-hidden="true"><svg viewBox="0 0 100 100"><use href="#m-foglia"/></svg></div>
+
+      <h1 class="t t-nome" id="t-apertura">
+        <!-- Il grecale e un vento di nord-est: la rosa dipinta sulla
+             piastrella dice il nome, non decora il vuoto. -->
+        <svg class="rosa" viewBox="0 0 200 200" aria-hidden="true" focusable="false">
+          <g fill="none" stroke="currentColor" stroke-width="2.2">
+            <circle cx="100" cy="100" r="86"/><circle cx="100" cy="100" r="62"/>
+            <path d="M100 6 L100 194 M6 100 L194 100"/>
+          </g>
+          <g fill="currentColor" opacity=".9">
+            <path d="M100 14 L112 88 L100 100 L88 88 Z"/>
+            <path d="M186 100 L112 112 L100 100 L112 88 Z"/>
+            <path d="M100 186 L88 112 L100 100 L112 112 Z"/>
+            <path d="M14 100 L88 88 L100 100 L88 112 Z"/>
+          </g>
+          <g fill="currentColor" opacity=".55">
+            <path d="M162 38 L116 84 L100 100 L106 74 Z"/>
+            <path d="M162 162 L116 116 L100 100 L126 106 Z"/>
+            <path d="M38 162 L84 116 L100 100 L94 126 Z"/>
+            <path d="M38 38 L84 84 L100 100 L74 94 Z"/>
+          </g>
+          <!-- Il quadrante di nord-est, marcato: e da li che soffia. -->
+          <path d="M100 100 L162 38" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
+          <circle cx="162" cy="38" r="7" fill="currentColor"/>
+        </svg>
+        <span class="nome-parola">Grecale</span></h1>
+
+      <div class="t t-motivo t-lato" aria-hidden="true"><svg viewBox="0 0 100 100"><use href="#m-foglia"/></svg></div>
+      <div class="t t-motivo t-lato t-oliva" aria-hidden="true"><svg viewBox="0 0 100 100"><use href="#m-cerchi"/></svg></div>
+      <div class="t t-motivo t-lato t-oliva" aria-hidden="true"><svg viewBox="0 0 100 100"><use href="#m-stella"/></svg></div>
+      <div class="t t-motivo t-lato t-solo-largo" aria-hidden="true"><svg viewBox="0 0 100 100"><use href="#m-onda"/></svg></div>
+
+      <p class="t t-claim">Cucina di grano, fuoco e orto. La carta cambia
+        quando cambia quello che troviamo la mattina.</p>
+
+      <a class="t t-cta" href="#prenota" data-cta>Prenota un tavolo</a>
+    </div>
+  </section>
+
+  <!-- ===== Prenotazione: sta qui, in alto, perché è il lavoro della pagina ===== -->
+  <section class="tavolo" id="prenota" aria-labelledby="t-prenota">
+    <div class="tavolo-corpo">
+      <div class="tavolo-testo">
+        <h2 id="t-prenota">Prenota un tavolo</h2>
+        <p>Trentadue coperti, due sale e una corte piccola per la bella
+          stagione. Nel fine settimana conviene muoversi con qualche
+          giorno di anticipo.</p>
+      </div>
+      <form class="modulo" id="modulo-prenota" novalidate>
+        <div class="campo">
+          <label for="p-data">Giorno</label>
+          <input type="date" id="p-data" name="data" required>
+        </div>
+        <div class="campo">
+          <label for="p-coperti">Coperti</label>
+          <select id="p-coperti" name="coperti">
+            <option>2</option><option>3</option><option>4</option>
+            <option>5</option><option>6</option><option>7 o più</option>
+          </select>
+        </div>
+        <div class="campo">
+          <label for="p-ora">Orario</label>
+          <select id="p-ora" name="ora">
+            <option>19.30</option><option>20.00</option><option>20.30</option>
+            <option>21.00</option><option>21.30</option>
+          </select>
+        </div>
+        <div class="campo campo-largo">
+          <label for="p-nome">A che nome</label>
+          <input type="text" id="p-nome" name="nome" autocomplete="name" required>
+        </div>
+        <button class="bottone" type="submit">Prenota un tavolo</button>
+        <p class="esito" id="esito-prenota" role="status" hidden></p>
+      </form>
+    </div>
+  </section>
+
+  <!-- ===== La carta: piastrelle che si girano ===== -->
+  <section class="carta" id="carta" aria-labelledby="t-carta">
+    <div class="sez-intro">
+      <h2 id="t-carta">La carta</h2>
+      <p>Cambia ogni settimana. Questa è quella di adesso: apra una
+        portata per leggerla.</p>
+    </div>
+    <div class="portate">
+      <details class="portata" name="portata" open>
+        <summary>
+          <svg class="portata-motivo" viewBox="0 0 100 100" aria-hidden="true"><use href="#m-fiore"/></svg>
+          <span class="portata-nome">Da principio</span>
+          <span class="portata-spia" aria-hidden="true"></span>
+        </summary>
+        <ul class="piatti">
+          <li>Focaccia di semola, pomodoro secco e origano</li>
+          <li>Fave bianche e cicoria di campo</li>
+          <li>Alici marinate, finocchietto e scorza di limone</li>
+          <li>Burrata e olio nuovo</li>
+        </ul>
+      </details>
+      <details class="portata" name="portata">
+        <summary>
+          <svg class="portata-motivo" viewBox="0 0 100 100" aria-hidden="true"><use href="#m-onda"/></svg>
+          <span class="portata-nome">Paste</span>
+          <span class="portata-spia" aria-hidden="true"></span>
+        </summary>
+        <ul class="piatti">
+          <li>Orecchiette di grano arso, cime di rapa e mollica</li>
+          <li>Cavatelli, ceci e rosmarino</li>
+          <li>Tubettini, cozze e pepe nero</li>
+        </ul>
+      </details>
+      <details class="portata" name="portata">
+        <summary>
+          <svg class="portata-motivo" viewBox="0 0 100 100" aria-hidden="true"><use href="#m-stella"/></svg>
+          <span class="portata-nome">Fuoco</span>
+          <span class="portata-spia" aria-hidden="true"></span>
+        </summary>
+        <ul class="piatti">
+          <li>Agnello al forno con patate e alloro</li>
+          <li>Polpo arrostito su purea di fave</li>
+          <li>Verdure sotto la cenere</li>
+        </ul>
+      </details>
+      <details class="portata" name="portata">
+        <summary>
+          <svg class="portata-motivo" viewBox="0 0 100 100" aria-hidden="true"><use href="#m-cerchi"/></svg>
+          <span class="portata-nome">Dolci</span>
+          <span class="portata-spia" aria-hidden="true"></span>
+        </summary>
+        <ul class="piatti">
+          <li>Fichi al forno e mandorla amara</li>
+          <li>Gelato di latte di mandorla</li>
+          <li>Crostata di uva</li>
+        </ul>
+      </details>
+    </div>
+  </section>
+
+  <!-- ===== La materia ===== -->
+  <section class="materia" id="materia" aria-labelledby="t-materia">
+    <div class="sez-intro">
+      <h2 id="t-materia">La materia</h2>
+      <p>Quattro cose che decidono il resto.</p>
+    </div>
+    <div class="materie">
+      <article class="voce">
+        <svg class="voce-motivo" viewBox="0 0 100 100" aria-hidden="true"><use href="#m-reticolo"/></svg>
+        <h3>Il grano arso</h3>
+        <p>Non è un'invenzione da carta. Era il grano che restava sui
+          campi bruciati dopo la mietitura, e lo raccoglievano i braccianti.
+          Oggi si tosta apposta, e sa di fumo e di terra.</p>
+      </article>
+      <article class="voce">
+        <svg class="voce-motivo" viewBox="0 0 100 100" aria-hidden="true"><use href="#m-foglia"/></svg>
+        <h3>L'olio nuovo</h3>
+        <p>Da novembre è verde, pizzica in gola e dura poco. Finché c'è,
+          lo mettiamo crudo su quasi tutto. Poi si torna a quello
+          dell'anno prima e i piatti cambiano da soli.</p>
+      </article>
+      <article class="voce">
+        <svg class="voce-motivo" viewBox="0 0 100 100" aria-hidden="true"><use href="#m-fiore"/></svg>
+        <h3>Le verdure di campo</h3>
+        <p>Cicoria, cime di rapa, finocchietto, borragine. Sono amare, e
+          l'amaro qui non si corregge: si accompagna con il grasso o con
+          il dolce del pomodoro secco.</p>
+      </article>
+      <article class="voce">
+        <svg class="voce-motivo" viewBox="0 0 100 100" aria-hidden="true"><use href="#m-stella"/></svg>
+        <h3>Il forno</h3>
+        <p>A legna, acceso dal pomeriggio. Le verdure entrano quando la
+          fiamma è già scesa e la volta è ancora bianca: cuociono nel
+          calore fermo, non nel fuoco.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- ===== La sala ===== -->
+  <section class="sala" id="sala" aria-labelledby="t-sala">
+    <div class="sala-corpo">
+      <div class="sala-testo">
+        <h2 id="t-sala">La sala</h2>
+        <p>Volte a stella, muri di calce, trentadue coperti. Si sente
+          parlare dal tavolo accanto: è una sala piccola e non fingiamo
+          il contrario.</p>
+        <p>La cucina chiude mezz'ora prima della sala.</p>
+      </div>
+      <table class="orari">
+        <caption>Quando siamo aperti</caption>
+        <tbody>
+          <tr><th scope="row">Martedì — Sabato</th><td>19.30 — 23</td></tr>
+          <tr><th scope="row">Domenica</th><td>12.30 — 15</td></tr>
+          <tr><th scope="row">Lunedì</th><td>chiuso</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<footer class="piede">
+  <span class="piede-nome">Grecale</span>
+  <span class="piede-luogo">Cucina di grano, fuoco e orto — Puglia</span>
+</footer>
+
+<script type="module" src="./src/main.ts"></script>
+</body>
+</html>

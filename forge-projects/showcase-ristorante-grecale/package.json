@@ -1,0 +1,21 @@
+{
+  "name": "showcase-ristorante-grecale",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Concept dimostrativo: ristorante contemporaneo pugliese. Progetto ISOLATO: non importa nulla da Specter ne dagli altri showcase.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "autonomo": "vite build --config vite.config.autonomo.ts --outDir dist-autonomo"
+  },
+  "dependencies": {
+    "gsap": "3.15.0",
+    "@fontsource-variable/bricolage-grotesque": "^5.2.5",
+    "@fontsource-variable/newsreader": "^5.2.5"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0",
+    "typescript": "^5.6.0"
+  }
+}

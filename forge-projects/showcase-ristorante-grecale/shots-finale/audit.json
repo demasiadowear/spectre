@@ -1,0 +1,90 @@
+[
+  {
+    "page": "index.html",
+    "viewport": "desktop",
+    "status": 200,
+    "fps": 62,
+    "transferredKB": 229,
+    "errors": [],
+    "failed": [],
+    "screenshot": "/home/user/spectre/forge-projects/showcase-ristorante-grecale/shots-finale/index_html-desktop.png",
+    "title": "Grecale — cucina di grano, fuoco e orto",
+    "overflow": false,
+    "scrollW": 1440,
+    "viewW": 1440,
+    "overflowing": [
+      "a.salta"
+    ],
+    "clipped": [],
+    "emptySections": [],
+    "hiddenText": [],
+    "minContrast": 5.43,
+    "worstContrast": {
+      "t": "Grecale",
+      "r": 5.43
+    },
+    "cta": {
+      "w": 435,
+      "h": 126,
+      "contrast": 14.4
+    },
+    "headings": [
+      "H1:Grecale",
+      "H2:Prenota un tavolo",
+      "H2:La carta",
+      "H2:La materia",
+      "H2:La sala"
+    ],
+    "fontsUsed": [
+      "system-ui",
+      "Newsreader Variable",
+      "Bricolage Grotesque Variable"
+    ]
+  },
+  {
+    "page": "index.html",
+    "viewport": "mobile",
+    "status": 200,
+    "fps": 61,
+    "transferredKB": 229,
+    "errors": [],
+    "failed": [],
+    "screenshot": "/home/user/spectre/forge-projects/showcase-ristorante-grecale/shots-finale/index_html-mobile.png",
+    "title": "Grecale — cucina di grano, fuoco e orto",
+    "overflow": false,
+    "scrollW": 390,
+    "viewW": 390,
+    "overflowing": [
+      "a.salta",
+      "svg.[object",
+      "g.[object",
+      "circle.[object",
+      "path.[object"
+    ],
+    "clipped": [],
+    "emptySections": [],
+    "hiddenText": [],
+    "minContrast": 5.43,
+    "worstContrast": {
+      "t": "Grecale",
+      "r": 5.43
+    },
+    "cta": {
+      "w": 358,
+      "h": 69,
+      "contrast": 14.4
+    },
+    "headings": [
+      "H1:Grecale",
+      "H2:Prenota un tavolo",
+      "H2:La carta",
+      "H2:La materia",
+      "H2:La sala"
+    ],
+    "fontsUsed": [
+      "system-ui",
+      "Newsreader Variable",
+      "Bricolage Grotesque Variable"
+    ]
+  }
+]

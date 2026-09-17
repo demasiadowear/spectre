@@ -85,5 +85,20 @@ forge-projects/*/shots-v3b/
 forge-projects/*/shots-v3c/
 forge-projects/*/shots-v3d/
 forge-projects/*/prove-shots/
+!forge-projects/showcase-studio-dentistico/prove-shots/
 forge-projects/*/rasoio-vicino.png
 forge-projects/*/mobile-scroll.png
+
+# Showcase della Factory: si versionano gli screenshot consegnati e le
+# prove che hanno deciso qualcosa. Gli stati intermedi dei cicli di QA,
+# i video e i file autonomi si rigenerano con un comando e peserebbero
+# decine di megabyte.
+forge-projects/*/shots-c1/
+forge-projects/*/shots-c2/
+forge-projects/*/shots-c3/
+forge-projects/*/shots-c3-nojs/
+forge-projects/*/shots-c3-reduced/
+forge-projects/*/shots-nojs/
+forge-projects/*/shots-reduced/
+forge-projects/*/shots-ritagli/
+forge-projects/showcase-*/*-autonomo.html
