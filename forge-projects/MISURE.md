@@ -10,11 +10,11 @@ Chromium dell'immagine. Nessun numero è stimato.
 | **Barberia Centrale** | desktop | 100 | 100 | 100 | 0 | 0,4 s | 0 ms |
 | | mobile | 100 | 100 | 100 | 0 | 1,6 s | 20 ms |
 | **Grecale** | desktop | 100 | 100 | 100 | 0 | 0,5 s | 0 ms |
-| | mobile | 97 | 100 | 100 | 0 | 2,3 s | 70 ms |
+| | mobile | 98 | 100 | 100 | 0 | 2,2 s | 50 ms |
 | **Studio Cardine** | desktop | 100 | 100 | 100 | 0 | 0,5 s | 0 ms |
 | | mobile | 99 | 100 | 100 | 0 | 1,9 s | 0 ms |
 | **Camelia** | desktop | 100 | 100 | 100 | 0 | 0,4 s | 0 ms |
-| | mobile | 99 | 100 | 100 | 0 | 1,8 s | 0 ms |
+| | mobile | 99 | 100 | 100 | 0 | 1,9 s | 0 ms |
 
 Soglie richieste: performance ≥ 90, accessibilità ≥ 95, best practices
 ≥ 95, CLS < 0,1. Tutte rispettate su tutti e quattro, su entrambi i
@@ -29,9 +29,9 @@ e riportarlo come difetto o "aggiustarlo" sarebbe falsificarlo.
 | Sito | Trasferito | JS del sito | CSS | Font (woff2) | FPS desktop | FPS mobile | File autonomo |
 |---|---|---|---|---|---|---|---|
 | Barberia Centrale | ~204 KB | 73 KB | 10 KB | 132 KB | 61 | 60 | 283 KB |
-| Grecale | ~229 KB | 73 KB | 10,6 KB | 136 KB | 62 | 61 | 273 KB |
-| Studio Cardine | ~166 KB | 72 KB | 12,5 KB | 68 KB | 62 | 61 | 188 KB |
-| Camelia | ~163 KB | 72,5 KB | 9,8 KB | 73 KB | 61 | 61 | 187 KB |
+| Grecale | ~236 KB | 73 KB | 12 KB | 136 KB | 61 | 61 | 280 KB |
+| Studio Cardine | ~166 KB | 72 KB | 13 KB | 68 KB | 61 | 62 | 188 KB |
+| Camelia | ~172 KB | 73 KB | 11 KB | 73 KB | 62 | 62 | 196 KB |
 
 Il JS è quasi tutto GSAP (46 KB minificati, 19 KB gzip); il codice
 proprio di ciascun sito sta sotto i 5 KB.
@@ -51,16 +51,19 @@ richiesta fallita.
 | Sito | Contrasto minimo | Su cosa | CTA (mobile) |
 |---|---|---|---|
 | Barberia Centrale | 6,72 | "Oggi, giovedì" | 346×56 px, contrasto 13,2 |
-| Grecale | 5,43 | "Grecale" (insegna) | 358×69 px, contrasto 14,4 |
-| Studio Cardine | 5,54 | intro del percorso | 316×60 px, contrasto 11,8 |
-| Camelia | 5,26 | intro dei look | 351×61 px, contrasto 12,6 |
+| Grecale | 5,43 | "Grecale" (insegna) | 358×66 px, contrasto 14,4 |
+| Studio Cardine | 6,48 | intro del percorso | 354×64 px, contrasto 10,1 |
+| Camelia | 5,34 | "Camelia" nell'arco | 351×61 px, contrasto 12,6 |
 
 ## Stati fotografati
 
 Per ciascun sito, in `shots-finale/`, `shots-nojs/`, `shots-reduced/`:
 
 - desktop 1440×900 e telefono 390×844, a pagina intera;
-- prima videata su entrambi;
+- in `videate-finale/`, i **ritagli a dimensione reale**: prima videata
+  mobile, sezione centrale mobile, conversione mobile, prima videata
+  desktop. Sono quelli su cui si giudica: una pagina intera rimpicciolita
+  nasconde proprio il corpo del testo e il peso dei bordi;
 - **senza JavaScript**: tutti e quattro restano completi e leggibili. I
   `<details>` si aprono da soli, i moduli sono compilabili, il disegno
   del dente e le silhouette ci sono, il rasoio è aperto. Manca solo la

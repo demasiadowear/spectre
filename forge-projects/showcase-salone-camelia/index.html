@@ -29,50 +29,99 @@
 <a class="salta" href="#prenota">Vai alla prenotazione</a>
 
 <svg class="sprite" aria-hidden="true" focusable="false" width="0" height="0"><defs>
-  <!-- Silhouette: spalle, collo, testa e capelli. Senza spalle e senza
-       collo una chioma e una forma astratta, e le prime versioni
-       leggevano come lettere dell'alfabeto. Nessun volto: niente occhi,
-       niente bocca, e il neutro non e un incarnato ma un colore della
-       palette. -->
+  <!-- Silhouette: spalle, collo, testa, capelli. Le prime versioni erano
+       campiture piatte e leggevano come forme astratte; qui ogni taglio
+       ha la sua riga di ciocche in una tinta piu scura della nuance, la
+       scriminatura e il disegno delle punte. Nessun volto, e il neutro
+       della testa non e un incarnato ma un colore della palette. -->
   <symbol id="l-bob" viewBox="0 0 200 260">
-    <path d="M10 258 C14 212 50 194 100 194 C150 194 186 212 190 258 Z" fill="#DCCBD4"/>
-    <rect x="86" y="146" width="28" height="52" rx="12" fill="#DCCBD4"/>
-    <path d="M56 104 C56 70 74 50 100 50 C126 50 144 70 144 104 L144 176
-             C144 182 140 184 134 184 L66 184 C60 184 56 182 56 176 Z" fill="var(--nuance)"/>
-    <ellipse cx="100" cy="112" rx="30" ry="38" fill="#DCCBD4"/>
+    <path d="M8 258 C12 210 50 192 100 192 C150 192 188 210 192 258 Z" fill="var(--pelle)"/>
+    <rect x="86" y="144" width="28" height="54" rx="12" fill="var(--pelle)"/>
+    <!-- caschetto a taglio netto: il fondo e una riga dritta -->
+    <path d="M55 106 C55 70 74 48 100 48 C126 48 145 70 145 106 L145 178 L55 178 Z"
+          fill="var(--nuance)"/>
+    <ellipse cx="100" cy="112" rx="30" ry="38" fill="var(--pelle)"/>
+    <g stroke="var(--ciocca)" stroke-width="2.6" fill="none" stroke-linecap="round">
+      <path d="M100 50 L100 76"/>
+      <path d="M68 88 C64 116 64 148 66 176"/>
+      <path d="M132 88 C136 116 136 148 134 176"/>
+      <path d="M58 118 C57 140 57 160 58 176"/>
+      <path d="M142 118 C143 140 143 160 142 176"/>
+    </g>
+    <path d="M55 174 L145 174" stroke="var(--ciocca)" stroke-width="3.4"/>
   </symbol>
+
   <symbol id="l-onde" viewBox="0 0 200 260">
-    <path d="M10 258 C14 212 50 194 100 194 C150 194 186 212 190 258 Z" fill="#DCCBD4"/>
-    <rect x="86" y="146" width="28" height="52" rx="12" fill="#DCCBD4"/>
-    <path d="M48 108 C48 66 72 44 100 44 C128 44 152 66 152 108
-             C152 146 148 172 144 192 C134 176 130 158 130 138
-             C118 150 82 150 70 138 C70 158 66 176 56 192
-             C52 172 48 146 48 108 Z" fill="var(--nuance)"/>
-    <ellipse cx="100" cy="110" rx="29" ry="37" fill="#DCCBD4"/>
+    <path d="M8 258 C12 210 50 192 100 192 C150 192 188 210 192 258 Z" fill="var(--pelle)"/>
+    <rect x="86" y="144" width="28" height="54" rx="12" fill="var(--pelle)"/>
+    <!-- il profilo esterno ondeggia, e le ciocche seguono l'onda -->
+    <path d="M46 108 C46 64 72 42 100 42 C128 42 154 64 154 108
+             C154 142 162 166 152 194 C140 178 134 160 132 140
+             C120 154 80 154 68 140 C66 160 60 178 48 194
+             C38 166 46 142 46 108 Z" fill="var(--nuance)"/>
+    <ellipse cx="100" cy="110" rx="29" ry="37" fill="var(--pelle)"/>
+    <g stroke="var(--ciocca)" stroke-width="2.6" fill="none" stroke-linecap="round">
+      <path d="M96 46 C86 62 80 76 78 92"/>
+      <path d="M62 96 C56 120 60 142 54 176"/>
+      <path d="M138 96 C144 120 140 142 146 176"/>
+      <path d="M72 122 C66 146 70 162 64 184"/>
+      <path d="M128 122 C134 146 130 162 136 184"/>
+    </g>
   </symbol>
+
   <symbol id="l-frangia" viewBox="0 0 200 260">
-    <path d="M10 258 C14 212 50 194 100 194 C150 194 186 212 190 258 Z" fill="#DCCBD4"/>
-    <rect x="86" y="146" width="28" height="52" rx="12" fill="#DCCBD4"/>
-    <path d="M54 106 C54 68 74 48 100 48 C126 48 146 68 146 106 L146 182
-             C146 188 142 190 136 190 L64 190 C58 190 54 188 54 182 Z" fill="var(--nuance)"/>
-    <ellipse cx="100" cy="120" rx="30" ry="38" fill="#DCCBD4"/>
-    <path d="M69 74 L131 74 L131 112 C118 102 108 100 100 100 C92 100 82 102 69 112 Z" fill="var(--nuance)"/>
+    <path d="M8 258 C12 210 50 192 100 192 C150 192 188 210 192 258 Z" fill="var(--pelle)"/>
+    <rect x="86" y="144" width="28" height="54" rx="12" fill="var(--pelle)"/>
+    <path d="M54 106 C54 68 74 46 100 46 C126 46 146 68 146 106 L146 184
+             C146 190 142 192 136 192 L64 192 C58 192 54 190 54 184 Z"
+          fill="var(--nuance)"/>
+    <ellipse cx="100" cy="120" rx="30" ry="38" fill="var(--pelle)"/>
+    <!-- la frangia: piena, con le ciocche verticali che la fanno leggere -->
+    <path d="M68 72 L132 72 L132 114 C118 103 108 100 100 100 C92 100 82 103 68 114 Z"
+          fill="var(--nuance)"/>
+    <g stroke="var(--ciocca)" stroke-width="2.4" fill="none" stroke-linecap="round">
+      <path d="M82 76 L80 110 M92 76 L91 106 M108 76 L109 106 M118 76 L120 110"/>
+      <path d="M62 120 C60 148 60 170 62 188"/>
+      <path d="M138 120 C140 148 140 170 138 188"/>
+    </g>
   </symbol>
+
   <symbol id="l-raccolto" viewBox="0 0 200 260">
-    <path d="M10 258 C14 212 50 194 100 194 C150 194 186 212 190 258 Z" fill="#DCCBD4"/>
-    <rect x="86" y="146" width="28" height="52" rx="12" fill="#DCCBD4"/>
-    <path d="M60 104 C60 72 78 54 100 54 C122 54 140 72 140 104 L140 138 L60 138 Z" fill="var(--nuance)"/>
-    <ellipse cx="100" cy="112" rx="29" ry="36" fill="#DCCBD4"/>
-    <ellipse cx="141" cy="150" rx="21" ry="19" fill="var(--nuance)"/>
+    <path d="M8 258 C12 210 50 192 100 192 C150 192 188 210 192 258 Z" fill="var(--pelle)"/>
+    <rect x="86" y="144" width="28" height="54" rx="12" fill="var(--pelle)"/>
+    <path d="M60 104 C60 70 78 50 100 50 C122 50 140 70 140 104 L140 140 L60 140 Z"
+          fill="var(--nuance)"/>
+    <ellipse cx="100" cy="112" rx="29" ry="36" fill="var(--pelle)"/>
+    <!-- lo chignon basso, con la spirale che dice che e raccolto -->
+    <ellipse cx="141" cy="152" rx="23" ry="21" fill="var(--nuance)"/>
+    <path d="M141 140 C150 140 152 150 145 154 C138 158 133 150 138 146"
+          fill="none" stroke="var(--ciocca)" stroke-width="2.6" stroke-linecap="round"/>
+    <!-- le ciocche tirate indietro, verso lo chignon -->
+    <g stroke="var(--ciocca)" stroke-width="2.6" fill="none" stroke-linecap="round">
+      <path d="M68 92 C86 78 112 74 132 88"/>
+      <path d="M64 108 C84 94 112 90 134 104"/>
+      <path d="M63 124 C84 112 112 108 136 120"/>
+    </g>
   </symbol>
+
   <symbol id="l-lungo" viewBox="0 0 200 260">
-    <path d="M10 258 C14 212 50 194 100 194 C150 194 186 212 190 258 Z" fill="#DCCBD4"/>
-    <rect x="86" y="146" width="28" height="52" rx="12" fill="#DCCBD4"/>
-    <path d="M48 104 C48 64 72 42 100 42 C128 42 152 64 152 104
-             C152 150 150 202 146 244 L126 244 C130 200 132 156 130 130
-             C128 110 118 100 100 100 C82 100 72 110 70 130
-             C68 156 70 200 74 244 L54 244 C50 202 48 150 48 104 Z" fill="var(--nuance)"/>
-    <ellipse cx="100" cy="110" rx="29" ry="37" fill="#DCCBD4"/>
+    <path d="M8 258 C12 210 50 192 100 192 C150 192 188 210 192 258 Z" fill="var(--pelle)"/>
+    <rect x="86" y="144" width="28" height="54" rx="12" fill="var(--pelle)"/>
+    <!-- lunghezza oltre le spalle, punte scalate a V -->
+    <path d="M48 104 C48 62 72 40 100 40 C128 40 152 62 152 104
+             C152 148 150 198 146 238 L136 224 L128 244 L122 216
+             C128 178 130 150 128 128 C126 108 116 98 100 98
+             C84 98 74 108 72 128 C70 150 72 178 78 216
+             L72 244 L64 224 L54 238 C50 198 48 148 48 104 Z"
+          fill="var(--nuance)"/>
+    <ellipse cx="100" cy="110" rx="29" ry="37" fill="var(--pelle)"/>
+    <g stroke="var(--ciocca)" stroke-width="2.6" fill="none" stroke-linecap="round">
+      <path d="M100 44 L100 72"/>
+      <path d="M62 100 C56 140 60 186 68 226"/>
+      <path d="M138 100 C144 140 140 186 132 226"/>
+      <path d="M86 128 C82 166 84 196 88 218"/>
+      <path d="M114 128 C118 166 116 196 112 218"/>
+    </g>
   </symbol>
 </defs></svg>
 
@@ -91,6 +140,7 @@
   <section class="specchio" aria-labelledby="t-apertura">
     <div class="arco">
       <h1 id="t-apertura" class="nome">Camelia</h1>
+      <span class="disco" aria-hidden="true"></span>
     </div>
     <div class="specchio-testo">
       <p class="claim">Taglio, colore e cura dei capelli. Si lavora su
@@ -98,7 +148,6 @@
         fa di fretta.</p>
       <a class="tasto" href="#prenota" data-cta>Prenota un trattamento</a>
     </div>
-    <span class="disco" aria-hidden="true"></span>
   </section>
 
   <!-- ===== I look: su telefono si scorrono con il pollice ===== -->
@@ -195,32 +244,88 @@
     </table>
   </section>
 
-  <!-- ===== Prenota ===== -->
+  <!-- ===== Prenota: tre passaggi, uno alla volta. Senza JavaScript i
+       tre gruppi restano tutti visibili e il modulo funziona come un
+       modulo normale. ===== -->
   <section class="poltrona" id="prenota" aria-labelledby="t-prenota">
-    <h2 id="t-prenota">Prenota un trattamento</h2>
-    <form class="modulo" id="modulo-prenota" novalidate>
-      <fieldset class="gruppo">
-        <legend>Che cosa</legend>
-        <label class="chip"><input type="radio" name="servizio" value="Taglio e piega" checked><span>Taglio e piega</span></label>
-        <label class="chip"><input type="radio" name="servizio" value="Piega"><span>Piega</span></label>
-        <label class="chip"><input type="radio" name="servizio" value="Colore"><span>Colore</span></label>
-        <label class="chip"><input type="radio" name="servizio" value="Meches"><span>Meches</span></label>
-        <label class="chip"><input type="radio" name="servizio" value="Trattamento"><span>Trattamento</span></label>
-      </fieldset>
-      <fieldset class="gruppo">
-        <legend>Quando</legend>
-        <label class="chip"><input type="radio" name="fascia" value="mattina" checked><span>Mattina</span></label>
-        <label class="chip"><input type="radio" name="fascia" value="primo pomeriggio"><span>Primo pomeriggio</span></label>
-        <label class="chip"><input type="radio" name="fascia" value="fine giornata"><span>Fine giornata</span></label>
-        <label class="chip"><input type="radio" name="fascia" value="sabato"><span>Sabato</span></label>
-      </fieldset>
-      <div class="campo">
-        <label for="c-nome">A che nome</label>
-        <input type="text" id="c-nome" name="nome" autocomplete="name" required>
-      </div>
-      <button class="tasto tasto-pieno" type="submit">Prenota un trattamento</button>
-      <p class="esito" id="esito-prenota" role="status" hidden></p>
-    </form>
+    <div class="poltrona-corpo">
+      <aside class="riepilogo" aria-live="polite">
+        <span class="riepilogo-eti">La sua prenotazione</span>
+        <p class="riepilogo-servizio" data-r-servizio>Taglio e piega</p>
+        <p class="riepilogo-durata" data-r-durata>45 minuti</p>
+        <p class="riepilogo-resto"><span data-r-chi>Indifferente</span><br>
+          <span data-r-quando>Questa settimana</span></p>
+      </aside>
+
+      <form class="modulo" id="modulo-prenota" novalidate>
+        <h2 id="t-prenota">Prenota un trattamento</h2>
+
+        <ol class="avanzamento" aria-hidden="true">
+          <li data-tappa="1">Trattamento</li>
+          <li data-tappa="2">Con chi</li>
+          <li data-tappa="3">Quando</li>
+        </ol>
+
+        <fieldset class="passo" data-passo="1">
+          <legend>Che cosa le facciamo</legend>
+          <div class="scelte">
+            <label class="scelta"><input type="radio" name="servizio" value="Taglio e piega" data-durata="45 minuti" checked>
+              <span class="scelta-nome">Taglio e piega</span><span class="scelta-tempo">45 min</span></label>
+            <label class="scelta"><input type="radio" name="servizio" value="Piega" data-durata="30 minuti">
+              <span class="scelta-nome">Piega</span><span class="scelta-tempo">30 min</span></label>
+            <label class="scelta"><input type="radio" name="servizio" value="Colore" data-durata="2 ore">
+              <span class="scelta-nome">Colore</span><span class="scelta-tempo">2 ore</span></label>
+            <label class="scelta"><input type="radio" name="servizio" value="Meches o schiariture" data-durata="3 ore">
+              <span class="scelta-nome">Meches o schiariture</span><span class="scelta-tempo">3 ore</span></label>
+            <label class="scelta"><input type="radio" name="servizio" value="Trattamento e cura" data-durata="20 minuti">
+              <span class="scelta-nome">Trattamento e cura</span><span class="scelta-tempo">20 min</span></label>
+          </div>
+        </fieldset>
+
+        <fieldset class="passo" data-passo="2">
+          <legend>Con chi</legend>
+          <p class="passo-nota">Per <span data-r-servizio>Taglio e piega</span> servono
+            <span data-r-durata>45 minuti</span> di poltrona.</p>
+          <div class="scelte">
+            <label class="scelta"><input type="radio" name="chi" value="Indifferente" checked>
+              <span class="scelta-nome">Indifferente</span></label>
+            <label class="scelta"><input type="radio" name="chi" value="La persona che mi segue">
+              <span class="scelta-nome">La persona che mi segue</span></label>
+            <label class="scelta"><input type="radio" name="chi" value="Chi è libero prima">
+              <span class="scelta-nome">Chi è libero prima</span></label>
+          </div>
+        </fieldset>
+
+        <fieldset class="passo" data-passo="3">
+          <legend>Quando, e come la chiamiamo</legend>
+          <div class="scelte">
+            <label class="scelta"><input type="radio" name="quando" value="Questa settimana" checked>
+              <span class="scelta-nome">Questa settimana</span></label>
+            <label class="scelta"><input type="radio" name="quando" value="La prossima">
+              <span class="scelta-nome">La prossima</span></label>
+            <label class="scelta"><input type="radio" name="quando" value="Sono flessibile">
+              <span class="scelta-nome">Sono flessibile</span></label>
+          </div>
+          <div class="righe">
+            <div class="campo">
+              <label for="c-nome">A che nome</label>
+              <input type="text" id="c-nome" name="nome" autocomplete="name" required>
+            </div>
+            <div class="campo">
+              <label for="c-recapito">Come la chiamiamo</label>
+              <input type="text" id="c-recapito" name="recapito" placeholder="un recapito a sua scelta" required>
+            </div>
+          </div>
+        </fieldset>
+
+        <div class="comandi">
+          <button class="tasto tasto-vuoto" type="button" data-indietro hidden>Indietro</button>
+          <button class="tasto" type="button" data-avanti hidden>Avanti</button>
+          <button class="tasto tasto-invia" type="submit">Prenota un trattamento</button>
+        </div>
+        <p class="esito" id="esito-prenota" role="status" hidden></p>
+      </form>
+    </div>
   </section>
 </main>
 

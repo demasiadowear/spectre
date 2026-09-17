@@ -126,3 +126,21 @@ anche senza un listino.
 ## Misure
 
 Vedi `MISURE.md` nella radice di `forge-projects/`.
+
+---
+
+## Evoluzione: le silhouette e la prenotazione
+
+Palette e cambio nuance erano approvati. Prenotazione e silhouette no.
+
+| Cosa | Prima | Adesso |
+|---|---|---|
+| **Silhouette** | campiture piatte: leggevano come forme astratte | ogni taglio ha le sue **ciocche** in una tinta derivata dalla nuance (`color-mix`), la scriminatura e il disegno delle punte: caschetto a taglio netto, onde che seguono il profilo, frangia con le ciocche verticali, chignon con la spirale, lungo scalato con le punte a V |
+| **Prenotazione** | un modulo lungo: due file di pastiglie più un campo bianco | **tre passaggi, uno alla volta** — trattamento, con chi, quando e contatto — con l'avanzamento a tre segmenti e i comandi Indietro/Avanti |
+| **Selezione** | pastiglie e chip si somigliavano | una sola forma di scelta, e quella presa ha fondo pieno e segno di spunta |
+| **Campi bianchi** | pastiglie bianche | campi con la sola riga sotto |
+| **Seconda metà** | una colonna di campi | il **riepilogo ad arco** accanto ai passaggi: stessa forma dell'apertura, e dice sempre cosa si sta prenotando |
+| **Testi secondari** | `#5A4C5B`, e opacità sul testo del riepilogo | `#4A3C4B`, e nessuna opacità: l'opacità era un modo caro di abbassare il contrasto senza accorgersene (Lighthouse accessibilità 96 → 100) |
+
+Senza JavaScript i tre gruppi restano tutti visibili e il modulo si
+compila di seguito: la logica dei passaggi vive nel JS, non nel CSS.

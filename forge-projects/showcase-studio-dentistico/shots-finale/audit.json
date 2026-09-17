@@ -3,7 +3,7 @@
     "page": "index.html",
     "viewport": "desktop",
     "status": 200,
-    "fps": 62,
+    "fps": 61,
     "transferredKB": 166,
     "errors": [],
     "failed": [],
@@ -16,15 +16,17 @@
     "clipped": [],
     "emptySections": [],
     "hiddenText": [],
-    "minContrast": 5.54,
+    "minContrast": 6.48,
+    "sottoSoglia": [],
     "worstContrast": {
       "t": "Dalla prima visita al contro",
-      "r": 5.54
+      "r": 6.48,
+      "soglia": 4.5
     },
     "cta": {
-      "w": 249,
-      "h": 60,
-      "contrast": 11.77
+      "w": 268,
+      "h": 64,
+      "contrast": 10.12
     },
     "headings": [
       "H1:Le diciamo prima cosa succede, quanto dura\n   ",
@@ -43,7 +45,7 @@
     "page": "index.html",
     "viewport": "mobile",
     "status": 200,
-    "fps": 61,
+    "fps": 62,
     "transferredKB": 166,
     "errors": [],
     "failed": [],
@@ -56,15 +58,17 @@
     "clipped": [],
     "emptySections": [],
     "hiddenText": [],
-    "minContrast": 5.54,
+    "minContrast": 6.48,
+    "sottoSoglia": [],
     "worstContrast": {
       "t": "Dalla prima visita al contro",
-      "r": 5.54
+      "r": 6.48,
+      "soglia": 4.5
     },
     "cta": {
-      "w": 316,
-      "h": 60,
-      "contrast": 11.77
+      "w": 354,
+      "h": 64,
+      "contrast": 10.12
     },
     "headings": [
       "H1:Le diciamo prima cosa succede, quanto dura\n   ",

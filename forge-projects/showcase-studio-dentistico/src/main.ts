@@ -34,7 +34,7 @@ if (!ridotto && scansione && richiami.length) {
   gsap.set(richiami, { opacity: 0 });
 
   const t = gsap.timeline({ delay: 0.25 });
-  t.to(scansione, { y: 520, duration: 1.15, ease: "power1.inOut" })
+  t.to(scansione, { y: 640, duration: 1.15, ease: "power1.inOut" })
    .to(richiami, { opacity: 1, duration: 0.22, ease: "none", stagger: 0.22 }, 0.18)
    .to(scansione, { opacity: 0, duration: 0.3, ease: "power1.out" }, "-=0.22");
 } else if (scansione) {
@@ -42,19 +42,24 @@ if (!ridotto && scansione && richiami.length) {
   scansione.style.display = "none";
 }
 
-// ----- 2. Le tappe -------------------------------------------------
-// Il <details> si apre da solo anche senza JavaScript. Qui si aggiunge
-// solo l'apertura in altezza, che e movimento che spiega un cambiamento
-// ed e quindi movimento legittimo.
+// ----- 2. Le tappe del percorso ------------------------------------
+// Il testo della tappa c'e sempre: si apre solo il di piu, "cosa si
+// sente". Cosi senza JavaScript la pagina resta completa — i blocchi
+// nascosti hanno l'attributo `hidden`, che senza JS nessuno toglie, ma
+// il contenuto essenziale di ogni tappa e gia fuori.
 
-document.querySelectorAll<HTMLDetailsElement>(".tappa > details").forEach((d) => {
-  const corpo = d.querySelector<HTMLElement>(".tappa-corpo");
-  d.addEventListener("toggle", () => {
-    if (ridotto || !corpo || !d.open) return;
-    gsap.fromTo(corpo,
-      { height: 0, opacity: 0 },
-      { height: "auto", opacity: 1, duration: 0.34, ease: "power1.out",
-        clearProps: "height" });
+document.querySelectorAll<HTMLButtonElement>(".tappa-testa").forEach((testa) => {
+  const id = testa.getAttribute("aria-controls");
+  const oltre = id ? document.getElementById(id) : null;
+  if (!oltre) return;
+  testa.addEventListener("click", () => {
+    const aperto = testa.getAttribute("aria-expanded") === "true";
+    testa.setAttribute("aria-expanded", String(!aperto));
+    oltre.hidden = aperto;
+    if (!aperto && !ridotto) {
+      gsap.fromTo(oltre, { height: 0, opacity: 0 },
+        { height: "auto", opacity: 1, duration: 0.32, ease: "power1.out", clearProps: "height" });
+    }
   });
 });
 

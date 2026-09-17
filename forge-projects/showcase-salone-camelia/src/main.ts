@@ -49,28 +49,87 @@ document.querySelectorAll<HTMLInputElement>('input[name="nuance"]').forEach((r) 
   });
 });
 
-// ----- 3. Prenotare ------------------------------------------------
+// ----- 3. Prenotare in tre passaggi -----------------------------
+// Un passaggio alla volta, con il riepilogo che si aggiorna mentre si
+// sceglie. Senza JavaScript la classe `con-js` non arriva mai, i tre
+// gruppi restano tutti visibili e il modulo si compila di seguito: e
+// per questo che la logica dei passaggi vive qui e non nel CSS.
+
+document.documentElement.classList.add("con-js");
 
 const modulo = document.querySelector<HTMLFormElement>("#modulo-prenota");
 const esito = document.querySelector<HTMLParagraphElement>("#esito-prenota");
 
-modulo?.addEventListener("submit", (e) => {
-  e.preventDefault();
-  if (!esito) return;
-  const dati = new FormData(modulo);
-  const nome = String(dati.get("nome") ?? "").trim();
-  const servizio = String(dati.get("servizio") ?? "");
-  const fascia = String(dati.get("fascia") ?? "");
+if (modulo) {
+  const passi = Array.from(modulo.querySelectorAll<HTMLFieldSetElement>(".passo"));
+  const tappe = Array.from(modulo.querySelectorAll<HTMLLIElement>(".avanzamento li"));
+  const indietro = modulo.querySelector<HTMLButtonElement>("[data-indietro]");
+  const avanti = modulo.querySelector<HTMLButtonElement>("[data-avanti]");
+  const invia = modulo.querySelector<HTMLButtonElement>(".tasto-invia");
+  let corrente = 0;
 
-  if (!nome) {
-    esito.textContent = "Manca il nome: senza, non sappiamo per chi tenere la poltrona.";
-    esito.hidden = false;
-    document.querySelector<HTMLInputElement>("#c-nome")?.focus();
-    return;
+  /** Mostra un passaggio e aggiorna comandi e avanzamento. */
+  function vai(n: number): void {
+    corrente = Math.max(0, Math.min(passi.length - 1, n));
+    passi.forEach((p, i) => p.classList.toggle("attivo", i === corrente));
+    tappe.forEach((t, i) => {
+      t.classList.toggle("qui", i === corrente);
+      t.classList.toggle("fatto", i < corrente);
+    });
+    if (indietro) indietro.hidden = corrente === 0;
+    if (avanti) avanti.hidden = corrente === passi.length - 1;
+    if (invia) invia.hidden = corrente !== passi.length - 1;
+    if (!ridotto) {
+      gsap.fromTo(passi[corrente], { opacity: 0, y: 10 },
+        { opacity: 1, y: 0, duration: 0.5, ease: "expo.out" });
+    }
   }
-  esito.textContent =
-    `${servizio}, ${fascia}, a nome ${nome}. Questo sito è un concept ` +
-    `dimostrativo: la richiesta non parte e nessuno la riceve.`;
-  esito.hidden = false;
-  if (!ridotto) gsap.from(esito, { opacity: 0, y: 10, duration: 0.9, ease: "expo.out" });
-});
+
+  indietro?.addEventListener("click", () => vai(corrente - 1));
+  avanti?.addEventListener("click", () => {
+    vai(corrente + 1);
+    passi[corrente].querySelector<HTMLElement>("legend")
+      ?.scrollIntoView({ block: "nearest", behavior: ridotto ? "auto" : "smooth" });
+  });
+
+  // Il riepilogo: sta sempre in vista e dice cosa si e scelto finora.
+  const scrivi = (chiave: string, testo: string) =>
+    document.querySelectorAll<HTMLElement>(`[data-r-${chiave}]`)
+      .forEach((e) => { e.textContent = testo; });
+
+  function aggiorna(): void {
+    const dati = new FormData(modulo!);
+    const servizio = String(dati.get("servizio") ?? "");
+    const scelto = modulo!.querySelector<HTMLInputElement>('input[name="servizio"]:checked');
+    scrivi("servizio", servizio);
+    scrivi("durata", scelto?.dataset.durata ?? "");
+    scrivi("chi", String(dati.get("chi") ?? ""));
+    scrivi("quando", String(dati.get("quando") ?? ""));
+  }
+  modulo.addEventListener("change", aggiorna);
+  aggiorna();
+  vai(0);
+
+  modulo.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (!esito) return;
+    const dati = new FormData(modulo);
+    const nome = String(dati.get("nome") ?? "").trim();
+    const recapito = String(dati.get("recapito") ?? "").trim();
+    const manca = !nome ? "#c-nome" : !recapito ? "#c-recapito" : null;
+    if (manca) {
+      esito.textContent = !nome
+        ? "Manca il nome: senza, non sappiamo per chi tenere la poltrona."
+        : "Manca un recapito: serve per confermare l'orario.";
+      esito.hidden = false;
+      document.querySelector<HTMLInputElement>(manca)?.focus();
+      return;
+    }
+    esito.textContent =
+      `${dati.get("servizio")}, ${String(dati.get("quando")).toLowerCase()}, ` +
+      `a nome ${nome}. Questo sito è un concept dimostrativo: la richiesta ` +
+      `non parte e il recapito non viene salvato da nessuna parte.`;
+    esito.hidden = false;
+    if (!ridotto) gsap.from(esito, { opacity: 0, y: 10, duration: 0.9, ease: "expo.out" });
+  });
+}

@@ -4,7 +4,7 @@
     "viewport": "desktop",
     "status": 200,
     "fps": 62,
-    "transferredKB": 164,
+    "transferredKB": 172,
     "errors": [],
     "failed": [],
     "screenshot": "/home/user/spectre/forge-projects/showcase-salone-camelia/shots-finale/index_html-desktop.png",
@@ -16,12 +16,12 @@
     "clipped": [],
     "emptySections": [],
     "hiddenText": [],
-    "minContrast": 5.26,
+    "minContrast": 5.34,
     "sottoSoglia": [],
     "worstContrast": {
-      "t": "Cinque forme su cui si lavor",
-      "r": 5.26,
-      "soglia": 4.5
+      "t": "Camelia",
+      "r": 5.34,
+      "soglia": 3
     },
     "cta": {
       "w": 244,
@@ -45,8 +45,8 @@
     "page": "index.html",
     "viewport": "mobile",
     "status": 200,
-    "fps": 61,
-    "transferredKB": 164,
+    "fps": 62,
+    "transferredKB": 172,
     "errors": [],
     "failed": [],
     "screenshot": "/home/user/spectre/forge-projects/showcase-salone-camelia/shots-finale/index_html-mobile.png",
@@ -65,12 +65,12 @@
     "clipped": [],
     "emptySections": [],
     "hiddenText": [],
-    "minContrast": 5.26,
+    "minContrast": 5.34,
     "sottoSoglia": [],
     "worstContrast": {
-      "t": "Cinque forme su cui si lavor",
-      "r": 5.26,
-      "soglia": 4.5
+      "t": "Camelia",
+      "r": 5.34,
+      "soglia": 3
     },
     "cta": {
       "w": 351,

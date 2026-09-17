@@ -136,3 +136,24 @@ JavaScript non parte nessuna richiesta, e lo dice.
 ## Misure
 
 Vedi `MISURE.md` nella radice di `forge-projects/`.
+
+---
+
+## Rifacimento: da documento a studio
+
+La prima consegna è stata bocciata: «sembra un PDF sanitario o un
+gestionale». La composizione è stata rifatta, non sistemata.
+
+| Cosa | Prima | Adesso |
+|---|---|---|
+| **Campo** | porcellana chiara ovunque, indaco solo nella fascia finale | **indaco come sistema**: apertura e "lo studio" sono campi indaco pieni; porcellana per le parti che spiegano. L'indaco torna nei numeri, nei filetti, nei nodi del percorso |
+| **Apertura** | il molare piccolo a lato, la legenda in una colonna accanto | il molare è il **protagonista**, grande, e i quattro richiami stanno **sul disegno**, nei margini liberi della tavola |
+| **Il percorso** | cinque riquadri bianchi impilati | **una linea sola con cinque nodi**. Nessun riquadro: titolo, durata e testo direttamente sul campo, e il comando "cosa si sente" apre il di più in linea |
+| **Trattamenti** | una tabella con i bordi | elenco editoriale con il filetto indaco e le sedute in cifre tabellari |
+| **Lo studio** | pianta e orari, niente altro | pianta, **chi troverà in studio** (ruoli, senza nomi e senza titoli) e orari, tutti dentro il campo indaco |
+| **Prima visita** | campi grigi squadrati in un pannello | un **banco**: scheda bianca con filetto indaco, titolo in serif, quattro campi con la sola riga sotto, una CTA sola |
+| **Vuoti** | enormi fra le sezioni | densità alzata, sezioni ravvicinate |
+| **Testo** | corpo 16,5px, secondario grigio `#505A66` | corpo 18px, interlinea 1,66, secondario `#46505C`; contrasto minimo salito da 5,54 a 6,48 |
+
+La regola sui medici inventati resta: i ruoli non hanno nomi, non hanno
+titoli e non hanno volti.

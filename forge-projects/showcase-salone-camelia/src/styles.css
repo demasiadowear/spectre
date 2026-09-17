@@ -26,11 +26,15 @@
   --cipria:#EEDCE6;
   --cipria-cupa:#E2CBD9;
   --melanzana:#251C26;
-  --melanzana-tenue:#5A4C5B;
+  --melanzana-tenue:#4A3C4B;
   --argento:#B9AFBA;
   --latte:#FFF6FA;   /* il nome dentro l'arco: deve reggere anche sulla nuance piu chiara */
   /* La nuance parte da ciliegia e la cambia chi guarda. */
   --nuance:#C1275B;
+  /* La tinta delle ciocche viene dalla nuance, cosi il disegno resta
+     coerente qualunque colore si scelga. */
+  --ciocca:color-mix(in srgb, var(--nuance) 62%, var(--melanzana));
+  --pelle:#DCCBD4;   /* neutro della palette, non un incarnato */
 
   --bordo:clamp(18px,5vw,88px);
   --display:"Bodoni Moda Variable",Didot,Georgia,serif;
@@ -38,6 +42,9 @@
 }
 
 *{box-sizing:border-box}
+/* `hidden` deve vincere: .tasto e .esito impostano display, e senza
+   questa riga i comandi nascosti restavano tutti in vista. */
+[hidden]{display:none !important}
 html{scroll-behavior:smooth}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 
@@ -113,7 +120,7 @@ section{padding:clamp(56px,9vh,130px) var(--bordo)}
 /* L'arco e lo specchio del salone: raggio pieno in alto, piatto in
    basso. Il nome ci sta dentro, non accanto. */
 .arco{
-  width:min(50vw,580px);justify-self:start;
+  position:relative;width:min(50vw,580px);justify-self:start;
   aspect-ratio:1 / 1.24;
   border-radius:50% 50% 14px 14px / 62% 62% 8px 8px;
   background:var(--nuance);
@@ -136,14 +143,15 @@ section{padding:clamp(56px,9vh,130px) var(--bordo)}
   color:var(--melanzana-tenue);
   font-size:clamp(18px,1.6vw,23px);line-height:1.5;
 }
-/* Un disco solo, e appoggiato sul bordo dell'arco: due dischi sospesi
-   nel vuoto erano due sfere che fluttuano, cioe il tell da evitare.
-   Qui la sovrapposizione e un gesto da stampa, e si vede che e voluta. */
+/* Un disco solo, a cavallo del bordo dell'arco: due dischi sospesi nel
+   vuoto erano due sfere che fluttuano, cioe il tell da evitare. Sta
+   dentro l'arco e si aggancia al suo bordo, non a una percentuale del
+   viewport: al centro finiva sopra il nome e ne mangiava meta. */
 .disco{
   position:absolute;border-radius:50%;background:var(--argento);
   width:clamp(90px,13vw,190px);aspect-ratio:1;
-  left:clamp(160px,31vw,430px);top:38%;
-  mix-blend-mode:multiply;opacity:.62;pointer-events:none;
+  right:-10%;top:13%;
+  mix-blend-mode:multiply;opacity:.6;pointer-events:none;
 }
 
 /* ----- Tasti ----- */
@@ -258,41 +266,105 @@ section{padding:clamp(56px,9vh,130px) var(--bordo)}
 .orari tr + tr th,.orari tr + tr td{border-top:1px solid rgba(239,228,234,.22)}
 
 /* ============================================================
-   Prenota
+   Prenota — tre passaggi, uno alla volta
    ============================================================ */
+.poltrona{background:var(--cipria-cupa)}
+/* Un passaggio alla volta, ma solo se il JavaScript e partito: senza,
+   i tre gruppi restano tutti visibili e il modulo si compila come un
+   modulo qualunque. */
+.con-js .passo{display:none}
+.con-js .passo.attivo{display:grid}
+.poltrona-corpo{
+  display:grid;gap:clamp(22px,3vw,56px);
+  grid-template-columns:minmax(0,4fr) minmax(0,7fr);align-items:start;
+}
+/* Il riepilogo ha la forma dell'arco: e lo stesso oggetto dell'apertura,
+   e dice a colpo d'occhio cosa si sta prenotando. Cosi la seconda meta
+   della pagina non e una colonna di campi. */
+.riepilogo{
+  background:var(--nuance);color:var(--latte);
+  border-radius:50% 50% 20px 20px / 26% 26% 12px 12px;
+  padding:clamp(34px,4vw,56px) clamp(22px,2.4vw,34px) clamp(24px,2.6vw,34px);
+  text-align:center;
+  transition:background .9s cubic-bezier(.22,.61,.36,1);
+}
+.riepilogo-eti{font-size:14.5px;letter-spacing:.04em;color:var(--latte)}
+.riepilogo-servizio{
+  margin:.35em 0 0;font-family:var(--display);
+  font-variation-settings:"opsz" 44;font-weight:400;
+  font-size:clamp(1.6rem,2.6vw,2.3rem);line-height:1.08;
+}
+.riepilogo-durata{margin:.15em 0 .8em;font-size:19px;color:var(--latte)}
+.riepilogo-resto{margin:0;font-size:16.5px;line-height:1.5;color:var(--latte)}
+
+.modulo{display:grid;gap:clamp(18px,2.4vh,30px)}
 .poltrona h2{
-  margin:0 0 clamp(22px,3vh,36px);font-family:var(--display);
+  margin:0;font-family:var(--display);
   font-variation-settings:"opsz" 72;font-weight:400;
   font-size:clamp(2.2rem,5vw,4rem);line-height:1.02;
 }
-.modulo{display:grid;gap:clamp(20px,2.6vh,32px);max-width:760px}
-.gruppo{border:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:10px}
-.gruppo legend{padding:0;margin-bottom:12px;font-size:15px;color:var(--melanzana-tenue)}
-.chip{
-  display:inline-flex;align-items:center;cursor:pointer;
-  background:var(--cipria-cupa);border:1.5px solid transparent;
-  border-radius:999px;padding:12px 22px;min-height:48px;font-size:16.5px;
-  transition:background .3s ease,border-color .3s ease,color .3s ease;
+/* L'avanzamento: tre segmenti, quello attivo pieno. */
+.avanzamento{
+  list-style:none;margin:0;padding:0;
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;
 }
-.chip input{position:absolute;opacity:0;width:0;height:0}
-.chip:hover{background:#DFCFD9}
-.chip:has(input:checked){
-  background:var(--melanzana);color:var(--latte);
-  box-shadow:0 0 0 3px var(--nuance);
+.avanzamento li{
+  padding-top:11px;border-top:3px solid var(--argento);
+  font-size:14.5px;color:var(--melanzana-tenue);
 }
-.chip:has(input:focus-visible){outline:2px solid var(--melanzana);outline-offset:3px}
-.campo{display:flex;flex-direction:column;gap:8px;max-width:420px}
+.avanzamento li.fatto{border-top-color:var(--melanzana);color:var(--melanzana)}
+.avanzamento li.qui{border-top-color:var(--nuance);color:var(--melanzana);font-weight:500}
+
+.passo{border:none;margin:0;padding:0;display:grid;gap:14px}
+.passo legend{
+  padding:0;font-family:var(--display);font-variation-settings:"opsz" 34;
+  font-weight:400;font-size:clamp(1.3rem,2vw,1.7rem);color:var(--melanzana);
+}
+.passo-nota{margin:-4px 0 0;font-size:17px;color:var(--melanzana-tenue)}
+.passo-nota span{color:var(--melanzana);font-weight:500}
+
+.scelte{display:flex;flex-wrap:wrap;gap:10px}
+/* Una sola forma di scelta in tutta la pagina, e si vede quale e
+   presa: fondo pieno e segno di spunta. Prima le pastiglie della
+   nuance e i chip del modulo si somigliavano e non lo era. */
+.scelta{
+  display:inline-flex;align-items:baseline;gap:10px;cursor:pointer;
+  background:none;border:1.5px solid var(--argento);border-radius:999px;
+  padding:13px 22px;min-height:52px;
+  transition:background .25s ease,border-color .25s ease,color .25s ease;
+}
+.scelta input{position:absolute;opacity:0;width:0;height:0}
+.scelta:hover{border-color:var(--melanzana)}
+.scelta:has(input:checked){
+  background:var(--melanzana);border-color:var(--melanzana);color:var(--latte);
+}
+.scelta:has(input:checked) .scelta-nome::before{content:"✓  ";font-size:.9em}
+.scelta:has(input:focus-visible){outline:2px solid var(--melanzana);outline-offset:3px}
+.scelta-nome{font-size:16.5px}
+.scelta-tempo{font-size:14.5px;opacity:.7;font-variant-numeric:tabular-nums}
+
+.righe{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 22px;margin-top:6px}
+.campo{display:flex;flex-direction:column;gap:6px;min-width:0}
 .campo label{font-size:15px;color:var(--melanzana-tenue)}
+/* Campi con la sola riga sotto: le pastiglie bianche erano un'altra
+   forma ancora, e una in piu di quelle che servono. */
 .campo input{
-  font-family:var(--testo);font-size:17px;color:var(--melanzana);
-  background:#fff;border:1.5px solid var(--argento);border-radius:999px;
-  padding:13px 20px;min-height:50px;width:100%;
+  font-family:var(--testo);font-size:18px;color:var(--melanzana);
+  background:none;border:none;border-bottom:1.5px solid var(--argento);
+  border-radius:0;padding:10px 2px;min-height:48px;width:100%;
 }
-.campo input:hover{border-color:var(--melanzana)}
-.tasto-pieno{justify-self:start}
+.campo input::placeholder{color:#7A6A7B}
+.campo input:hover,.campo input:focus{border-bottom-color:var(--melanzana)}
+
+.comandi{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.tasto-vuoto{
+  background:none;color:var(--melanzana);
+  box-shadow:inset 0 0 0 1.5px var(--argento);
+}
+.tasto-vuoto:hover{background:none;color:var(--melanzana);box-shadow:inset 0 0 0 1.5px var(--melanzana)}
 .esito{
   margin:0;padding:16px 20px;border-radius:18px 18px 18px 4px;
-  background:var(--cipria-cupa);color:var(--melanzana);
+  background:var(--cipria);color:var(--melanzana);
   font-size:16.5px;line-height:1.5;max-width:56ch;
 }
 
@@ -310,13 +382,20 @@ section{padding:clamp(56px,9vh,130px) var(--bordo)}
 @media (max-width:980px){
   .vetrina{grid-template-columns:repeat(3,minmax(0,1fr))}
   .listino{columns:1}
+  .poltrona-corpo{grid-template-columns:1fr}
+  /* Su telefono il riepilogo va sopra, basso e largo: l'arco alto
+     rubava mezza videata prima ancora di arrivare alle scelte. */
+  .riepilogo{
+    border-radius:26px 26px 12px 12px / 40% 40% 12px 12px;
+    padding:clamp(20px,4vw,30px);
+  }
 }
 
 @media (max-width:760px){
   .testata nav{display:none}
   .specchio{grid-template-columns:1fr;gap:26px}
   .arco{width:min(78vw,380px);justify-self:center}
-  .disco{left:auto;right:4%;top:14%;width:clamp(72px,20vw,110px)}
+  .disco{right:-12%;top:9%;width:clamp(72px,21vw,118px)}
   .specchio-testo{align-items:stretch;padding-bottom:0}
   .specchio-testo .tasto{justify-content:center}
   /* Vetrina a scorrimento con aggancio: e il gesto con cui si guardano
@@ -330,9 +409,11 @@ section{padding:clamp(56px,9vh,130px) var(--bordo)}
     scrollbar-width:thin;
   }
   .scheda{flex:0 0 min(70vw,260px);scroll-snap-align:start}
+  .righe{grid-template-columns:1fr}
+  .comandi .tasto{flex:1 1 140px;justify-content:center}
   .piede{padding-bottom:90px}
 }
 
 @media (prefers-reduced-motion:reduce){
-  .arco,.tasto,.chip,.pastiglia,.colore-nota{transition:none}
+  .arco,.tasto,.scelta,.pastiglia,.colore-nota,.riepilogo{transition:none}
 }

@@ -102,30 +102,49 @@
       <div class="t t-motivo t-solo-largo" aria-hidden="true"><svg viewBox="0 0 100 100"><use href="#m-foglia"/></svg></div>
 
       <h1 class="t t-nome" id="t-apertura">
-        <!-- Il grecale e un vento di nord-est: la rosa dipinta sulla
-             piastrella dice il nome, non decora il vuoto. -->
-        <svg class="rosa" viewBox="0 0 200 200" aria-hidden="true" focusable="false">
-          <g fill="none" stroke="currentColor" stroke-width="2.2">
-            <circle cx="100" cy="100" r="86"/><circle cx="100" cy="100" r="62"/>
-            <path d="M100 6 L100 194 M6 100 L194 100"/>
-          </g>
-          <g fill="currentColor" opacity=".9">
-            <path d="M100 14 L112 88 L100 100 L88 88 Z"/>
-            <path d="M186 100 L112 112 L100 100 L112 88 Z"/>
-            <path d="M100 186 L88 112 L100 100 L112 112 Z"/>
-            <path d="M14 100 L88 88 L100 100 L88 112 Z"/>
-          </g>
-          <g fill="currentColor" opacity=".55">
-            <path d="M162 38 L116 84 L100 100 L106 74 Z"/>
-            <path d="M162 162 L116 116 L100 100 L126 106 Z"/>
-            <path d="M38 162 L84 116 L100 100 L94 126 Z"/>
-            <path d="M38 38 L84 84 L100 100 L74 94 Z"/>
-          </g>
-          <!-- Il quadrante di nord-est, marcato: e da li che soffia. -->
-          <path d="M100 100 L162 38" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
-          <circle cx="162" cy="38" r="7" fill="currentColor"/>
+        <!-- La targa: bordo smerlato come una maiolica dipinta a mano.
+             Il nome in rilievo d'oliva, la doppia riga tirata a mano, e
+             la rosa dei venti come sigillo — il grecale e il vento di
+             nord-est, e il marchio deve dirlo. -->
+        <svg class="targa" viewBox="0 0 400 220" preserveAspectRatio="none"
+             aria-hidden="true" focusable="false">
+          <path d="M14 14 q10 -8 20 0 q10 8 20 0 q10 -8 20 0 q10 8 20 0 q10 -8 20 0
+                   q10 8 20 0 q10 -8 20 0 q10 8 20 0 q10 -8 20 0 q10 8 20 0
+                   q10 -8 20 0 q10 8 20 0 q10 -8 20 0 q10 8 20 0 q10 -8 20 0
+                   q10 8 20 0 q10 -8 20 0 q10 8 20 0 q10 -8 20 0
+                   L386 206 q-10 8 -20 0 q-10 -8 -20 0 q-10 8 -20 0 q-10 -8 -20 0
+                   q-10 8 -20 0 q-10 -8 -20 0 q-10 8 -20 0 q-10 -8 -20 0
+                   q-10 8 -20 0 q-10 -8 -20 0 q-10 8 -20 0 q-10 -8 -20 0
+                   q-10 8 -20 0 q-10 -8 -20 0 q-10 8 -20 0 q-10 -8 -20 0
+                   q-10 8 -20 0 q-10 -8 -20 0 q-10 8 -20 0 Z"
+                fill="none" stroke="currentColor" stroke-width="2.4"/>
         </svg>
-        <span class="nome-parola">Grecale</span></h1>
+        <span class="nome-parola">Grecale</span>
+        <svg class="filetto" viewBox="0 0 300 12" aria-hidden="true" focusable="false">
+          <path d="M2 4 C70 1 150 7 224 3 C258 1 282 4 298 3"
+                fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
+          <path d="M6 9 C74 7 152 11 226 8 C256 6 280 9 294 8"
+                fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" opacity=".7"/>
+        </svg>
+        <svg class="rosa" viewBox="0 0 200 200" aria-hidden="true" focusable="false">
+          <g fill="none" stroke="currentColor" stroke-width="3">
+            <circle cx="100" cy="100" r="84"/><circle cx="100" cy="100" r="58"/>
+          </g>
+          <g fill="currentColor">
+            <path d="M100 16 L112 88 L100 100 L88 88 Z"/>
+            <path d="M184 100 L112 112 L100 100 L112 88 Z"/>
+            <path d="M100 184 L88 112 L100 100 L112 112 Z"/>
+            <path d="M16 100 L88 88 L100 100 L88 112 Z"/>
+          </g>
+          <g fill="currentColor" opacity=".5">
+            <path d="M160 40 L116 84 L100 100 L106 74 Z"/>
+            <path d="M160 160 L116 116 L100 100 L126 106 Z"/>
+            <path d="M40 160 L84 116 L100 100 L94 126 Z"/>
+            <path d="M40 40 L84 84 L100 100 L74 94 Z"/>
+          </g>
+          <path d="M100 100 L160 40" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>
+          <circle cx="160" cy="40" r="8" fill="currentColor"/>
+        </svg></h1>
 
       <div class="t t-motivo t-lato" aria-hidden="true"><svg viewBox="0 0 100 100"><use href="#m-foglia"/></svg></div>
       <div class="t t-motivo t-lato t-oliva" aria-hidden="true"><svg viewBox="0 0 100 100"><use href="#m-cerchi"/></svg></div>
@@ -139,43 +158,8 @@
     </div>
   </section>
 
-  <!-- ===== Prenotazione: sta qui, in alto, perché è il lavoro della pagina ===== -->
-  <section class="tavolo" id="prenota" aria-labelledby="t-prenota">
-    <div class="tavolo-corpo">
-      <div class="tavolo-testo">
-        <h2 id="t-prenota">Prenota un tavolo</h2>
-        <p>Trentadue coperti, due sale e una corte piccola per la bella
-          stagione. Nel fine settimana conviene muoversi con qualche
-          giorno di anticipo.</p>
-      </div>
-      <form class="modulo" id="modulo-prenota" novalidate>
-        <div class="campo">
-          <label for="p-data">Giorno</label>
-          <input type="date" id="p-data" name="data" required>
-        </div>
-        <div class="campo">
-          <label for="p-coperti">Coperti</label>
-          <select id="p-coperti" name="coperti">
-            <option>2</option><option>3</option><option>4</option>
-            <option>5</option><option>6</option><option>7 o più</option>
-          </select>
-        </div>
-        <div class="campo">
-          <label for="p-ora">Orario</label>
-          <select id="p-ora" name="ora">
-            <option>19.30</option><option>20.00</option><option>20.30</option>
-            <option>21.00</option><option>21.30</option>
-          </select>
-        </div>
-        <div class="campo campo-largo">
-          <label for="p-nome">A che nome</label>
-          <input type="text" id="p-nome" name="nome" autocomplete="name" required>
-        </div>
-        <button class="bottone" type="submit">Prenota un tavolo</button>
-        <p class="esito" id="esito-prenota" role="status" hidden></p>
-      </form>
-    </div>
-  </section>
+
+
 
   <!-- ===== La carta: piastrelle che si girano ===== -->
   <section class="carta" id="carta" aria-labelledby="t-carta">
@@ -236,8 +220,9 @@
       </details>
     </div>
   </section>
-
-  <!-- ===== La materia ===== -->
+  <!-- ===== La materia: composizione editoriale. Il motivo grande e
+       sbiadito fa da campo, il nome e in display, il testo sta in una
+       colonna stretta. Niente riquadri. ===== -->
   <section class="materia" id="materia" aria-labelledby="t-materia">
     <div class="sez-intro">
       <h2 id="t-materia">La materia</h2>
@@ -245,28 +230,28 @@
     </div>
     <div class="materie">
       <article class="voce">
-        <svg class="voce-motivo" viewBox="0 0 100 100" aria-hidden="true"><use href="#m-reticolo"/></svg>
+        <svg class="voce-campo" viewBox="0 0 100 100" aria-hidden="true"><use href="#m-reticolo"/></svg>
         <h3>Il grano arso</h3>
         <p>Non è un'invenzione da carta. Era il grano che restava sui
-          campi bruciati dopo la mietitura, e lo raccoglievano i braccianti.
-          Oggi si tosta apposta, e sa di fumo e di terra.</p>
+          campi bruciati dopo la mietitura, e lo raccoglievano i
+          braccianti. Oggi si tosta apposta, e sa di fumo e di terra.</p>
       </article>
       <article class="voce">
-        <svg class="voce-motivo" viewBox="0 0 100 100" aria-hidden="true"><use href="#m-foglia"/></svg>
+        <svg class="voce-campo" viewBox="0 0 100 100" aria-hidden="true"><use href="#m-foglia"/></svg>
         <h3>L'olio nuovo</h3>
         <p>Da novembre è verde, pizzica in gola e dura poco. Finché c'è,
           lo mettiamo crudo su quasi tutto. Poi si torna a quello
           dell'anno prima e i piatti cambiano da soli.</p>
       </article>
       <article class="voce">
-        <svg class="voce-motivo" viewBox="0 0 100 100" aria-hidden="true"><use href="#m-fiore"/></svg>
+        <svg class="voce-campo" viewBox="0 0 100 100" aria-hidden="true"><use href="#m-fiore"/></svg>
         <h3>Le verdure di campo</h3>
         <p>Cicoria, cime di rapa, finocchietto, borragine. Sono amare, e
           l'amaro qui non si corregge: si accompagna con il grasso o con
           il dolce del pomodoro secco.</p>
       </article>
       <article class="voce">
-        <svg class="voce-motivo" viewBox="0 0 100 100" aria-hidden="true"><use href="#m-stella"/></svg>
+        <svg class="voce-campo" viewBox="0 0 100 100" aria-hidden="true"><use href="#m-stella"/></svg>
         <h3>Il forno</h3>
         <p>A legna, acceso dal pomeriggio. Le verdure entrano quando la
           fiamma è già scesa e la volta è ancora bianca: cuociono nel
@@ -274,17 +259,89 @@
       </article>
     </div>
   </section>
-
-  <!-- ===== La sala ===== -->
+  <!-- ===== La sala: la sezione dominante. Nessuna fotografia: una
+       tavola di maiolica dipinta, volte, lampade, la tavolata
+       apparecchiata. E la cosa che deve far venire voglia. ===== -->
   <section class="sala" id="sala" aria-labelledby="t-sala">
-    <div class="sala-corpo">
-      <div class="sala-testo">
-        <h2 id="t-sala">La sala</h2>
-        <p>Volte a stella, muri di calce, trentadue coperti. Si sente
-          parlare dal tavolo accanto: è una sala piccola e non fingiamo
-          il contrario.</p>
-        <p>La cucina chiude mezz'ora prima della sala.</p>
-      </div>
+    <div class="sala-scena">
+      <svg viewBox="0 0 1200 520" role="img"
+           aria-label="La sala disegnata: le volte, le lampade accese e la tavolata apparecchiata"
+           focusable="false" preserveAspectRatio="xMidYMid slice">
+        <!-- le volte -->
+        <g fill="none" stroke="var(--calce)" stroke-width="3.4" stroke-linecap="round">
+          <path d="M70 372 L70 214 Q220 62 370 214 L370 372"/>
+          <path d="M440 372 L440 214 Q590 62 740 214 L740 372"/>
+          <path d="M810 372 L810 214 Q960 62 1110 214 L1110 372"/>
+        </g>
+        <g fill="none" stroke="var(--calce)" stroke-width="1.6" opacity=".42">
+          <path d="M102 372 L102 220 Q220 98 338 220 L338 372"/>
+          <path d="M472 372 L472 220 Q590 98 708 220 L708 372"/>
+          <path d="M842 372 L842 220 Q960 98 1078 220 L1078 372"/>
+        </g>
+        <!-- le lampade accese: sono la luce della sala, e sono la ragione
+             per cui questa scena fa venire voglia invece di spiegare -->
+        <g>
+          <g transform="translate(220,0)">
+            <path d="M0 86 L0 176" stroke="var(--calce)" stroke-width="2.2"/>
+            <circle cx="0" cy="214" r="62" fill="var(--ottone-luce)" opacity=".2"/>
+            <circle cx="0" cy="210" r="34" fill="var(--ottone-luce)" opacity=".3"/>
+            <path d="M-26 178 L26 178 L17 208 L-17 208 Z" fill="var(--calce)"/>
+          </g>
+          <g transform="translate(590,0)">
+            <path d="M0 86 L0 162" stroke="var(--calce)" stroke-width="2.2"/>
+            <circle cx="0" cy="200" r="62" fill="var(--ottone-luce)" opacity=".2"/>
+            <circle cx="0" cy="196" r="34" fill="var(--ottone-luce)" opacity=".3"/>
+            <path d="M-26 164 L26 164 L17 194 L-17 194 Z" fill="var(--calce)"/>
+          </g>
+          <g transform="translate(960,0)">
+            <path d="M0 86 L0 176" stroke="var(--calce)" stroke-width="2.2"/>
+            <circle cx="0" cy="214" r="62" fill="var(--ottone-luce)" opacity=".2"/>
+            <circle cx="0" cy="210" r="34" fill="var(--ottone-luce)" opacity=".3"/>
+            <path d="M-26 178 L26 178 L17 208 L-17 208 Z" fill="var(--calce)"/>
+          </g>
+        </g>
+        <!-- le sedie, dietro: bastano gli schienali a dire che e una sala -->
+        <g fill="none" stroke="var(--calce)" stroke-width="3" opacity=".5" stroke-linecap="round">
+          <path d="M150 300 L150 372 M186 300 L186 372 M150 316 L186 316"/>
+          <path d="M330 300 L330 372 M366 300 L366 372 M330 316 L366 316"/>
+          <path d="M510 300 L510 372 M546 300 L546 372 M510 316 L546 316"/>
+          <path d="M690 300 L690 372 M726 300 L726 372 M690 316 L726 316"/>
+          <path d="M870 300 L870 372 M906 300 L906 372 M870 316 L906 316"/>
+          <path d="M1030 300 L1030 372 M1066 300 L1066 372 M1030 316 L1066 316"/>
+        </g>
+        <!-- la tavolata -->
+        <rect x="20" y="374" width="1160" height="26" fill="var(--calce)"/>
+        <rect x="20" y="400" width="1160" height="9" fill="var(--oliva)" opacity=".6"/>
+        <g stroke="var(--calce)" stroke-width="6" stroke-linecap="round">
+          <path d="M120 409 L120 476 M400 409 L400 476 M800 409 L800 476 M1080 409 L1080 476"/>
+        </g>
+        <path d="M0 478 L1200 478" stroke="var(--calce)" stroke-width="2" opacity=".35"/>
+        <!-- i piatti: la maiolica torna in tavola -->
+        <g color="var(--oliva)">
+          <g transform="translate(134,308)"><circle cx="34" cy="34" r="34" fill="var(--calce)"/><use href="#m-stella" x="7" y="7" width="54" height="54"/></g>
+          <g transform="translate(314,308)"><circle cx="34" cy="34" r="34" fill="var(--calce)"/><use href="#m-onda" x="7" y="7" width="54" height="54"/></g>
+          <g transform="translate(494,308)"><circle cx="34" cy="34" r="34" fill="var(--calce)"/><use href="#m-fiore" x="7" y="7" width="54" height="54"/></g>
+          <g transform="translate(674,308)"><circle cx="34" cy="34" r="34" fill="var(--calce)"/><use href="#m-cerchi" x="7" y="7" width="54" height="54"/></g>
+          <g transform="translate(854,308)"><circle cx="34" cy="34" r="34" fill="var(--calce)"/><use href="#m-reticolo" x="7" y="7" width="54" height="54"/></g>
+          <g transform="translate(1014,308)"><circle cx="34" cy="34" r="34" fill="var(--calce)"/><use href="#m-foglia" x="7" y="7" width="54" height="54"/></g>
+        </g>
+        <!-- i bicchieri -->
+        <g fill="var(--calce)">
+          <path d="M226 330 L252 330 L247 368 L231 368 Z"/>
+          <path d="M406 330 L432 330 L427 368 L411 368 Z"/>
+          <path d="M586 330 L612 330 L607 368 L591 368 Z"/>
+          <path d="M766 330 L792 330 L787 368 L771 368 Z"/>
+          <path d="M946 330 L972 330 L967 368 L951 368 Z"/>
+        </g>
+      </svg>
+    </div>
+    <div class="sala-dire">
+      <h2 id="t-sala">La sala</h2>
+      <p>Volte a stella, muri di calce, trentadue coperti. Si sente
+        parlare dal tavolo accanto: e una sala piccola e non fingiamo il
+        contrario.</p>
+      <p>Le lampade si accendono alle sette. La cucina chiude mezz'ora
+        prima della sala.</p>
       <table class="orari">
         <caption>Quando siamo aperti</caption>
         <tbody>
@@ -293,6 +350,44 @@
           <tr><th scope="row">Lunedì</th><td>chiuso</td></tr>
         </tbody>
       </table>
+    </div>
+  </section>
+  <!-- ===== Prenotazione: in fondo, dopo la carta e dopo la sala.
+       Prima si fa venire voglia, poi si chiede di prenotare. ===== -->
+  <section class="tavolo" id="prenota" aria-labelledby="t-prenota">
+    <div class="tavolo-corpo">
+      <div class="tavolo-testo">
+        <h2 id="t-prenota">Prenota un tavolo</h2>
+        <p>Trentadue coperti, due sale e una corte piccola per la bella
+          stagione. Nel fine settimana conviene muoversi con qualche
+          giorno di anticipo.</p>
+      </div>
+      <form class="modulo" id="modulo-prenota" novalidate>
+        <div class="campo">
+          <label for="p-data">Giorno</label>
+          <input type="date" id="p-data" name="data" required>
+        </div>
+        <div class="campo">
+          <label for="p-coperti">Coperti</label>
+          <select id="p-coperti" name="coperti">
+            <option>2</option><option>3</option><option>4</option>
+            <option>5</option><option>6</option><option>7 o più</option>
+          </select>
+        </div>
+        <div class="campo">
+          <label for="p-ora">Orario</label>
+          <select id="p-ora" name="ora">
+            <option>19.30</option><option>20.00</option><option>20.30</option>
+            <option>21.00</option><option>21.30</option>
+          </select>
+        </div>
+        <div class="campo campo-largo">
+          <label for="p-nome">A che nome</label>
+          <input type="text" id="p-nome" name="nome" autocomplete="name" required>
+        </div>
+        <button class="bottone" type="submit">Prenota un tavolo</button>
+        <p class="esito" id="esito-prenota" role="status" hidden></p>
+      </form>
     </div>
   </section>
 </main>

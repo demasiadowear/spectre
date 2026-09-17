@@ -111,3 +111,22 @@ nessuna richiesta, e lo dice.
 ## Misure
 
 Vedi `MISURE.md` nella radice di `forge-projects/`.
+
+---
+
+## Revisione: da "menu digitale" a pagina composta
+
+La prima consegna era stata giudicata quasi approvata, ma «troppo
+composta da rettangoli, sembra un menu digitale». Sei correzioni.
+
+| Cosa | Prima | Adesso |
+|---|---|---|
+| **Ordine** | prenotazione subito sotto l'apertura | apertura → carta → materia → sala → prenotazione. Prima si fa venire voglia, poi si chiede |
+| **Box e bordi** | ogni cosa dentro una piastrella con doppio bordo di smalto | la piastrella resta **solo** nel muro dell'apertura. Carta, materia, sala e modulo vivono sul campo d'argilla, separati da filetti |
+| **Wordmark** | la parola in grassetto condensato dentro un riquadro | targa di maiolica: bordo smerlato disegnato a mano, lettere in rilievo d'oliva, filetto doppio tirato a mano, rosa dei venti come sigillo nell'angolo |
+| **Sezione dominante** | non c'era | **la sala disegnata**: tre volte, le lampade accese, la tavolata apparecchiata con i piatti di maiolica. Su telefono si ritaglia invece di rimpicciolirsi, così si vede da vicino |
+| **La materia** | quattro riquadri identici in fila | quattro composizioni: nome in display grande, testo in colonna stretta, il motivo come filigrana, voci alternate da un lato all'altro |
+| **Testo su telefono** | corpo 17px, interlinea 1,58 | corpo 18px, interlinea 1,66, descrizioni 17,5px |
+
+Il modulo di prenotazione ha perso il pannello chiaro: campi con la sola
+riga sotto, sul campo d'argilla.

@@ -28,23 +28,28 @@
   --porcellana-cupa:#E1E5EA;
   --bianco:#FFFFFF;
   --inchiostro:#101418;
-  --grigio:#505A66;
+  --grigio:#46505C;
   --indaco:#22346E;
   --riga:#C7CDD5;
 
-  --bordo:clamp(16px,4vw,72px);
+  --indaco-cupo:#1A2851;
+  --porcellana-su-indaco:#C9D2E8;
+  --bordo:clamp(18px,4vw,76px);
   --display:"Instrument Serif",Georgia,"Times New Roman",serif;
   --testo:"Schibsted Grotesk Variable",system-ui,-apple-system,sans-serif;
 }
 
 *{box-sizing:border-box}
+/* `hidden` deve vincere: .tappa-oltre e .esito impostano display, e
+   senza questa riga i blocchi nascosti restavano tutti aperti. */
+[hidden]{display:none !important}
 html{scroll-behavior:smooth}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 
 body{
   margin:0;background:var(--porcellana);color:var(--inchiostro);
   font-family:var(--testo);font-weight:400;
-  font-size:clamp(16.5px,1.02vw,18px);line-height:1.62;
+  font-size:clamp(18px,1.12vw,19.5px);line-height:1.66;
   -webkit-font-smoothing:antialiased;overflow-x:hidden;
 }
 
@@ -88,305 +93,305 @@ body{
 /* ----- Testata ----- */
 .testata{
   display:flex;align-items:center;gap:14px 26px;flex-wrap:wrap;
-  padding:18px var(--bordo);
-  border-bottom:1px solid var(--riga);
-  font-size:15px;
+  padding:16px var(--bordo);
+  background:var(--indaco);color:var(--porcellana);
+  font-size:15.5px;
 }
 .marchio{
-  font-family:var(--display);font-size:22px;letter-spacing:.005em;
-  color:var(--inchiostro);text-decoration:none;
+  font-family:var(--display);font-size:24px;letter-spacing:.005em;
+  color:var(--porcellana);text-decoration:none;
 }
-.testata nav{display:flex;gap:22px;margin-left:auto}
-.testata nav a{color:var(--grigio);text-decoration:none;font-weight:500}
-.testata nav a:hover{color:var(--indaco)}
+.testata nav{display:flex;gap:24px;margin-left:auto}
+.testata nav a{color:var(--porcellana-su-indaco);text-decoration:none;font-weight:500}
+.testata nav a:hover{color:var(--bianco)}
 .tasto-testata{
-  color:var(--indaco);text-decoration:none;font-weight:600;
-  border:1px solid var(--indaco);border-radius:2px;
-  padding:9px 15px;min-height:44px;display:inline-flex;align-items:center;
+  color:var(--indaco);background:var(--porcellana);text-decoration:none;font-weight:600;
+  border:1px solid var(--porcellana);border-radius:2px;
+  padding:9px 16px;min-height:44px;display:inline-flex;align-items:center;
 }
-.tasto-testata:hover{background:var(--indaco);color:var(--bianco)}
+.tasto-testata:hover{background:var(--bianco);border-color:var(--bianco)}
 
-section{padding:clamp(52px,8vh,110px) var(--bordo)}
+section{padding:clamp(56px,8vh,120px) var(--bordo)}
 
 /* ============================================================
-   Apertura: la tavola
+   Apertura: campo indaco, il molare protagonista
    ============================================================ */
-.tavola-sez{padding-top:clamp(26px,4vh,54px)}
+.tavola-sez{background:var(--indaco);color:var(--porcellana);padding-top:clamp(30px,5vh,66px)}
 .tavola{
-  position:relative;background:var(--bianco);
-  border:1px solid var(--inchiostro);border-radius:2px;
-  padding:clamp(20px,2.6vw,40px);
-  display:grid;gap:clamp(18px,2.4vw,40px);
-  grid-template-columns:minmax(0,5fr) minmax(0,5fr);
-  grid-template-areas:"disegno legenda" "cartiglio cartiglio";
-  align-items:start;
+  position:relative;
+  display:grid;gap:clamp(24px,3.4vw,64px);
+  grid-template-columns:minmax(0,5fr) minmax(0,6fr);
+  align-items:center;
 }
-/* Croci di registro agli angoli: in un disegno servono ad allineare le
-   lastre, qui dicono di che linguaggio e fatta la pagina. */
-.croce{position:absolute;width:13px;height:13px;pointer-events:none}
-.croce::before,.croce::after{content:"";position:absolute;background:var(--grigio)}
-.croce::before{left:6px;top:0;width:1px;height:13px}
-.croce::after{top:6px;left:0;height:1px;width:13px}
-.croce-a{left:8px;top:8px} .croce-b{right:8px;top:8px}
-.croce-c{left:8px;bottom:8px} .croce-d{right:8px;bottom:8px}
+/* Croci di registro: in un disegno servono ad allineare le lastre, qui
+   dicono di che linguaggio e fatta la pagina. Ne bastano due. */
+.croce{position:absolute;width:15px;height:15px;pointer-events:none;opacity:.5}
+.croce::before,.croce::after{content:"";position:absolute;background:var(--porcellana)}
+.croce::before{left:7px;top:0;width:1px;height:15px}
+.croce::after{top:7px;left:0;height:1px;width:15px}
+.croce-a{left:0;top:0} .croce-b{right:0;bottom:0}
 
-.disegno{grid-area:disegno;margin:0}
-.sezione{width:100%;height:auto;display:block;max-height:44vh;margin-inline:auto}
-
-.legenda{
-  grid-area:legenda;list-style:none;margin:0;padding:0;
-  align-self:center;max-width:44ch;
-}
-.legenda li{
-  display:flex;align-items:flex-start;gap:12px;
-  padding:13px 0;border-top:1px solid var(--riga);
-  font-size:16px;line-height:1.5;color:var(--grigio);
-}
-.leg-t{min-width:0}
-.legenda li:first-child{border-top:none}
-.legenda b{color:var(--inchiostro);font-weight:600}
-.leg-n{
-  flex:none;width:24px;height:24px;border-radius:50%;background:var(--indaco);
-  color:var(--bianco);display:grid;place-items:center;
-  font-size:13px;font-weight:600;
-}
-
-.cartiglio{
-  grid-area:cartiglio;
-  border-top:1px solid var(--inchiostro);
-  padding-top:clamp(16px,2vw,28px);
-  display:grid;gap:clamp(12px,1.4vw,20px);
-  grid-template-columns:minmax(0,7fr) minmax(0,4fr);
-  align-items:end;
-}
-.cartiglio-riga{
-  grid-column:1 / -1;margin:0;
-  font-size:14px;color:var(--grigio);font-weight:500;
-}
-.cartiglio h1{
+.dire{display:grid;gap:clamp(14px,1.8vw,26px);justify-items:start}
+.occhio{margin:0;font-size:15px;color:var(--porcellana-su-indaco);font-weight:500}
+.dire h1{
   margin:0;font-family:var(--display);font-weight:400;
-  font-size:clamp(2.1rem,4.1vw,3.9rem);line-height:1.04;
-  letter-spacing:-.012em;text-wrap:balance;
+  font-size:clamp(2.6rem,5.4vw,5.4rem);line-height:1.02;
+  letter-spacing:-.014em;text-wrap:balance;
 }
-.sommario{margin:0;max-width:40ch;color:var(--grigio);font-size:17px}
-.cartiglio .tasto{grid-column:2;justify-self:end;align-self:end}
-@supports not (grid-template-areas:"a"){.tavola{display:block}}
+.sommario{margin:0;max-width:40ch;color:var(--porcellana-su-indaco);font-size:clamp(17.5px,1.2vw,20px)}
+
+.figura{position:relative}
+/* Il disegno lascia i margini liberi: le etichette ci vanno dentro,
+   accanto ai numeri, invece di finirgli sopra. */
+.sezione{width:54%;height:auto;display:block;max-height:74vh;margin-inline:auto}
+/* Le etichette stanno sui margini liberi della tavola, accanto ai
+   numeri: cosi il richiamo e nella hero e non in una legenda a parte. */
+.etichette{list-style:none;margin:0;padding:0}
+.eti{position:absolute;width:22%;display:grid;gap:2px;font-size:14.5px;line-height:1.35}
+.eti b{font-weight:600;color:var(--bianco);font-size:15.5px}
+.eti span{color:var(--porcellana-su-indaco)}
+.eti-1{right:0;top:33%;text-align:left}
+.eti-2{left:0;top:45%;text-align:right}
+.eti-3{right:0;top:55%;text-align:left}
+.eti-4{left:0;top:79%;text-align:right}
 
 /* ----- Tasti ----- */
 .tasto{
   display:inline-flex;align-items:center;justify-content:center;
-  text-decoration:none;font-weight:600;font-size:17px;
-  background:var(--indaco);color:var(--bianco);
-  border:1px solid var(--indaco);border-radius:2px;
-  padding:15px 24px;min-height:52px;cursor:pointer;
-  font-family:var(--testo);
-  transition:background .16s linear,border-color .16s linear;
+  text-decoration:none;font-weight:600;font-size:18px;
+  background:var(--porcellana);color:var(--indaco);
+  border:1px solid var(--porcellana);border-radius:2px;
+  padding:16px 28px;min-height:56px;cursor:pointer;font-family:var(--testo);
+  transition:background .16s linear,color .16s linear;
 }
-.tasto:hover{background:var(--inchiostro);border-color:var(--inchiostro)}
+.tasto:hover{background:var(--bianco);border-color:var(--bianco)}
 
 /* ----- Teste di sezione ----- */
 .sez-testa{
-  display:grid;gap:8px 42px;grid-template-columns:minmax(0,5fr) minmax(0,6fr);
-  align-items:baseline;margin-bottom:clamp(26px,3.4vh,46px);
+  display:grid;gap:10px 48px;grid-template-columns:minmax(0,5fr) minmax(0,6fr);
+  align-items:baseline;margin-bottom:clamp(30px,4vh,56px);
 }
 .sez-testa h2{
   margin:0;font-family:var(--display);font-weight:400;
-  font-size:clamp(1.9rem,3.5vw,2.9rem);line-height:1.06;letter-spacing:-.01em;
+  font-size:clamp(2.1rem,4vw,3.4rem);line-height:1.04;letter-spacing:-.01em;
 }
-.sez-testa p{margin:0;color:var(--grigio);max-width:46ch}
+.sez-testa p{margin:0;color:var(--grigio);max-width:46ch;font-size:clamp(17.5px,1.15vw,19px)}
 
 /* ============================================================
-   Il percorso
+   Il percorso: una linea sola, cinque nodi
    ============================================================ */
 .percorso{background:var(--porcellana-cupa)}
-/* Il percorso e una linea verticale con cinque nodi sopra. I numeri
-   stanno nel margine, sulla linea, non dentro il riquadro: cosi la
-   sequenza si vede prima di leggerla. */
-.tappe{list-style:none;margin:0;padding:0 0 0 62px;position:relative}
+.tappe{
+  list-style:none;margin:0;padding:0 0 0 clamp(46px,5vw,76px);position:relative;
+}
+/* La linea del percorso: continua, dal primo nodo all'ultimo. Prima
+   erano cinque riquadri bianchi impilati, che e un'altra cosa. */
 .tappe::before{
-  content:"";position:absolute;left:16px;top:17px;bottom:32px;
-  width:1px;background:var(--riga);
+  content:"";position:absolute;left:clamp(17px,1.9vw,25px);top:22px;bottom:26px;
+  width:2px;background:var(--indaco);opacity:.24;
 }
-.tappa{position:relative}
-.tappa > details{
-  background:var(--bianco);border:1px solid var(--riga);border-radius:2px;
-  margin-bottom:10px;
-}
-.tappa > details[open]{border-color:var(--indaco)}
-.tappa summary{
+.tappa{position:relative;padding:0 0 clamp(26px,3.4vh,46px)}
+/* Nome a sinistra, durata e comando a destra: sotto il titolo il
+   comando si infilava fra la durata e il testo, e sembrava un'altra
+   riga di contenuto. */
+.tappa-testa{
   display:grid;grid-template-columns:minmax(0,1fr) auto;
-  align-items:center;gap:16px;cursor:pointer;list-style:none;
-  padding:16px clamp(16px,1.8vw,24px);min-height:64px;
+  align-items:baseline;gap:2px 20px;width:100%;text-align:left;cursor:pointer;
+  background:none;border:none;padding:0 0 8px;font-family:var(--testo);color:inherit;
 }
-.tappa summary::-webkit-details-marker{display:none}
 .tappa-n{
-  position:absolute;left:-62px;top:16px;
-  width:34px;height:34px;border-radius:50%;
+  position:absolute;left:calc(clamp(46px,5vw,76px) * -1 + clamp(17px,1.9vw,25px) - 17px);
+  top:0;width:36px;height:36px;border-radius:50%;
   background:var(--porcellana-cupa);color:var(--indaco);
-  border:1px solid var(--indaco);
-  display:grid;place-items:center;font-size:15px;font-weight:600;
-  z-index:1;
+  border:2px solid var(--indaco);
+  display:grid;place-items:center;font-size:16px;font-weight:700;
 }
-details[open] .tappa-n{background:var(--indaco);color:var(--bianco)}
-.tappa-nome{font-size:clamp(1.05rem,1.6vw,1.35rem);font-weight:600;letter-spacing:-.01em}
-.tappa-durata{color:var(--grigio);font-size:15px;font-variant-numeric:tabular-nums}
-.tappa-corpo{
-  padding:0 clamp(16px,1.8vw,24px) clamp(18px,2vw,26px);
+.tappa[aria-espansa="si"] .tappa-n,.tappa-testa[aria-expanded="true"] .tappa-n{
+  background:var(--indaco);color:var(--porcellana);
 }
-.tappa-corpo > p{margin:0 0 16px;max-width:62ch}
-.schede{display:grid;gap:10px 40px;grid-template-columns:repeat(2,minmax(0,1fr));margin:0}
-.schede dt{font-size:14px;font-weight:600;color:var(--indaco);margin-bottom:2px}
-.schede dd{margin:0;font-size:16px;color:var(--grigio);line-height:1.5}
+.tappa-nome{
+  font-family:var(--display);font-weight:400;
+  font-size:clamp(1.5rem,2.6vw,2.2rem);line-height:1.05;letter-spacing:-.01em;
+}
+.tappa-durata{
+  color:var(--indaco);font-size:15.5px;font-weight:600;
+  font-variant-numeric:tabular-nums;white-space:nowrap;
+}
+.tappa-testo{margin:0;max-width:60ch;color:var(--grigio)}
+.tappa-oltre{
+  margin-top:14px;padding-left:18px;border-left:2px solid var(--indaco);
+  display:grid;gap:8px;max-width:58ch;
+}
+.tappa-oltre p{margin:0;font-size:17px;line-height:1.5;color:var(--grigio)}
+.tappa-oltre b{color:var(--indaco);font-weight:600}
+.tappa-testa::after{
+  content:"cosa si sente";grid-column:2;justify-self:end;
+  font-size:15px;color:var(--indaco);font-weight:600;
+  text-decoration:underline;text-underline-offset:4px;
+}
+.tappa-testa[aria-expanded="true"]::after{content:"chiudi"}
 
 /* ============================================================
-   Trattamenti: una tabella
+   Trattamenti
    ============================================================ */
-.tabella{
-  width:100%;border-collapse:collapse;font-size:16.5px;
-  background:var(--bianco);
+.trattamenti{background:var(--porcellana-cupa);padding-top:0}
+.prestazioni{margin:0;border-top:2px solid var(--indaco)}
+.prestazione{
+  display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);
+  gap:6px clamp(20px,3vw,56px);align-items:baseline;
+  padding:clamp(18px,2.4vh,30px) 0;
+  border-bottom:1px solid var(--riga);
 }
-.tabella th,.tabella td{
-  text-align:left;padding:15px clamp(12px,1.4vw,20px);
-  border-bottom:1px solid var(--riga);vertical-align:top;
+.prestazione dt{
+  display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;
+  font-family:var(--display);font-weight:400;
+  font-size:clamp(1.35rem,2.2vw,1.9rem);line-height:1.08;
 }
-.tabella thead th{
-  font-size:14px;font-weight:600;color:var(--grigio);
-  border-bottom:1px solid var(--inchiostro);
+.sedute{
+  font-family:var(--testo);font-size:15px;font-weight:600;color:var(--indaco);
+  font-variant-numeric:tabular-nums;
 }
-.tabella tbody th{font-weight:600;width:24%}
-.tabella tbody td:first-of-type{
-  width:14%;color:var(--indaco);font-variant-numeric:tabular-nums;font-weight:500;
-}
-.tabella tbody td:last-child{color:var(--grigio)}
+.prestazione dd{margin:0;color:var(--grigio);font-size:clamp(17px,1.1vw,18.5px)}
 
 /* ============================================================
-   Lo studio
+   Lo studio: campo indaco
    ============================================================ */
+.studio{background:var(--indaco);color:var(--porcellana)}
+.studio .sez-testa h2{color:var(--porcellana)}
+.studio .sez-testa p{color:var(--porcellana-su-indaco)}
 .studio-corpo{
-  display:grid;gap:clamp(22px,3vw,48px);
-  grid-template-columns:minmax(0,7fr) minmax(0,4fr);align-items:start;
+  display:grid;gap:clamp(24px,3.2vw,56px);
+  grid-template-columns:minmax(0,6fr) minmax(0,5fr);align-items:start;
 }
-/* La pianta e una griglia di stanze, non un disegno con dentro il
-   testo: dentro un SVG le etichette rimpiccioliscono col disegno e a
-   390px diventavano illeggibili. Qui il testo e testo. */
 .pianta{
-  display:grid;gap:0;border:1.6px solid var(--inchiostro);
+  display:grid;border:2px solid var(--porcellana);
   grid-template-columns:repeat(3,minmax(0,1fr));
   grid-template-areas:"attesa studio1 studio2" "accett steril radio";
-  background:var(--bianco);
 }
 .stanza{
-  border-right:1.2px solid var(--inchiostro);
-  border-bottom:1.2px solid var(--inchiostro);
-  padding:clamp(14px,1.5vw,20px);min-height:clamp(100px,11vw,150px);
+  border-right:1px solid rgba(236,238,241,.55);
+  border-bottom:1px solid rgba(236,238,241,.55);
+  padding:clamp(14px,1.6vw,22px);min-height:clamp(104px,11vw,150px);
   display:flex;flex-direction:column;gap:3px;
 }
 .stanza:nth-child(3n){border-right:none}
 .stanza:nth-child(n+4){border-bottom:none}
-.stanza b{font-size:clamp(15px,1.15vw,17px);font-weight:600}
-.stanza span{font-size:14px;color:var(--grigio);line-height:1.35}
+.stanza b{font-size:clamp(15.5px,1.15vw,17.5px);font-weight:600}
+.stanza span{font-size:14.5px;color:var(--porcellana-su-indaco);line-height:1.35}
 .s-attesa{grid-area:attesa} .s-studio1{grid-area:studio1}
 .s-studio2{grid-area:studio2} .s-accett{grid-area:accett}
-.s-steril{grid-area:steril;background:rgba(34,52,110,.07)}
+.s-steril{grid-area:steril;background:rgba(236,238,241,.1)}
 .s-radio{grid-area:radio}
-.studio-testo p{margin:0 0 20px;color:var(--grigio)}
-.orari{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;
-  background:var(--bianco);font-size:16px}
-.orari caption{
-  text-align:left;padding:13px clamp(12px,1.4vw,18px) 5px;background:var(--bianco);
-  font-size:14px;font-weight:600;color:var(--grigio);
+
+.studio-lato h3{
+  margin:0 0 14px;font-family:var(--display);font-weight:400;
+  font-size:clamp(1.4rem,2.1vw,1.8rem);color:var(--porcellana);
 }
-.orari th,.orari td{padding:11px clamp(12px,1.4vw,18px);text-align:left;font-weight:500}
-.orari td{text-align:right;color:var(--grigio);font-weight:400}
-.orari tr + tr th,.orari tr + tr td{border-top:1px solid var(--riga)}
+/* I ruoli, senza nomi e senza titoli: un medico inventato non si
+   scrive, nemmeno in una dimostrazione. */
+.ruoli{list-style:none;margin:0 0 clamp(24px,3vh,40px);padding:0}
+.ruoli li{
+  display:grid;gap:2px;padding:12px 0;
+  border-top:1px solid rgba(236,238,241,.28);
+}
+.ruoli li:first-child{border-top:none;padding-top:0}
+.ruoli b{font-weight:600;font-size:17px}
+.ruoli span{color:var(--porcellana-su-indaco);font-size:16.5px;line-height:1.45}
+.orari{
+  width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;
+  color:var(--porcellana);font-size:17px;
+}
+.orari caption{text-align:left;padding:0 0 8px;font-size:15px;color:var(--porcellana-su-indaco)}
+.orari th,.orari td{padding:11px 0;text-align:left;font-weight:500}
+.orari td{text-align:right;color:var(--porcellana-su-indaco);font-weight:400}
+.orari tr + tr th,.orari tr + tr td{border-top:1px solid rgba(236,238,241,.28)}
 
 /* ============================================================
-   Prima visita
+   Prima visita: un banco, non un gestionale
    ============================================================ */
-.visita{background:var(--indaco);color:var(--porcellana)}
-.visita-corpo{
-  display:grid;gap:clamp(22px,3vw,52px);
-  grid-template-columns:minmax(0,5fr) minmax(0,5fr);align-items:start;
+.visita{background:var(--porcellana)}
+.banco{
+  background:var(--bianco);border:1px solid var(--indaco);border-radius:2px;
+  padding:clamp(26px,3.6vw,64px);
+  display:grid;gap:clamp(22px,3vw,60px);
+  grid-template-columns:minmax(0,5fr) minmax(0,6fr);align-items:start;
 }
-.visita h2{
-  margin:0 0 .4em;font-family:var(--display);font-weight:400;
-  font-size:clamp(1.9rem,3.5vw,2.9rem);line-height:1.06;color:var(--bianco);
+.banco h2{
+  margin:0 0 .35em;font-family:var(--display);font-weight:400;
+  font-size:clamp(2.1rem,4vw,3.4rem);line-height:1.04;
 }
-.visita-testo p{margin:0;max-width:38ch;color:#D3DAEC}
-.modulo{
-  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;
-  background:var(--bianco);padding:clamp(18px,2vw,28px);border-radius:2px;
-}
+.banco-dire p{margin:0;color:var(--grigio);max-width:34ch;font-size:clamp(17.5px,1.15vw,19px)}
+.modulo{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px 28px}
 .campo{display:flex;flex-direction:column;gap:6px;min-width:0}
-.campo-largo{grid-column:1 / -1}
-.campo label{font-size:14px;font-weight:600;color:var(--indaco)}
+.campo label{font-size:15.5px;color:var(--grigio)}
+/* Campi con la sola riga sotto: i riquadri grigi facevano gestionale. */
 .campo input,.campo select{
-  font-family:var(--testo);font-size:16.5px;color:var(--inchiostro);
-  background:var(--porcellana);border:1px solid var(--riga);border-radius:2px;
-  padding:12px;min-height:48px;width:100%;
+  font-family:var(--testo);font-size:18.5px;color:var(--inchiostro);
+  background:none;border:none;border-bottom:2px solid var(--riga);
+  border-radius:0;padding:10px 2px;min-height:50px;width:100%;
 }
-.campo input::placeholder{color:#6A7480}
-.campo input:hover,.campo select:hover{border-color:var(--indaco)}
-.tasto-pieno{grid-column:1 / -1;width:100%}
+.campo select{appearance:none}
+.campo input::placeholder{color:#7C8592}
+.campo input:hover,.campo select:hover,
+.campo input:focus,.campo select:focus{border-bottom-color:var(--indaco)}
+.tasto-largo{grid-column:1 / -1;justify-self:start;min-width:min(100%,360px);
+  background:var(--indaco);color:var(--porcellana);border-color:var(--indaco)}
+.tasto-largo:hover{background:var(--inchiostro);border-color:var(--inchiostro)}
 .esito{
-  grid-column:1 / -1;margin:0;padding:13px 15px;border-radius:2px;
-  background:var(--porcellana);border-left:3px solid var(--indaco);
-  color:var(--inchiostro);font-size:16px;line-height:1.5;
+  grid-column:1 / -1;margin:0;padding:15px 0 0;
+  border-top:2px solid var(--indaco);color:var(--inchiostro);
+  font-size:17.5px;line-height:1.5;
 }
 
 /* ----- Piede ----- */
 .piede{
   display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;
-  padding:26px var(--bordo) 36px;border-top:1px solid var(--riga);
+  padding:26px var(--bordo) 36px;background:var(--indaco);color:var(--porcellana);
 }
-.piede-nome{font-family:var(--display);font-size:20px}
-.piede-riga{color:var(--grigio);font-size:15px}
+.piede-nome{font-family:var(--display);font-size:22px}
+.piede-riga{color:var(--porcellana-su-indaco);font-size:15.5px}
 
 /* ============================================================
    Telefono
    ============================================================ */
-@media (max-width:960px){
-  .tavola{grid-template-columns:1fr;grid-template-areas:"cartiglio" "disegno" "legenda"}
-  .cartiglio{grid-template-columns:1fr;align-items:start}
-  .cartiglio .tasto{grid-column:1;justify-self:stretch}
+@media (max-width:1020px){
+  .tavola{grid-template-columns:1fr;gap:clamp(20px,3vh,36px)}
+  .sezione{width:min(74%,320px);max-height:46vh}
+  /* Le etichette escono dai margini e diventano due colonne sotto il
+     disegno: restano nella hero, che e quello che conta. */
+  .eti{position:static;width:auto;text-align:left !important}
+  .etichette{
+    display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:12px 20px;margin-top:18px;
+  }
   .sez-testa{grid-template-columns:1fr}
-  .studio-corpo,.visita-corpo{grid-template-columns:1fr}
+  .studio-corpo,.banco,.prestazione{grid-template-columns:1fr}
+  .prestazione{gap:4px}
 }
 
 @media (max-width:760px){
   .testata nav{display:none}
   .tasto-testata{margin-left:auto}
-  .sezione{max-height:none}
-  /* A 390px il margine per i nodi costerebbe un quinto della
-     larghezza: la linea esce e i numeri rientrano nel riquadro. */
-  .tappe{padding-left:0}
-  .tappe::before{display:none}
-  .tappa-n{position:static;margin-bottom:2px}
-  .tappa summary{grid-template-columns:auto minmax(0,1fr);gap:12px;padding:14px 16px}
-  .tappa-durata{grid-column:2;color:var(--grigio);font-size:14px}
-  .tappa-corpo{padding:0 16px 18px 16px}
-  .schede{grid-template-columns:1fr}
+  .dire .tasto{width:100%}
+  .etichette{grid-template-columns:1fr}
+  .tappe{padding-left:52px}
+  .tappe::before{left:18px}
+  .tappa-n{left:-52px;width:34px;height:34px}
+  .tappa-testa{grid-template-columns:minmax(0,1fr) auto}
+  .tappa-durata{font-size:14.5px}
+  .tappa-testa::after{font-size:14.5px}
   .modulo{grid-template-columns:1fr}
+  .tasto-largo{min-width:100%}
   .pianta{grid-template-columns:repeat(2,minmax(0,1fr));
     grid-template-areas:"attesa attesa" "studio1 studio2" "steril radio" "accett accett"}
-  .stanza{min-height:82px}
-  .stanza:nth-child(3n){border-right:1.2px solid var(--inchiostro)}
-  .stanza:nth-child(n+4){border-bottom:1.2px solid var(--inchiostro)}
+  .stanza{min-height:86px}
+  .stanza:nth-child(3n){border-right:1px solid rgba(236,238,241,.55)}
+  .stanza:nth-child(n+4){border-bottom:1px solid rgba(236,238,241,.55)}
   .s-attesa,.s-studio2,.s-radio,.s-accett{border-right:none}
   .s-accett{border-bottom:none}
-  /* La tabella diventa un elenco: a 390px cinque colonne si spezzano. */
-  .tabella,.tabella tbody,.tabella tr,.tabella th,.tabella td{display:block;width:auto}
-  .tabella thead{position:absolute;width:1px;height:1px;padding:0;margin:-1px;
-    overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-  .tabella tr{border-bottom:1px solid var(--riga);padding:14px 0}
-  .tabella th,.tabella td{border:none;padding:2px 0}
-  /* width:14% batteva width:auto per specificita e spezzava la riga. */
-  .tabella tbody th,.tabella tbody td:first-of-type{width:auto}
-  .tabella tbody th{font-size:1.1rem}
-  .tabella tbody td:first-of-type::before{content:"Sedute: ";color:var(--grigio);font-weight:400}
-  .piede{padding-bottom:86px}     /* spazio per la pastiglia */
+  .piede{padding-bottom:86px}
 }
 
 @media (prefers-reduced-motion:reduce){
-  .tasto,.tasto-testata,.tappa > details{transition:none}
+  .tasto,.tasto-testata{transition:none}
 }

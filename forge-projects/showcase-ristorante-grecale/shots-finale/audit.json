@@ -3,8 +3,8 @@
     "page": "index.html",
     "viewport": "desktop",
     "status": 200,
-    "fps": 62,
-    "transferredKB": 229,
+    "fps": 61,
+    "transferredKB": 236,
     "errors": [],
     "failed": [],
     "screenshot": "/home/user/spectre/forge-projects/showcase-ristorante-grecale/shots-finale/index_html-desktop.png",
@@ -19,21 +19,23 @@
     "emptySections": [],
     "hiddenText": [],
     "minContrast": 5.43,
+    "sottoSoglia": [],
     "worstContrast": {
       "t": "Grecale",
-      "r": 5.43
+      "r": 5.43,
+      "soglia": 4.5
     },
     "cta": {
       "w": 435,
-      "h": 126,
+      "h": 120,
       "contrast": 14.4
     },
     "headings": [
       "H1:Grecale",
-      "H2:Prenota un tavolo",
       "H2:La carta",
       "H2:La materia",
-      "H2:La sala"
+      "H2:La sala",
+      "H2:Prenota un tavolo"
     ],
     "fontsUsed": [
       "system-ui",
@@ -46,7 +48,7 @@
     "viewport": "mobile",
     "status": 200,
     "fps": 61,
-    "transferredKB": 229,
+    "transferredKB": 236,
     "errors": [],
     "failed": [],
     "screenshot": "/home/user/spectre/forge-projects/showcase-ristorante-grecale/shots-finale/index_html-mobile.png",
@@ -56,30 +58,33 @@
     "viewW": 390,
     "overflowing": [
       "a.salta",
-      "svg.[object",
       "g.[object",
+      "path.[object",
       "circle.[object",
-      "path.[object"
+      "rect.[object",
+      "use.[object"
     ],
     "clipped": [],
     "emptySections": [],
     "hiddenText": [],
     "minContrast": 5.43,
+    "sottoSoglia": [],
     "worstContrast": {
       "t": "Grecale",
-      "r": 5.43
+      "r": 5.43,
+      "soglia": 4.5
     },
     "cta": {
       "w": 358,
-      "h": 69,
+      "h": 66,
       "contrast": 14.4
     },
     "headings": [
       "H1:Grecale",
-      "H2:Prenota un tavolo",
       "H2:La carta",
       "H2:La materia",
-      "H2:La sala"
+      "H2:La sala",
+      "H2:Prenota un tavolo"
     ],
     "fontsUsed": [
       "system-ui",

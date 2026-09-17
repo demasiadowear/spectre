@@ -32,6 +32,7 @@
   --calce-fioca:rgba(246,239,225,.93);
   --oliva:#4C5E2A;
   --grano:#2A1C14;
+  --ottone-luce:#E9B44C;   /* la luce delle lampade in sala */
 
   --modulo:clamp(88px,13.6vw,164px);
   --vuoto:clamp(7px,.8vw,11px);
@@ -48,7 +49,7 @@ html{scroll-behavior:smooth}
 body{
   margin:0;background:var(--terra);color:var(--calce);
   font-family:var(--testo);
-  font-size:clamp(17px,1.08vw,19px);line-height:1.58;
+  font-size:clamp(18px,1.1vw,19.5px);line-height:1.66;
   -webkit-font-smoothing:antialiased;overflow-x:hidden;
 }
 /* La grana di semola: rumore disegnato in canvas dal JS e passato qui
@@ -139,30 +140,45 @@ section{padding:clamp(46px,7vh,96px) var(--bordo)}
   grid-column:span 4;grid-row:span 2;margin:0;
   font-family:var(--display);
   font-variation-settings:"wdth" 74;
-  font-weight:800;font-size:clamp(4rem,14vw,12.5rem);
-  line-height:.88;letter-spacing:-.045em;
   background:var(--calce);color:var(--grano);
-  box-shadow:inset 0 0 0 4px rgba(246,239,225,.95),inset 0 0 0 6px rgba(76,94,42,.35);
-  /* A sinistra come tutto il resto: centrato sembrava un segnaposto. */
-  justify-content:flex-start;align-items:flex-end;
-  padding:0 .07em .06em;
+  box-shadow:none;border:none;
+  /* La targa e una maiolica dipinta: bordo smerlato, lettere in rilievo
+     d'oliva, filetto doppio tirato a mano, rosa dei venti come sigillo.
+     Prima era una parola in grassetto dentro un riquadro, e si vedeva. */
   position:relative;overflow:hidden;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:.02em;padding:clamp(24px,3.2vw,50px);
 }
-/* La rosa dei venti sta dentro l'insegna, in alto a destra, in smalto
-   oliva chiaro: riempie il campo che restava vuoto sopra la parola e
-   dice da dove viene il nome. */
+/* La rosa dei venti come sigillo, in un angolo. Grande e sbiadita in
+   mezzo alla targa competeva col nome invece di firmarlo. */
 .rosa{
-  position:absolute;right:-3%;top:-16%;
-  width:min(46%,340px);aspect-ratio:1;color:var(--oliva);opacity:.36;
-  pointer-events:none;
+  position:absolute;right:clamp(16px,2.2vw,32px);bottom:clamp(14px,1.8vw,26px);
+  width:clamp(44px,5.4vw,76px);aspect-ratio:1;
+  color:var(--oliva);opacity:.6;pointer-events:none;
 }
-.nome-parola{display:block;transform:translateY(-.02em)}
+.nome-parola{
+  display:block;position:relative;z-index:1;
+  font-family:var(--display);font-variation-settings:"wdth" 70;
+  font-weight:800;font-size:clamp(3.4rem,13.4vw,12.6rem);
+  line-height:.84;letter-spacing:-.058em;
+  text-shadow:.026em .034em 0 rgba(76,94,42,.6);
+}
+.targa{
+  position:absolute;inset:clamp(9px,1.1vw,16px);
+  width:auto;height:auto;color:var(--oliva);opacity:.5;pointer-events:none;
+}
+.filetto{
+  display:block;width:min(74%,520px);height:auto;
+  color:var(--oliva);opacity:.85;margin-top:.14em;
+  position:relative;z-index:1;
+}
 
 .t-claim{
-  grid-column:span 4;margin:0;
-  font-size:clamp(17px,1.55vw,22px);line-height:1.42;
-  padding:clamp(18px,2.2vw,30px);text-align:left;
-  background:var(--calce);
+  grid-column:span 4;margin:0;color:var(--calce);
+  font-size:clamp(18px,1.62vw,23px);line-height:1.48;
+  padding:clamp(16px,1.8vw,26px) 0;text-align:left;
+  background:none;border:none;box-shadow:none;
+  align-items:flex-start;
 }
 .t-cta{
   grid-column:span 2;
@@ -170,9 +186,8 @@ section{padding:clamp(46px,7vh,96px) var(--bordo)}
   font-weight:700;font-size:clamp(17px,1.5vw,21px);
   text-decoration:none;text-align:center;
   background:var(--grano);color:var(--calce);
-  border-color:rgba(246,239,225,.24);
-  box-shadow:inset 0 0 0 4px rgba(42,28,20,.95),inset 0 0 0 6px rgba(246,239,225,.3);
-  padding:clamp(20px,2.4vw,30px) 18px;min-height:64px;
+  border:none;box-shadow:none;
+  padding:clamp(20px,2.4vw,30px) 18px;min-height:66px;
   transition:background .16s ease;
 }
 .t-cta:hover{background:var(--oliva)}
@@ -190,68 +205,68 @@ section{padding:clamp(46px,7vh,96px) var(--bordo)}
   font-weight:700;margin:0 0 .4em;
   font-size:clamp(2rem,4.4vw,3.3rem);line-height:1.02;letter-spacing:-.03em;
 }
-.tavolo-testo p{margin:0;max-width:34ch;color:var(--calce-fioca)}
+.tavolo-testo p{margin:0;max-width:34ch;color:var(--calce-fioca);
+  font-size:clamp(17.5px,1.15vw,19.5px)}
 
+/* Campi con la sola riga sotto. Un pannello chiaro pieno di riquadri
+   bianchi era l'ennesima scatola su una pagina gia fatta di scatole. */
 .modulo{
   display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
-  gap:var(--vuoto);
-  background:var(--calce);padding:clamp(16px,1.8vw,24px);
-  border:2px solid rgba(42,28,20,.2);
-  box-shadow:inset 0 0 0 4px rgba(246,239,225,.9),inset 0 0 0 5px rgba(76,94,42,.2);
+  gap:clamp(18px,2vw,30px) clamp(16px,2vw,28px);
+  background:none;padding:0;border:none;box-shadow:none;
 }
 .campo{display:flex;flex-direction:column;gap:5px;min-width:0}
 .campo-largo{grid-column:1 / -1}
 .campo label{
   font-family:var(--display);font-variation-settings:"wdth" 104;
-  font-weight:600;font-size:14px;color:var(--oliva);
+  font-weight:600;font-size:15px;color:var(--calce-fioca);
 }
 .campo input,.campo select{
-  font-family:var(--testo);font-size:17px;color:var(--grano);
-  background:#fff;border:2px solid rgba(42,28,20,.28);
-  padding:11px 12px;min-height:48px;width:100%;border-radius:0;
+  font-family:var(--testo);font-size:18px;color:var(--calce);
+  background:none;border:none;border-bottom:2px solid rgba(246,239,225,.45);
+  padding:10px 2px;min-height:48px;width:100%;border-radius:0;
 }
-.campo input:hover,.campo select:hover{border-color:var(--oliva)}
+.campo select{appearance:none}
+.campo option{color:var(--grano)}
+.campo input:hover,.campo select:hover,
+.campo input:focus,.campo select:focus{border-bottom-color:var(--calce)}
 .bottone{
   grid-column:1 / -1;
   font-family:var(--display);font-variation-settings:"wdth" 96;
-  font-weight:700;font-size:19px;cursor:pointer;
-  background:var(--terra);color:var(--calce);border:none;
-  padding:17px 22px;min-height:56px;
+  font-weight:700;font-size:19px;cursor:pointer;justify-self:start;
+  min-width:min(100%,340px);
+  background:var(--calce);color:var(--grano);border:none;
+  padding:18px 30px;min-height:58px;
   transition:background .16s ease;
 }
-.bottone:hover{background:var(--grano)}
+.bottone:hover{background:var(--oliva);color:var(--calce)}
 .esito{
-  grid-column:1 / -1;margin:0;padding:12px 14px;
-  background:var(--oliva);color:var(--calce);font-size:16px;line-height:1.45;
+  grid-column:1 / -1;margin:0;padding:15px 0 0;
+  border-top:2px solid var(--calce);color:var(--calce);
+  font-size:17px;line-height:1.5;
 }
 
 /* ============================================================
    La carta
    ============================================================ */
 .sez-intro{margin-bottom:clamp(20px,2.6vh,34px);max-width:46ch}
-.sez-intro p{margin:0;color:var(--calce-fioca)}
+.sez-intro p{margin:0;color:var(--calce-fioca);font-size:clamp(17.5px,1.15vw,19.5px)}
 
-.portate{
-  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
-  gap:var(--vuoto);align-items:start;
-  perspective:1400px;
-}
-/* Aprire una portata la fa distendere su tutta la larghezza. Senza,
-   la colonna accanto restava corta e lasciava un buco di argilla che
-   sembrava un errore di caricamento. */
-.portata[open]{grid-column:1 / -1}
+/* Elenco editoriale sul campo d'argilla: un filetto fra una portata e
+   l'altra, e basta. La piastrella resta l'oggetto dell'apertura e
+   smette di essere il contenitore di ogni cosa. */
+.portate{display:block;border-top:1px solid rgba(246,239,225,.32);perspective:1400px}
 .portata{
-  background:var(--calce);color:var(--grano);
-  border:2px solid rgba(42,28,20,.16);
-  box-shadow:inset 0 0 0 4px rgba(246,239,225,.9),inset 0 0 0 5px rgba(76,94,42,.18);
+  background:none;color:var(--calce);border:none;box-shadow:none;
+  border-bottom:1px solid rgba(246,239,225,.32);
   transform-style:preserve-3d;
 }
 .portata summary{
-  display:flex;align-items:center;gap:16px;cursor:pointer;list-style:none;
-  padding:clamp(16px,1.9vw,26px);min-height:76px;
+  display:flex;align-items:center;gap:18px;cursor:pointer;list-style:none;
+  padding:clamp(18px,2vw,28px) 0;min-height:78px;
 }
 .portata summary::-webkit-details-marker{display:none}
-.portata-motivo{width:40px;height:40px;flex:none;color:var(--oliva)}
+.portata-motivo{width:42px;height:42px;flex:none;color:var(--calce);opacity:.72}
 .portata-nome{
   font-family:var(--display);font-variation-settings:"wdth" 84;
   font-weight:700;font-size:clamp(1.5rem,2.6vw,2.2rem);letter-spacing:-.025em;
@@ -260,7 +275,7 @@ section{padding:clamp(46px,7vh,96px) var(--bordo)}
   margin-left:auto;width:22px;height:22px;flex:none;position:relative;
 }
 .portata-spia::before,.portata-spia::after{
-  content:"";position:absolute;background:var(--terra);
+  content:"";position:absolute;background:var(--calce);
   left:50%;top:50%;transform:translate(-50%,-50%);
 }
 .portata-spia::before{width:22px;height:3px}
@@ -268,62 +283,88 @@ section{padding:clamp(46px,7vh,96px) var(--bordo)}
 .portata[open] .portata-spia::after{transform:translate(-50%,-50%) scaleY(0)}
 .piatti{
   list-style:none;margin:0;
-  padding:0 clamp(16px,1.9vw,26px) clamp(18px,2.1vw,28px) clamp(70px,5.4vw,82px);
+  padding:0 0 clamp(20px,2.2vw,30px) clamp(60px,5vw,78px);
 }
-.piatti li{padding:9px 0;border-top:1px solid rgba(42,28,20,.16);line-height:1.4}
+.piatti li{
+  padding:10px 0;line-height:1.5;font-size:clamp(17.5px,1.15vw,19px);
+  border-top:1px solid rgba(246,239,225,.2);
+}
+.piatti li:first-child{border-top:none}
 
 /* ============================================================
    La materia
    ============================================================ */
 .materia{background:var(--grano)}
-.materie{
-  display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:var(--vuoto);
-  align-items:start;
-}
-/* Moduli di larghezza diversa: quattro riquadri identici in fila sono
-   il kit di card, e il muro di maioliche non ha piastrelle tutte
-   uguali. */
-.voce:nth-child(1){grid-column:span 4}
-.voce:nth-child(2){grid-column:span 2}
-.voce:nth-child(3){grid-column:span 2}
-.voce:nth-child(4){grid-column:span 4}
+.materia .sez-intro h2{color:var(--calce)}
+/* Quattro composizioni, non quattro riquadri: il motivo grande fa da
+   campo dietro il nome, il testo sta in una colonna stretta, e le voci
+   si alternano da un lato all'altro. Nessun bordo, nessuna ombra. */
+.materie{display:block}
 .voce{
-  background:var(--calce);color:var(--grano);
-  padding:clamp(18px,2vw,26px);
-  border:2px solid rgba(42,28,20,.16);
-  box-shadow:inset 0 0 0 4px rgba(246,239,225,.9),inset 0 0 0 5px rgba(76,94,42,.18);
+  position:relative;
+  display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);
+  gap:clamp(14px,2.4vw,44px);align-items:start;
+  padding:clamp(32px,4.6vh,66px) 0;
+  border-top:1px solid rgba(246,239,225,.24);
 }
-.voce:nth-child(2),.voce:nth-child(4){background:#FBF7EE}
-.voce-motivo{width:46px;height:46px;color:var(--oliva);display:block;margin-bottom:14px}
+.voce:first-child{border-top:none;padding-top:clamp(10px,1.6vh,22px)}
+.voce:nth-child(even){direction:rtl}
+.voce:nth-child(even) > *{direction:ltr}
+.voce-campo{
+  position:absolute;right:-1%;top:8%;
+  width:clamp(130px,16vw,240px);aspect-ratio:1;
+  color:var(--calce);opacity:.085;pointer-events:none;
+}
+.voce:nth-child(even) .voce-campo{right:auto;left:-1%}
 .voce h3{
-  font-family:var(--display);font-variation-settings:"wdth" 90;
-  font-weight:700;margin:0 0 .35em;font-size:clamp(1.15rem,1.7vw,1.5rem);
-  letter-spacing:-.02em;
+  font-family:var(--display);font-variation-settings:"wdth" 76;
+  font-weight:700;margin:0;font-size:clamp(2rem,4.2vw,3.4rem);
+  letter-spacing:-.035em;line-height:.96;color:var(--calce);
+  position:relative;z-index:1;
 }
-.voce p{margin:0;font-size:16.5px;line-height:1.5}
+.voce p{
+  margin:0;font-size:clamp(17.5px,1.15vw,19px);line-height:1.62;
+  color:var(--calce-fioca);max-width:44ch;position:relative;z-index:1;
+}
 
 /* ============================================================
    La sala
    ============================================================ */
-.sala-corpo{
-  display:grid;gap:clamp(22px,3vw,52px);
-  grid-template-columns:minmax(0,6fr) minmax(0,4fr);align-items:start;
+/* La sala e la sezione dominante: la scena occupa tutta la larghezza, il
+   testo sta sotto. E la cosa che deve far venire voglia, e senza
+   fotografie la deve fare un disegno grande. */
+.sala{
+  background:var(--terra-cupa);
+  padding-left:0;padding-right:0;
+  display:grid;gap:clamp(22px,2.6vw,44px);
 }
-.sala-testo p{margin:0 0 .9em;max-width:38ch;color:var(--calce-fioca)}
+.sala-scena{width:100%;overflow:hidden}
+/* La scena si ritaglia invece di rimpicciolirsi: a 390px una sala larga
+   1200 unita diventava una striscia di 150px in cui non si capiva
+   niente. Con `slice` il telefono vede due volte da vicino. */
+.sala-scena svg{display:block;width:100%;height:clamp(330px,31vw,450px)}
+.sala-dire{
+  padding:0 var(--bordo);
+  display:grid;gap:clamp(14px,2.8vw,48px);
+  grid-template-columns:minmax(0,7fr) minmax(0,5fr);align-items:start;
+}
+.sala-dire h2{grid-column:1 / -1;margin-bottom:-.2em}
+.sala-dire p{
+  margin:0 0 .85em;max-width:40ch;color:var(--calce-fioca);
+  font-size:clamp(17.5px,1.15vw,19.5px);
+}
 .orari{
-  width:100%;border-collapse:collapse;
-  background:var(--calce);color:var(--grano);
-  font-variant-numeric:tabular-nums;
+  width:100%;border-collapse:collapse;color:var(--calce);
+  font-variant-numeric:tabular-nums;font-size:clamp(16.5px,1.05vw,18px);
 }
 .orari caption{
-  text-align:left;padding:15px clamp(14px,1.6vw,20px) 7px;
-  background:var(--calce);
+  text-align:left;padding:0 0 10px;
   font-family:var(--display);font-variation-settings:"wdth" 100;
-  font-weight:600;font-size:15px;color:var(--oliva);
+  font-weight:600;font-size:15px;color:var(--calce-fioca);
 }
-.orari th,.orari td{padding:12px clamp(14px,1.6vw,20px);text-align:left;font-weight:400}
+.orari th,.orari td{padding:13px 0;text-align:left;font-weight:400}
 .orari td{text-align:right}
-.orari tr + tr th,.orari tr + tr td{border-top:1px solid rgba(42,28,20,.16)}
+.orari tr + tr th,.orari tr + tr td{border-top:1px solid rgba(246,239,225,.26)}
 
 /* ----- Piede ----- */
 .piede{
@@ -338,16 +379,15 @@ section{padding:clamp(46px,7vh,96px) var(--bordo)}
    Telefono
    ============================================================ */
 @media (max-width:900px){
-  .tavolo-corpo,.sala-corpo{grid-template-columns:1fr}
-  .materie{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .voce:nth-child(n){grid-column:span 1}
+  .tavolo-corpo,.sala-dire{grid-template-columns:1fr}
   .portate{grid-template-columns:1fr}
 }
 
 @media (max-width:720px){
   .testata nav{display:none}          /* pagina corta: il menu è ingombro */
   .muro{grid-template-columns:repeat(3,minmax(0,1fr))}
-  .t-nome{grid-column:span 3;grid-row:span 2;font-size:clamp(4rem,20vw,7rem)}
+  .t-nome{grid-column:span 3;grid-row:span 2}
+  .nome-parola{font-size:clamp(3.8rem,19vw,6.6rem)}
   .t-claim{grid-column:span 3}
   .t-cta{grid-column:span 3;min-height:58px;padding:19px}
   /* A tre colonne il muro vuole righe piene: quattro piastrelle escono,
@@ -356,13 +396,16 @@ section{padding:clamp(46px,7vh,96px) var(--bordo)}
   .t-solo-largo{display:none}
   /* Senza un minimo, la riga del nome si stringe sul testo e l'insegna
      diventa la cosa più piccola della prima videata. */
-  .t-nome{min-height:clamp(150px,21vh,210px)}
-  .rosa{width:56%;right:-12%;top:-10%;opacity:.26}
+  .t-nome{min-height:clamp(215px,29vh,290px)}
+  .rosa{width:46px;right:14px;bottom:12px;opacity:.6}
   .modulo{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .bottone{min-width:100%}
   .campo:first-child{grid-column:1 / -1}
-  .materie{grid-template-columns:1fr}
-  .portata[open]{grid-column:auto}
-  .piatti{padding-left:clamp(20px,5vw,30px)}
+  .voce{grid-template-columns:1fr;gap:10px}
+  .voce:nth-child(even){direction:ltr}
+  .voce-campo{width:112px;right:-14px;top:10px;opacity:.09}
+  .voce:nth-child(even) .voce-campo{left:auto;right:-10px}
+  .piatti{padding-left:0}
 }
 
 @media (prefers-reduced-motion:reduce){
