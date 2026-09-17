@@ -36,6 +36,10 @@ const ALTRO = "lead-e2e-2";
 
 before(async () => {
   await db.executeMultiple(readFileSync("lib/turso/schema.sql", "utf8"));
+  // Anche lo schema Autopilot: contiene `wa_messages`, cioe la tabella
+  // dei messaggi. Senza, il test «non si scrive nessun messaggio»
+  // passerebbe perche la tabella non esiste — cioe non proverebbe niente.
+  await db.executeMultiple(readFileSync("lib/autopilot/schema.sql", "utf8"));
   await ensureFactorySchema();
   await ensureCollectorSchema();
   for (const [id, nome] of [[LEAD, "Trattoria di Prova"], [ALTRO, "Altra Attività"]]) {
@@ -253,6 +257,63 @@ test("e2e: dossier e manifest completi, salvati e riletti dal database", async (
   assert.equal(riletto?.dossier.media.candidates.length, dossier.media.candidates.length);
   assert.equal(riletto?.recommendation, "REVIEW");
   assert.equal(riletto?.phases.length, phases.length);
+});
+
+// ----- Nessun outreach ------------------------------------------
+
+test("e2e: la raccolta non accoda NIENTE, quindi non puo portare a un contatto", async () => {
+  const numero = async (sql: string) => {
+    const rs = await db.execute(sql);
+    return Number((rs.rows[0] as Record<string, unknown>).n);
+  };
+  const prima = await numero("select count(*) as n from agent_jobs");
+  // Si misura la DIFFERENZA, non il totale: altri test di questo file
+  // accodano job apposta, e contarli sarebbe contare le proprie tracce.
+  const outreachPrima = await numero(
+    "select count(*) as n from agent_jobs where kind = 'prepare_outreach'",
+  );
+
+  const a = await enqueueJob({
+    lead_id: LEAD, kind: "collect_business_intelligence",
+    reason: "prova assenza outreach", budget: 2,
+    idempotent: false,
+  });
+  await runJobNow(a.id);
+
+  const dopo = await numero("select count(*) as n from agent_jobs");
+  assert.equal(dopo, prima + 1,
+    "la raccolta deve aggiungere solo il proprio job: se ne comparissero altri, la catena porterebbe a prepare_outreach");
+
+  const outreachDopo = await numero(
+    "select count(*) as n from agent_jobs where kind = 'prepare_outreach'",
+  );
+  assert.equal(outreachDopo, outreachPrima,
+    "la raccolta non deve accodare nessun prepare_outreach");
+});
+
+test("e2e: la raccolta non scrive messaggi da nessuna parte", async () => {
+  // wa_messages e la tabella dei messaggi. Se la raccolta ne scrivesse
+  // uno, sarebbe un contatto preparato senza che nessuno l'abbia chiesto.
+  const rs = await db.execute("select count(*) as n from wa_messages");
+  assert.equal(Number((rs.rows[0] as Record<string, unknown>).n), 0,
+    "nessun messaggio scritto in wa_messages");
+
+  const att = await db.execute({
+    sql: `select count(*) as n from activities
+           where lead_id = ? and type in ('whatsapp','email','call')`,
+    args: [LEAD],
+  });
+  assert.equal(Number((att.rows[0] as Record<string, unknown>).n), 0,
+    "nessuna attivita di contatto deve comparire in timeline");
+
+  // Le attivita che la raccolta SCRIVE sono di tipo `research` e `note`:
+  // registrare cosa si e fatto non e contattare nessuno.
+  const ricerca = await db.execute({
+    sql: "select count(*) as n from activities where lead_id = ? and type = 'research'",
+    args: [LEAD],
+  });
+  assert.ok(Number((ricerca.rows[0] as Record<string, unknown>).n) > 0,
+    "la raccolta deve pero lasciare traccia di se in timeline");
 });
 
 test("e2e: rilanciare una sola fase non rifa le altre", async () => {

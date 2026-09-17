@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
-  authState, corpo503, scopeDi, suVercel,
+  authState, corpo503, scopeDi, segretoDiFirma, suVercel,
   ENV_ALLOW_DEV, ENV_AUTH_PASSWORD, ENV_AUTH_SECRET,
 } from "../../lib/auth-mode";
 import { capabilities } from "../../lib/collector/capability";
@@ -77,13 +77,38 @@ test("fail-closed: solo il valore esatto \"1\" e un'opt-in", () => {
   }
 });
 
-test("fail-closed: la password da sola non basta, serve anche il segreto di firma", () => {
-  // Il ripiego fisso di NEXTAUTH_SECRET stava in un repository
-  // pubblico: chi lo leggeva poteva firmarsi un token valido anche con
-  // la password configurata. Ora la sua assenza chiude.
-  const s = authState(env({ VERCEL: "1", SPECTRE_PASSWORD: "x" }));
-  assert.equal(s.mode, "not_configured");
-  assert.deepEqual(s.missing, [ENV_AUTH_SECRET]);
+test("password senza NEXTAUTH_SECRET: resta chiusa, col segreto derivato", () => {
+  // Il difetto era un ripiego FISSO scritto in un repository pubblico:
+  // chi lo leggeva poteva firmarsi un token valido. Il problema era che
+  // fosse pubblico, non che esistesse.
+  //
+  // Ora il segreto si deriva dalla password, che e configurata e non e
+  // pubblica: l'autenticazione resta in vigore, nessuno forgia niente,
+  // e un'installazione che HA una password non cade per una variabile
+  // assente. Il pannello continua a dichiararla mancante.
+  const e = env({ VERCEL: "1", SPECTRE_PASSWORD: "password-vera" });
+  const s = authState(e);
+  assert.equal(s.mode, "enforced", "l'autenticazione resta obbligatoria");
+  assert.equal(s.open, false, "non si apre mai");
+  assert.equal(s.segreto_derivato, true);
+  assert.deepEqual(s.missing, [ENV_AUTH_SECRET], "e comunque dichiarata mancante");
+
+  const chiave = segretoDiFirma(e);
+  assert.ok(chiave.length > 0, "un segreto di firma deve esserci");
+  assert.notEqual(chiave, "spectre-dev-secret-not-for-production",
+    "mai piu la costante pubblica");
+  assert.notEqual(chiave, "password-vera", "e mai la password nuda");
+  assert.ok(chiave.startsWith("spectre-firma-v1:"), "etichettata, quindi non riusabile altrove");
+});
+
+test("il segreto esplicito ha sempre la precedenza sulla derivazione", () => {
+  const chiave = segretoDiFirma(env({ SPECTRE_PASSWORD: "p", NEXTAUTH_SECRET: "segreto-esplicito" }));
+  assert.equal(chiave, "segreto-esplicito");
+});
+
+test("senza password non esiste nessun segreto di firma", () => {
+  assert.equal(segretoDiFirma(env({ VERCEL: "1" })), "",
+    "in not_configured non si firma niente, e nessuna richiesta ci arriva");
 });
 
 test("fail-closed: il segreto di firma da solo non basta", () => {
@@ -96,6 +121,8 @@ test("fail-closed: valori di soli spazi non contano come configurati", () => {
   const s = authState(env({ VERCEL: "1", SPECTRE_PASSWORD: "   ", NEXTAUTH_SECRET: "\t" }));
   assert.equal(s.mode, "not_configured");
   assert.equal(s.missing.length, 2);
+  assert.equal(segretoDiFirma(env({ SPECTRE_PASSWORD: "   " })), "",
+    "una password di soli spazi non genera un segreto");
 });
 
 test("enforced: con entrambi i segreti la sessione e obbligatoria, ovunque", () => {
@@ -115,19 +142,19 @@ test("enforced: con entrambi i segreti la sessione e obbligatoria, ovunque", () 
 // ----- Come si presenta la chiusura ------------------------------
 
 test("il 503 dice cosa manca per nome e non contiene nessun valore", () => {
-  const s = authState(env({
-    VERCEL_ENV: "preview",
-    SPECTRE_PASSWORD: "password-segretissima-123",
-  }));
+  const s = authState(env({ VERCEL_ENV: "preview" }));
   const c = corpo503(s);
   assert.equal(c.error, "authentication_not_configured");
-  assert.deepEqual(c.missing, [ENV_AUTH_SECRET]);
+  assert.deepEqual(c.missing.sort(), [ENV_AUTH_PASSWORD, ENV_AUTH_SECRET].sort());
   assert.equal(c.scope, "vercel:preview");
 
-  const testo = JSON.stringify(c);
-  assert.ok(!testo.includes("password-segretissima"), "il valore e uscito");
-  assert.ok(!testo.includes("segretissima"), "un frammento e uscito");
-  assert.ok(!testo.includes(String("password-segretissima-123".length)), "la lunghezza e uscita");
+  // E con dei valori presenti, nessun frammento ne esce.
+  const conValori = corpo503(authState(env({
+    VERCEL_ENV: "preview", ALLOW_DEV_NO_AUTH: "1",
+  })));
+  const testo = JSON.stringify(conValori) + JSON.stringify(c);
+  assert.ok(!testo.includes("password"), "nessun valore nel corpo");
+  assert.ok(!/[0-9]{6,}/.test(testo), "nessuna lunghezza o cifra sospetta");
 });
 
 test("lo scope distingue Preview da Production: e li che si sbaglia", () => {

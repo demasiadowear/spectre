@@ -24,6 +24,9 @@ export type AuthMode =
 
 export interface AuthState {
   mode: AuthMode;
+  /** true = il segreto di firma e derivato dalla password perche
+   *  `NEXTAUTH_SECRET` non e configurata. Funziona, ma va sistemato. */
+  segreto_derivato: boolean;
   /** Vero solo in `dev_open`. Non deriva mai dall'assenza di una env. */
   open: boolean;
   /** Perche siamo in questa modalita, in una riga. */
@@ -69,9 +72,6 @@ export function authState(env: NodeJS.ProcessEnv = process.env): AuthState {
   const vercel = suVercel(env);
   const produzione = env.NODE_ENV === "production";
   const password = presente(env, ENV_AUTH_PASSWORD);
-  // Il segreto di firma non ha piu un valore di ripiego: con un
-  // fallback fisso, e il repository pubblico, chiunque puo firmarsi un
-  // token valido. Qui deve essere configurato o non si parte.
   const segreto = presente(env, ENV_AUTH_SECRET);
 
   const missing: string[] = [];
@@ -79,7 +79,29 @@ export function authState(env: NodeJS.ProcessEnv = process.env): AuthState {
   if (!segreto) missing.push(ENV_AUTH_SECRET);
 
   if (password && segreto) {
-    return { mode: "enforced", open: false, reason: "segreti presenti: sessione obbligatoria", missing: [], scope };
+    return { mode: "enforced", open: false, segreto_derivato: false,
+      reason: "segreti presenti: sessione obbligatoria", missing: [], scope };
+  }
+
+  // Password si, segreto di firma no.
+  //
+  // Il ripiego di prima era una stringa FISSA dentro un repository
+  // pubblico: chiunque la leggesse poteva firmarsi un token valido. Il
+  // problema non era il ripiego, era che fosse pubblico.
+  //
+  // Qui il segreto si deriva dalla password, che e configurata e non e
+  // pubblica: l'autenticazione resta in vigore e nessuno puo forgiare
+  // niente. Non e la configurazione giusta — `NEXTAUTH_SECRET` va
+  // impostata — e infatti viene dichiarata come mancante nel pannello.
+  // Ma un'installazione che ha una password non deve cadere per una
+  // variabile assente: cadrebbe fail-closed su un problema che non e
+  // «nessuno ha configurato l'autenticazione».
+  if (password) {
+    return {
+      mode: "enforced", open: false, segreto_derivato: true,
+      reason: `sessione obbligatoria; ${ENV_AUTH_SECRET} non configurata, segreto derivato dalla password`,
+      missing, scope,
+    };
   }
 
   const optIn = (env[ENV_ALLOW_DEV] ?? "").trim() === "1";
@@ -87,6 +109,7 @@ export function authState(env: NodeJS.ProcessEnv = process.env): AuthState {
     return {
       mode: "dev_open",
       open: true,
+      segreto_derivato: false,
       reason: `${ENV_ALLOW_DEV}=1 in ambiente locale non di produzione`,
       missing,
       scope,
@@ -103,10 +126,32 @@ export function authState(env: NodeJS.ProcessEnv = process.env): AuthState {
   return {
     mode: "not_configured",
     open: false,
+    segreto_derivato: false,
     reason: `autenticazione non configurata (${missing.join(", ")}) e ${perche}`,
     missing,
     scope,
   };
+}
+
+/**
+ * Il segreto con cui si firmano le sessioni.
+ *
+ * Quando `NEXTAUTH_SECRET` manca si deriva dalla password con
+ * un'etichetta davanti, cosi non e mai la password nuda usata altrove.
+ * NextAuth applica comunque la propria derivazione (HKDF) sopra questo
+ * valore. Stringa, non hash: deve funzionare identica nel runtime Edge
+ * del middleware e in quello Node delle rotte, e `crypto.subtle` e
+ * asincrono mentre `node:crypto` nell'Edge non esiste.
+ *
+ * Restituisce "" quando l'autenticazione non e configurata: in quel
+ * caso nessuna richiesta arriva a doverlo usare.
+ */
+export function segretoDiFirma(env: NodeJS.ProcessEnv = process.env): string {
+  const esplicito = (env[ENV_AUTH_SECRET] ?? "").trim();
+  if (esplicito) return esplicito;
+  const password = (env[ENV_AUTH_PASSWORD] ?? "").trim();
+  if (password) return `spectre-firma-v1:${password}`;
+  return "";
 }
 
 /** Corpo della risposta quando si chiude. Nomi di variabili, mai valori. */

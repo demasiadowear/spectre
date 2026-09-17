@@ -66,6 +66,7 @@ export function capabilities(
     // qualcosa: `dev_open` e aperta per scelta, `not_configured` e
     // chiusa perche rotta, e nessuna delle due e "configurata".
     authentication_configured: auth.mode === "enforced",
+    authentication_derived_secret: auth.segreto_derivato,
     database_configured: db,
     database_reachable: diagnosi
       ? diagnosi.stato !== "database_not_configured" && diagnosi.stato !== "database_unreachable"
@@ -88,6 +89,8 @@ export function spiegaCapacita(c: CapabilityReport): string[] {
   const note: string[] = [];
   if (!c.authentication_configured) {
     note.push(`Autenticazione non in vigore: servono ${ENV_AUTH_PASSWORD} e ${ENV_AUTH_SECRET}. Finche non ci sono, nessuna azione e abilitata.`);
+  } else if (c.authentication_derived_secret) {
+    note.push(`${ENV_AUTH_SECRET} non e configurata: le sessioni sono firmate con un segreto derivato dalla password. Funziona ed e chiuso, ma il segreto dedicato va impostato.`);
   }
   if (!c.google_places_configured) {
     note.push(`${ENV_GOOGLE} non configurata in questo scope: senza, la fonte Places non parte e il dossier non ha un'ancora.`);

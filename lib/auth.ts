@@ -1,6 +1,6 @@
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { authState, ENV_AUTH_SECRET } from "./auth-mode";
+import { authState, segretoDiFirma } from "./auth-mode";
 
 // ============================================================
 // AYRO SPECTRE — autenticazione a operatore unico (NextAuth v4).
@@ -33,7 +33,7 @@ export const AUTH_STATE = STATO;
  *  configurato, e se manca la modalita e `not_configured` e nessuna
  *  richiesta arriva fin qui. */
 export const AUTH_SECRET =
-  process.env[ENV_AUTH_SECRET] || (STATO.open ? "spectre-dev-solo-locale" : "");
+  segretoDiFirma() || (STATO.open ? "spectre-dev-solo-locale" : "");
 
 export const authOptions: NextAuthOptions = {
   secret: AUTH_SECRET,

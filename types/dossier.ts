@@ -284,6 +284,9 @@ export interface CollectProgress {
  *  solo booleano costringe a indovinare quale dei tre sia. */
 export interface CapabilityReport {
   authentication_configured: boolean;
+  /** true = sessioni firmate con un segreto derivato dalla password
+   *  perche `NEXTAUTH_SECRET` manca. Chiuso, ma da sistemare. */
+  authentication_derived_secret: boolean;
   database_configured: boolean;
   database_reachable: boolean;
   database_schema_present: boolean;

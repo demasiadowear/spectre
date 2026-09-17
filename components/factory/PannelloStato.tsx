@@ -43,8 +43,11 @@ const RIMEDIO_DB: Record<string, string> = {
   database_ready: "",
 };
 
-const VOCI: { chiave: keyof CapabilityReport; etichetta: string }[] = [
+/** `inverti` = la voce e sana quando il booleano e FALSO: «segreto
+ *  derivato» acceso e un difetto, non una capacita. */
+const VOCI: { chiave: keyof CapabilityReport; etichetta: string; inverti?: boolean }[] = [
   { chiave: "authentication_configured", etichetta: "Autenticazione configurata" },
+  { chiave: "authentication_derived_secret", etichetta: "Segreto di firma dedicato", inverti: true },
   { chiave: "database_configured", etichetta: "Database configurato" },
   { chiave: "database_reachable", etichetta: "Database raggiungibile" },
   { chiave: "database_schema_present", etichetta: "Schema presente" },
@@ -70,7 +73,8 @@ export default function PannelloStato({ stato }: { stato: StatoRuntime }) {
 
       <ul className="mt-3 grid gap-1.5 sm:grid-cols-2">
         {VOCI.map((v) => {
-          const ok = Boolean(stato.capability[v.chiave]);
+          const grezzo = Boolean(stato.capability[v.chiave]);
+          const ok = v.inverti ? !grezzo : grezzo;
           return (
             <li key={String(v.chiave)} className="flex items-center gap-2 text-[11px]">
               {ok

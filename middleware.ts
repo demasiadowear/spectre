@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
-import { authState, corpo503 } from "@/lib/auth-mode";
+import { authState, corpo503, segretoDiFirma } from "@/lib/auth-mode";
 
 // ============================================================
 // Il cancello. Tre esiti, e nessuno di questi e "lascio passare
@@ -55,7 +55,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+  const token = await getToken({ req, secret: segretoDiFirma() });
   if (token) return NextResponse.next();
 
   const login = new URL("/login", req.url);
