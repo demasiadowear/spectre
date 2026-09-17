@@ -369,10 +369,20 @@ export function candidatesFromKnown(lead: KnownLead): Candidate[] {
   };
 
   // 1. Manuale: precedenza assoluta, non si sovrascrive mai.
-  for (const [field, value] of Object.entries(lead.manual ?? {})) {
-    push(field, value, "manual", "inserimento_manuale", "verified", {
-      origine: "inserito a mano in SPECTER",
-    });
+  // Un campo multi-valore (i servizi, l'area servita) si scrive con " | ",
+  // perché chi torna dalla visita digita "Taglio | Piega | Colore" e non
+  // ha voglia di compilare tre righe separate.
+  const manual = lead.manual ?? {};
+  for (const field of Object.keys(manual)) {
+    const raw = manual[field];
+    const parts = SINGLE_VALUE_FIELDS.has(field)
+      ? [raw]
+      : raw.split("|").map((p) => p.trim()).filter(Boolean);
+    for (const value of parts) {
+      push(field, value, "manual", "inserimento_manuale", "verified", {
+        origine: "inserito a mano in SPECTER",
+      });
+    }
   }
 
   // 2. Dati già sul lead.
@@ -609,8 +619,12 @@ export async function researchBusiness(
 
 /** Servizi utilizzabili nella SiteSpec: solo fatti con fonte. */
 export function verifiedServices(result: ResearchResult): ResearchFact[] {
+  // La provenienza è `source`, non `source_url`: un servizio digitato a
+  // mano dopo la visita non ha un URL, ed è la fonte PIÙ affidabile che
+  // esista. Filtrare sull'URL scartava proprio quelli.
+  // Restano fuori solo i `possible`, cioè le deduzioni.
   return result.facts.filter(
-    (f) => f.field === "service" && f.source_url !== "" && f.band !== "possible",
+    (f) => f.field === "service" && Boolean(f.source) && f.band !== "possible",
   );
 }
 

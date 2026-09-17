@@ -36,7 +36,29 @@ const REASON_PHRASES: Record<string, string> = {
   acceptable: "il sito è già in ordine",
 };
 
-/** Riassunto dei RILIEVI MISURATI. Niente aggettivi, solo fatti. */
+/** Misure che in un messaggio non si scrivono: l'URL del sito lui lo sa
+ *  già, e citarglielo fra parentesi suona come un verbale. */
+const MEASURE_IN_MESSAGE = new Set(["slow", "thin"]);
+
+/**
+ * IL rilievo da citare: uno solo, il più pesante, senza misura tecnica.
+ *
+ * Elencarne quattro di fila è un verbale, non un messaggio: il titolare
+ * legge la lista dei difetti del suo sito e chiude la chat. Il resto
+ * dell'analisi resta nella scheda, per quando si parla davvero.
+ */
+export function topFinding(analysis: WebsiteAnalysis): string {
+  const real = analysis.reasons.filter((r) => r.points > 0);
+  if (real.length === 0) return "";
+  const top = real.slice().sort((a, b) => b.points - a.points)[0];
+  const phrase = REASON_PHRASES[top.code] ?? top.label.toLowerCase();
+  return top.measured && MEASURE_IN_MESSAGE.has(top.code)
+    ? `${phrase} (${top.measured})`
+    : phrase;
+}
+
+/** Riassunto COMPLETO dei rilievi: per la scheda e per la telefonata,
+ *  non per il primo messaggio. */
 export function auditSummary(analysis: WebsiteAnalysis): string {
   // Ordinati per peso, non per ordine di controllo: si tengono i
   // quattro rilievi più forti. Al telefono si dice la cosa che pesa di
@@ -76,7 +98,11 @@ VINCOLI ASSOLUTI:
 - Non promettere risultati ("più clienti", "primo su Google", "raddoppia il fatturato").
 - Non citare anni di esperienza, certificazioni, premi, portfolio o altri clienti.
 - Non dire di aver già lavorato con nessuno.
-- Usa SOLO i rilievi tecnici che ti vengono forniti: non aggiungerne altri.
+- Cita UN SOLO rilievo, quello che ti viene indicato come principale.
+  Elencarne più di uno è un verbale, non un messaggio: chi legge vede la
+  lista dei difetti del suo sito e chiude la chat.
+- Non aggiungere rilievi che non ti sono stati forniti.
+- Non scrivere l'URL del sito: lo conosce meglio di te.
 - Niente em-dash. Italiano naturale e parlato. Nessun punto esclamativo.
 - Dai del lei.
 
@@ -129,12 +155,13 @@ export interface OutreachInput {
  *  sarebbe inutile proprio nei giorni in cui serve. */
 export function fallbackDraft(input: OutreachInput): OutreachDraft {
   const summary = auditSummary(input.analysis);
+  const finding = topFinding(input.analysis);
   const name = input.business_name;
   const whatsapp = [
     `Buongiorno, le scrivo per ${name}.`,
     input.analysis.status === "no_website"
       ? "Ho notato che la scheda Google non ha un sito collegato."
-      : `Ho dato un'occhiata al sito e ho notato una cosa: ${summary.toLowerCase()}`,
+      : `Ho dato un'occhiata al sito e ho notato una cosa: ${finding}.`,
     "Ho già preparato una bozza di come potrebbe essere, senza impegno.",
     "Se le va le mando il link e mi dice se ha senso per lei.",
   ].join("\n");
@@ -150,7 +177,7 @@ export function fallbackDraft(input: OutreachInput): OutreachDraft {
       `le scrivo a proposito di ${name}.`,
       input.analysis.status === "no_website"
         ? `Ho notato che alla scheda Google non risulta collegato un sito.`
-        : `Guardando il sito attuale ho annotato questo: ${summary}`,
+        : `Guardando il sito attuale ho notato che ${finding}.`,
       ``,
       `Ho preparato una bozza di anteprima, senza impegno da parte sua.`,
       `Se le interessa le mando il link e ne parliamo.`,
@@ -189,12 +216,14 @@ export async function prepareOutreach(
 ): Promise<{ draft: OutreachDraft; used_ai: boolean }> {
   const fallback = fallbackDraft(input);
   const summary = auditSummary(input.analysis);
+  const finding = topFinding(input.analysis);
 
   const userPrompt = [
     `Attività: ${input.business_name}`,
     `Categoria: ${input.category}`,
     input.city ? `Città: ${input.city}` : "",
-    `Rilievi tecnici misurati sul sito attuale (usa solo questi): ${summary}`,
+    `Rilievo principale da citare (UNO SOLO, non elencarne altri): ${finding || "nessuno"}`,
+    `Contesto completo per te, da NON riversare nel messaggio: ${summary}`,
     `Stato sito: ${input.analysis.status}`,
     `Anteprima già pronta: sì (il link lo invia una persona, non citarlo per intero)`,
   ]

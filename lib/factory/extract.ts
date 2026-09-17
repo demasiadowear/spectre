@@ -181,7 +181,10 @@ function hoursOf(raw: unknown): string[] {
     const opens = clean(spec.opens);
     const closes = clean(spec.closes);
     if (!names.length) continue;
-    rows.push(opens && closes ? `${names.join(", ")}: ${opens} - ${closes}` : `${names.join(", ")}: chiuso`);
+    // "00:00 - 00:00" è la convenzione con cui i CMS scrivono CHIUSO.
+    // Stamparlo come orario farebbe sembrare il locale aperto a mezzanotte.
+    const closed = !opens || !closes || (opens === closes) || /^00:00(:00)?$/.test(opens) && /^00:00(:00)?$/.test(closes);
+    rows.push(closed ? `${names.join(", ")}: chiuso` : `${names.join(", ")}: ${opens} - ${closes}`);
   }
   return rows.slice(0, 14);
 }
@@ -194,9 +197,14 @@ function servicesOf(node: Record<string, unknown>): string[] {
     if (Array.isArray(v)) return v.forEach((i) => visit(i, depth + 1));
     if (typeof v !== "object") return;
     const o = v as Record<string, unknown>;
+    // Un CONTENITORE non è un servizio: l'OfferCatalog si chiama
+    // "Servizi" o "Listino", e senza questo controllo quel nome finiva
+    // nell'elenco insieme ai servizi veri.
+    const isContainer = Boolean(o.itemListElement ?? o.itemOffered ?? o.hasOfferCatalog);
     const name = clean(o.name, 90);
-    // Un nome di servizio è corto: se è un paragrafo non è un servizio.
-    if (name && name.length <= 90 && !out.includes(name)) out.push(decodeEntities(name));
+    if (!isContainer && name && name.length <= 90 && !out.includes(name)) {
+      out.push(decodeEntities(name));
+    }
     visit(o.itemListElement, depth + 1);
     visit(o.itemOffered, depth + 1);
     visit(o.offers, depth + 1);

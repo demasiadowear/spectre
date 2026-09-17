@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { Space_Grotesk, JetBrains_Mono, Inter } from "next/font/google";
 import "./globals.css";
-import DevModeBanner from "@/components/layout/DevModeBanner";
 
 const display = Space_Grotesk({
   subsets: ["latin"],
@@ -41,7 +40,6 @@ export default function RootLayout({
       <body
         className={`${display.variable} ${mono.variable} ${ui.variable} font-ui antialiased`}
       >
-        <DevModeBanner />
         {children}
       </body>
     </html>

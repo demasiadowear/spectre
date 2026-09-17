@@ -12,7 +12,6 @@ import {
 import type {
   Fact,
   SiteCopy,
-  SiteImage,
   SitePalette,
   SiteSection,
   SiteSpec,
@@ -132,9 +131,11 @@ const asText = (v: unknown, max: number): string =>
 function templateCopy(name: string, category: string, template: VerticalTemplate): SiteCopy {
   const base = neutralCopy(name, category);
   const cat = (category || "attività").toLowerCase();
+  // Il nome dell'attività è già l'h1: ripeterlo come hero_title stampava
+  // la stessa riga due volte. Qui va la frase di apertura del settore.
   return {
-    hero_title: name || base.hero_title,
-    hero_subtitle: `${template.heroLead}. ${cat.charAt(0).toUpperCase()}${cat.slice(1)}.`,
+    hero_title: `${template.heroLead}.`,
+    hero_subtitle: cat.charAt(0).toUpperCase() + cat.slice(1),
     about: base.about,
   };
 }
@@ -203,6 +204,37 @@ export async function generateSiteSpec(
   });
 
   const copy = acceptCopy(draft, name, category, template);
+
+  // Se il sito DICHIARA una descrizione (JSON-LD o meta), quella vince
+  // sul copy generato e sul riempitivo: è un dato verificato del
+  // cliente, ed è anche l'unica frase della pagina che parla davvero di
+  // lui. Passa comunque dal controllo sulle affermazioni vietate.
+  const declared = input.description?.value?.trim() ?? "";
+  if (declared && declared.length >= 30 && findBannedClaims(declared).length === 0) {
+    copy.about = declared.slice(0, 500);
+  } else {
+    // Nessuna descrizione dichiarata: invece del riempitivo generico si
+    // riformulano i FATTI verificati che già si hanno (dove si trova,
+    // quanti servizi sono censiti). Non si aggiunge niente di nuovo, si
+    // dice meglio quello che è già provato.
+    const where = input.address?.value ?? (input.city ? `a ${input.city}` : "");
+    const parts: string[] = [];
+    if (where) {
+      parts.push(
+        input.address
+          ? `${name} si trova in ${input.address.value}.`
+          : `${name} è ${where}.`,
+      );
+    }
+    if (services.length > 0) {
+      parts.push(
+        services.length === 1
+          ? `Il servizio principale è ${services[0].value.toLowerCase()}.`
+          : `Fra i servizi: ${services.slice(0, 3).map((s) => s.value.toLowerCase()).join(", ")}.`,
+      );
+    }
+    if (parts.length > 0) copy.about = parts.join(" ");
+  }
 
   // Le sezioni e il loro ORDINE vengono dal template verticale, non dal
   // modello: è questo che evita l'effetto "stessa pagina per tutti".
@@ -283,8 +315,13 @@ export async function generateSiteSpec(
         seoTitleRaw && !findBannedClaims(seoTitleRaw).length
           ? seoTitleRaw
           : `${name} — ${category}`,
+      // Ricade su `about`, non sul sottotitolo: il sottotitolo è la sola
+      // categoria ("Barbiere"), che come meta description non dice niente.
+      // `about` è costruito su fatti verificati, quindi è sicuro da usare.
       description:
-        seoDescRaw && !findBannedClaims(seoDescRaw).length ? seoDescRaw : copy.hero_subtitle,
+        seoDescRaw && !findBannedClaims(seoDescRaw).length
+          ? seoDescRaw
+          : (copy.about || copy.hero_subtitle).slice(0, 155),
     },
     copy,
     incomplete: [],

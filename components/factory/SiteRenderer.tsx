@@ -34,21 +34,53 @@ function ctaHref(kind: string, target: string): string {
   return safeHref(target);
 }
 
-/** Segnaposto geometrico generato dal renderer: nessun asset di terzi
- *  e nessuna foto altrui pubblicata senza permesso. */
-function Placeholder({ label, palette }: { label: string; palette: SiteSpec["palette"] }) {
+/** Segnaposto disegnato dal renderer quando non ci sono immagini
+ *  utilizzabili. Non finge di essere una foto: è un pannello con il
+ *  monogramma dell'attività. Un riquadro vuoto col simbolo "immagine
+ *  mancante" fa sembrare la pagina rotta, che è peggio che non avere
+ *  la foto. Nessun asset di terzi, nessuna licenza da vantare. */
+function Placeholder({
+  name,
+  category,
+  palette,
+}: {
+  name: string;
+  category: string;
+  palette: SiteSpec["palette"];
+}) {
+  const monogram = name
+    .split(/\s+/)
+    .filter((w) => /[A-Za-zÀ-ÿ]/.test(w))
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("");
+
   return (
     <div
-      className="flex h-44 w-full items-center justify-center rounded-xl border sm:h-56"
-      style={{ borderColor: `${palette.primary}33`, background: `${palette.primary}0F` }}
+      className="relative flex h-40 w-full items-center justify-center overflow-hidden rounded-xl border sm:h-52"
+      style={{
+        borderColor: `${palette.primary}33`,
+        background: `linear-gradient(135deg, ${palette.primary}26 0%, ${palette.accent}14 55%, ${palette.bg} 100%)`,
+      }}
       role="img"
-      aria-label={label}
+      aria-label={`${name}${category ? ` — ${category}` : ""}`}
     >
-      <svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true">
-        <rect x="6" y="10" width="36" height="28" rx="3" fill="none" stroke={palette.primary} strokeWidth="2" />
-        <circle cx="17" cy="20" r="3.5" fill={palette.primary} opacity="0.7" />
-        <path d="M11 34l9-9 6 6 5-5 6 8z" fill={palette.primary} opacity="0.5" />
-      </svg>
+      <span
+        aria-hidden="true"
+        className="select-none text-5xl font-bold tracking-tight sm:text-6xl"
+        style={{ color: palette.primary, opacity: 0.85 }}
+      >
+        {monogram || "•"}
+      </span>
+      {category ? (
+        <span
+          aria-hidden="true"
+          className="absolute bottom-3 left-4 text-[10px] uppercase tracking-[0.25em]"
+          style={{ color: palette.fg, opacity: 0.45 }}
+        >
+          {category}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -120,7 +152,7 @@ export function SiteRenderer({ spec, showProvenance = false }: SiteRendererProps
               loading="lazy"
             />
           ) : (
-            <Placeholder label={hero?.alt || name} palette={palette} />
+            <Placeholder name={name} category={category} palette={palette} />
           )}
         </div>
       </header>

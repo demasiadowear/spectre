@@ -102,7 +102,10 @@ describe("SiteRenderer", () => {
     });
     const html = render(s);
     assert.ok(!html.includes("data:text/html"), "data URI renderizzato");
-    assert.match(html, /<svg/, "nessun segnaposto disegnato al suo posto");
+    // Al posto dell'immagine il renderer disegna il pannello con il
+    // monogramma: "PD" da "Pizzeria Da Mimmo".
+    assert.match(html, /role="img"/, "nessun segnaposto disegnato al suo posto");
+    assert.match(html, />PD</, "monogramma assente dal segnaposto");
   });
 
   it("un maps_url http viene mantenuto ma marcato nofollow", () => {
