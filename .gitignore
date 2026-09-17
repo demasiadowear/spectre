@@ -26,7 +26,12 @@ yarn-debug.log*
 yarn-error.log*
 
 # local env files
-.env*.local
+# `.env*.local` da solo copriva .env.local ma NON .env, .env.production
+# o .env.development: bastava che uno di quelli comparisse una volta per
+# mandare delle chiavi dentro la storia del repository, dove restano.
+.env
+.env.*
+!.env*.example
 
 # db backups (test data dumps)
 backup_*.json

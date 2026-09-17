@@ -394,3 +394,150 @@ dall'egress; Turso e irraggiungibile. Gli adapter andranno scritti
 dietro un'interfaccia con implementazione a fixture, e il flusso reale
 resta **non collaudato** finche non gira in un ambiente con chiavi ed
 egress aperti.
+
+---
+
+# Correzione alla fase 0 — capacita verificate, non dedotte
+
+**Data:** 2026-09-17, dopo correzione vincolante.
+
+La prima stesura concludeva dall'assenza delle variabili nel container
+che le capacita non esistessero. Era un errore di metodo: l'assenza di
+una variabile in un container effimero non dice niente su come e
+configurato il progetto. Qui sotto solo cose provate.
+
+## C1. Consumer delle API Google nel codice
+
+Sette moduli, una sola chiave per quattro servizi diversi.
+
+| modulo | servizio | endpoint |
+|---|---|---|
+| `lib/hunter/google-places.ts` | Places Text Search | `places.googleapis.com/v1/places:searchText` |
+| `lib/hunter/zone.ts` | Places Nearby | `places.googleapis.com/v1/places:searchNearby` |
+| `lib/zone/google.ts` | Places Details | `places.googleapis.com/v1/places` |
+| `lib/autopilot/study.ts` | Places Details | `places.googleapis.com/v1/places` |
+| `lib/detective/investigate.ts` | Places Details | `places.googleapis.com/v1/places` |
+| `lib/detective/investigate.ts:144` | **PageSpeed Insights** | `www.googleapis.com/pagespeedonline/v5` |
+| `lib/gemini.ts` | Gemini | via SDK |
+
+Notevole: `GOOGLE_PLACES_API_KEY` viene usata anche per PageSpeed
+Insights. Non e una chiave Places: e **una chiave di progetto Google
+Cloud** buona per piu API. Questo allarga le capacita disponibili
+rispetto a quanto scritto prima.
+
+Quattro moduli distinti chiamano Places Details con quattro FieldMask
+diverse. E la duplicazione gia segnalata al §8, ora quantificata.
+
+## C2. `vercel env ls` — non eseguibile, e il motivo
+
+Provato davvero:
+
+- Vercel CLI 59.20.0 si installa e parte;
+- non ha credenziali salvate in questo container;
+- `vercel env ls` avvia il login e fallisce con `Error: fetch failed`,
+  perche **`api.vercel.com` e `vercel.com` sono negati dalla stessa
+  policy di egress**;
+- il connettore Vercel di questa sessione **e autenticato e funziona**:
+  ha elencato il team `christian's projects`
+  (`team_DgKTXnhl9LTdAN6zYm6739JI`) e il progetto `specter`
+  (`prj_N3zXbFlzyvcLoPmM1RJXpMQFeGrh`, collegato a
+  `demasiadowear/spectre`, ultimo deploy READY);
+- **ma non espone alcuno strumento per le variabili d'ambiente.**
+
+Quindi l'elenco dei nomi non posso produrlo da qui. Non lo invento.
+Si ottiene in due modi: `vercel env ls` da una macchina con credenziali,
+oppure dalla dashboard del progetto. Nessuno dei due richiede di
+mostrarmi i valori.
+
+## C3. Playwright — funziona
+
+Provato con navigazione reale, non dedotto.
+
+Primo tentativo: `ERR_CERT_AUTHORITY_INVALID` su
+`places.googleapis.com`. **Non era un blocco**: il tunnel era riuscito e
+l'handshake TLS era avvenuto; Chromium non si fidava della CA del proxy
+perche usa il proprio root store e non quello di sistema.
+
+Risolto passando a Chromium i pin SPKI delle due CA del proxy
+(`--ignore-certificate-errors-spki-list`). **Non e disattivare la
+verifica**: e fidarsi esattamente di quelle due chiavi pubbliche e di
+nessun'altra. `ignoreHTTPSErrors` e `--ignore-certificate-errors` non
+sono stati usati.
+
+Dopo la correzione Playwright naviga, riceve risposte HTTP reali e legge
+il titolo delle pagine.
+
+## C4. Egress — misurato con Playwright
+
+| | esito osservato |
+|---|---|
+| `places.googleapis.com` | **raggiungibile**, HTTP 404 |
+| `maps.googleapis.com/maps/api/geocode/json` | **raggiungibile**, HTTP 400 |
+| `generativelanguage.googleapis.com` | **raggiungibile**, HTTP 404 |
+| `www.googleapis.com/pagespeedonline/v5` | **raggiungibile**, HTTP 429 |
+| `www.google.com/search` | `ERR_TUNNEL_CONNECTION_FAILED` |
+| `www.google.com/maps` | `ERR_TUNNEL_CONNECTION_FAILED` |
+| `example.com` | `ERR_TUNNEL_CONNECTION_FAILED` |
+| un sito reale di un'attivita | `ERR_TUNNEL_CONNECTION_FAILED` |
+| `www.instagram.com` | `ERR_TUNNEL_CONNECTION_FAILED` |
+| `lh3.googleusercontent.com` | `ERR_TUNNEL_CONNECTION_FAILED` |
+| `specter-ecru.vercel.app` | `ERR_TUNNEL_CONNECTION_FAILED` |
+
+Il 429 di PageSpeed e significativo: non e un rifiuto di rete, e il
+servizio che ha elaborato la richiesta e ha applicato un limite. Quella
+API funziona davvero da qui.
+
+**La regola della policy e precisa: sono ammessi gli endpoint *API* di
+Google, e nient'altro.** Non il web di Google, non la CDN delle
+fotografie, non i siti di terzi, non le piattaforme social, nemmeno
+l'app deployata.
+
+## C5. Conseguenze sul mandato
+
+| | stato da questo container |
+|---|---|
+| **A** Places/Maps | **possibile appena c'e una chiave** — gli host rispondono |
+| **B** sito ufficiale con Playwright | **impossibile**: ogni sito di terzi e negato |
+| **C** social discovery | **impossibile**: nessuna piattaforma, e nemmeno la ricerca Google per trovarle |
+| **D** raccolta fotografica | da sito e social **impossibile**; da Places si ottengono i **riferimenti**, non i byte: `lh3.googleusercontent.com` e negato |
+| **G** prova su un'attivita reale | **non eseguibile da qui** |
+
+Sul punto D c'e una coincidenza utile: non poter scaricare i byte delle
+foto Places e esattamente il comportamento che il mandato prescrive con
+`provider_rendered`. Il vincolo di rete e la regola sui diritti dicono
+la stessa cosa.
+
+## C6. Dove la prova reale e eseguibile
+
+La policy di egress vale per **questo container**, non per il progetto.
+L'app Specter gira su Vercel, dove l'egress non e ristretto, e i moduli
+che scaricano siti (`website.ts`, `research.ts`, `investigate.ts`)
+funzionano gia in produzione. Quindi la prova sulla singola attivita
+reale e possibile in due posti:
+
+1. **su Vercel**, come rotta o job del progetto — e l'ambiente dove il
+   collector dovra girare comunque;
+2. **su una macchina con egress aperto**, eseguendo il collector da
+   riga di comando con le env del progetto.
+
+Da qui non ci arrivo, e non provo a girarci intorno: la policy va
+riportata, non aggirata. Se si vuole che questo container ci arrivi,
+servono in allowlist gli host dei siti di destinazione, le piattaforme
+social e `lh3..lh6.googleusercontent.com`.
+
+Esiste una terza via tecnica — usare PageSpeed Insights, che e
+raggiungibile, per far scaricare a Google la pagina e restituirne i
+dati. **Non l'ho usata**: sarebbe aggirare la policy di egress servendosi
+di un terzo, e non e una cosa da fare senza che sia chiesto
+esplicitamente.
+
+## C7. Trovato strada facendo: `.gitignore` copriva solo `.env*.local`
+
+La regola era `.env*.local`. Copriva `.env.local` ma **non** `.env`,
+`.env.production`, `.env.development`. Bastava che uno di quei file
+comparisse una volta perche delle chiavi finissero nella storia del
+repository, dove restano anche dopo la cancellazione.
+
+Corretto in `.env` + `.env.*` con eccezione `!.env*.example`, cosi il
+file di esempio resta tracciato. Verificato: i quattro nomi risultano
+ignorati, `.env.local.example` resta nel repository.
