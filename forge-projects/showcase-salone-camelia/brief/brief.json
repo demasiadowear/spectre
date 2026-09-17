@@ -1,0 +1,35 @@
+{
+  "progetto": "Camelia — salone beauty e hair",
+  "natura": "concept dimostrativo, attivita inventata, nessun dato reale",
+  "pubblico": "donne che scelgono con l'occhio, quasi sempre dal telefono",
+  "obiettivo_unico": "far prenotare un trattamento",
+  "identita": "rivista di moda e laboratorio del colore",
+  "deve_comunicare": ["stile", "trasformazione", "moda", "cura", "desiderabilita", "prenotazione"],
+  "direzione_artistica": {
+    "nome": "Cipria e lacca",
+    "concetto": "Uno specchio ad arco, un nome in didone, e il colore che si sceglie e ridipinge la pagina.",
+    "palette": {
+      "cipria": "#EFE4EA",
+      "cipria-cupa": "#E4D5DE",
+      "lacca": "#C1275B",
+      "melanzana": "#251C26",
+      "argento": "#B9AFBA"
+    },
+    "tipografia": {
+      "display": "Bodoni Moda Variable (asse opsz)",
+      "testo": "Jost Variable (asse wght)"
+    },
+    "geometria": "archi, raggi grandi e asimmetrici, sovrapposizioni",
+    "movimento": "lento: expo.out e sine, 1,4-2,2 secondi",
+    "interazione": "scegli la nuance: il colore scelto ridipinge l'arco, le silhouette e la CTA",
+    "immagini": "nessuna fotografia. Silhouette piatte senza volto, disegnate in SVG."
+  },
+  "ordine_sezioni": ["apertura", "i look", "il colore", "quanto tempo serve", "prenota", "piede"],
+  "cta": "Prenota un trattamento",
+  "vincoli": [
+    "nessun indirizzo, telefono, recensione, premio o certificazione",
+    "nessun volto, nessuna fotografia, nessun prima e dopo",
+    "nessun prezzo",
+    "noindex"
+  ]
+}

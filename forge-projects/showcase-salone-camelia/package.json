@@ -1,0 +1,18 @@
+{
+  "name": "showcase-salone-camelia",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Concept dimostrativo: salone beauty e hair. Progetto ISOLATO: non importa nulla da Specter ne dagli altri showcase.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "autonomo": "vite build --config vite.config.autonomo.ts --outDir dist-autonomo"
+  },
+  "dependencies": {
+    "gsap": "3.15.0",
+    "@fontsource-variable/bodoni-moda": "^5.2.5",
+    "@fontsource-variable/jost": "^5.2.5"
+  },
+  "devDependencies": { "vite": "^6.0.0", "typescript": "^5.6.0" }
+}

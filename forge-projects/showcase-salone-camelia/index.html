@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Camelia — taglio, colore, cura</title>
+<meta name="description" content="Concept dimostrativo di un salone hair e beauty. I look, le nuance di colore, quanto tempo serve, e la prenotazione.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#EEDCE6">
+<meta property="og:title" content="Camelia">
+<meta property="og:description" content="Concept dimostrativo. Attivita inventata, non reale.">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="it_IT">
+<link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiBmaWxsPSIjRUZFNEVBIi8+PHBhdGggZD0iTTMyIDEwYzExIDAgMTggOCAxOCAxOHYyNkgxNFYyOGMwLTEwIDctMTggMTgtMTh6IiBmaWxsPSIjQzEyNzVCIi8+PC9zdmc+">
+<link rel="preload" href="/font/bodoni.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/font/jost.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="./src/styles.css">
+</head>
+<body>
+
+<details class="nota-concept">
+  <summary>Concept demo</summary>
+  <p><strong>Questo salone non esiste.</strong> È una dimostrazione di
+  direzione creativa. Nessun indirizzo, nessun telefono, nessuna
+  recensione: trattamenti, tempi e nuance sono di esempio e la
+  prenotazione non viene inviata a nessuno.</p>
+</details>
+
+<a class="salta" href="#prenota">Vai alla prenotazione</a>
+
+<svg class="sprite" aria-hidden="true" focusable="false" width="0" height="0"><defs>
+  <!-- Silhouette: spalle, collo, testa e capelli. Senza spalle e senza
+       collo una chioma e una forma astratta, e le prime versioni
+       leggevano come lettere dell'alfabeto. Nessun volto: niente occhi,
+       niente bocca, e il neutro non e un incarnato ma un colore della
+       palette. -->
+  <symbol id="l-bob" viewBox="0 0 200 260">
+    <path d="M10 258 C14 212 50 194 100 194 C150 194 186 212 190 258 Z" fill="#DCCBD4"/>
+    <rect x="86" y="146" width="28" height="52" rx="12" fill="#DCCBD4"/>
+    <path d="M56 104 C56 70 74 50 100 50 C126 50 144 70 144 104 L144 176
+             C144 182 140 184 134 184 L66 184 C60 184 56 182 56 176 Z" fill="var(--nuance)"/>
+    <ellipse cx="100" cy="112" rx="30" ry="38" fill="#DCCBD4"/>
+  </symbol>
+  <symbol id="l-onde" viewBox="0 0 200 260">
+    <path d="M10 258 C14 212 50 194 100 194 C150 194 186 212 190 258 Z" fill="#DCCBD4"/>
+    <rect x="86" y="146" width="28" height="52" rx="12" fill="#DCCBD4"/>
+    <path d="M48 108 C48 66 72 44 100 44 C128 44 152 66 152 108
+             C152 146 148 172 144 192 C134 176 130 158 130 138
+             C118 150 82 150 70 138 C70 158 66 176 56 192
+             C52 172 48 146 48 108 Z" fill="var(--nuance)"/>
+    <ellipse cx="100" cy="110" rx="29" ry="37" fill="#DCCBD4"/>
+  </symbol>
+  <symbol id="l-frangia" viewBox="0 0 200 260">
+    <path d="M10 258 C14 212 50 194 100 194 C150 194 186 212 190 258 Z" fill="#DCCBD4"/>
+    <rect x="86" y="146" width="28" height="52" rx="12" fill="#DCCBD4"/>
+    <path d="M54 106 C54 68 74 48 100 48 C126 48 146 68 146 106 L146 182
+             C146 188 142 190 136 190 L64 190 C58 190 54 188 54 182 Z" fill="var(--nuance)"/>
+    <ellipse cx="100" cy="120" rx="30" ry="38" fill="#DCCBD4"/>
+    <path d="M69 74 L131 74 L131 112 C118 102 108 100 100 100 C92 100 82 102 69 112 Z" fill="var(--nuance)"/>
+  </symbol>
+  <symbol id="l-raccolto" viewBox="0 0 200 260">
+    <path d="M10 258 C14 212 50 194 100 194 C150 194 186 212 190 258 Z" fill="#DCCBD4"/>
+    <rect x="86" y="146" width="28" height="52" rx="12" fill="#DCCBD4"/>
+    <path d="M60 104 C60 72 78 54 100 54 C122 54 140 72 140 104 L140 138 L60 138 Z" fill="var(--nuance)"/>
+    <ellipse cx="100" cy="112" rx="29" ry="36" fill="#DCCBD4"/>
+    <ellipse cx="141" cy="150" rx="21" ry="19" fill="var(--nuance)"/>
+  </symbol>
+  <symbol id="l-lungo" viewBox="0 0 200 260">
+    <path d="M10 258 C14 212 50 194 100 194 C150 194 186 212 190 258 Z" fill="#DCCBD4"/>
+    <rect x="86" y="146" width="28" height="52" rx="12" fill="#DCCBD4"/>
+    <path d="M48 104 C48 64 72 42 100 42 C128 42 152 64 152 104
+             C152 150 150 202 146 244 L126 244 C130 200 132 156 130 130
+             C128 110 118 100 100 100 C82 100 72 110 70 130
+             C68 156 70 200 74 244 L54 244 C50 202 48 150 48 104 Z" fill="var(--nuance)"/>
+    <ellipse cx="100" cy="110" rx="29" ry="37" fill="#DCCBD4"/>
+  </symbol>
+</defs></svg>
+
+<header class="testata">
+  <a class="marchio" href="#">Camelia</a>
+  <nav aria-label="Sezioni">
+    <a href="#look">I look</a>
+    <a href="#colore">Il colore</a>
+    <a href="#tempi">Quanto tempo</a>
+  </nav>
+</header>
+
+<main id="contenuto">
+
+  <!-- ===== Apertura: lo specchio ad arco ===== -->
+  <section class="specchio" aria-labelledby="t-apertura">
+    <div class="arco">
+      <h1 id="t-apertura" class="nome">Camelia</h1>
+    </div>
+    <div class="specchio-testo">
+      <p class="claim">Taglio, colore e cura dei capelli. Si lavora su
+        appuntamento e su una testa per volta, perché il colore non si
+        fa di fretta.</p>
+      <a class="tasto" href="#prenota" data-cta>Prenota un trattamento</a>
+    </div>
+    <span class="disco" aria-hidden="true"></span>
+  </section>
+
+  <!-- ===== I look: su telefono si scorrono con il pollice ===== -->
+  <section class="look" id="look" aria-labelledby="t-look">
+    <div class="sez-testa">
+      <h2 id="t-look">I look</h2>
+      <p>Cinque forme su cui si lavora spesso. La lunghezza si decide
+        davanti allo specchio, non qui.</p>
+    </div>
+    <ul class="vetrina">
+      <li class="scheda">
+        <span class="scheda-figura"><svg viewBox="0 0 200 260" aria-hidden="true"><use href="#l-bob"/></svg></span>
+        <h3>Bob netto</h3>
+        <p>Linea dritta all'altezza della mascella. Vuole una piega ogni
+          volta, e in cambio non chiede altro.</p>
+      </li>
+      <li class="scheda">
+        <span class="scheda-figura"><svg viewBox="0 0 200 260" aria-hidden="true"><use href="#l-onde"/></svg></span>
+        <h3>Onde morbide</h3>
+        <p>Taglio scalato e movimento largo. Sta bene anche il terzo
+          giorno, che è quando conta.</p>
+      </li>
+      <li class="scheda">
+        <span class="scheda-figura"><svg viewBox="0 0 200 260" aria-hidden="true"><use href="#l-frangia"/></svg></span>
+        <h3>Frangia piena</h3>
+        <p>Cambia la faccia più di un colore. Si spunta ogni tre
+          settimane, ed è compreso.</p>
+      </li>
+      <li class="scheda">
+        <span class="scheda-figura"><svg viewBox="0 0 200 260" aria-hidden="true"><use href="#l-raccolto"/></svg></span>
+        <h3>Raccolto basso</h3>
+        <p>Per una sera o per tutti i giorni. Tiene meglio sui capelli
+          lavati il giorno prima.</p>
+      </li>
+      <li class="scheda">
+        <span class="scheda-figura"><svg viewBox="0 0 200 260" aria-hidden="true"><use href="#l-lungo"/></svg></span>
+        <h3>Lungo scalato</h3>
+        <p>Si toglie peso senza togliere lunghezza. È il taglio che
+          regge meglio la crescita.</p>
+      </li>
+    </ul>
+  </section>
+
+  <!-- ===== Il colore: la nuance ridipinge la pagina ===== -->
+  <section class="colore" id="colore" aria-labelledby="t-colore">
+    <div class="sez-testa">
+      <h2 id="t-colore">Il colore</h2>
+      <p>Scelga una nuance: la pagina si ridipinge. È il modo più onesto
+        che abbiamo per farle vedere un colore senza fotografie ritoccate.</p>
+    </div>
+    <fieldset class="nuance">
+      <legend>Nuance</legend>
+      <label class="pastiglia"><input type="radio" name="nuance" value="#C1275B" checked>
+        <span class="goccia" style="--g:#C1275B"></span><span class="nome-nuance">Ciliegia</span></label>
+      <label class="pastiglia"><input type="radio" name="nuance" value="#A8522C">
+        <span class="goccia" style="--g:#A8522C"></span><span class="nome-nuance">Rame</span></label>
+      <label class="pastiglia"><input type="radio" name="nuance" value="#6B4A32">
+        <span class="goccia" style="--g:#6B4A32"></span><span class="nome-nuance">Nocciola</span></label>
+      <label class="pastiglia"><input type="radio" name="nuance" value="#8A8377">
+        <span class="goccia" style="--g:#8A8377"></span><span class="nome-nuance">Biondo cenere</span></label>
+      <label class="pastiglia"><input type="radio" name="nuance" value="#4A3B33">
+        <span class="goccia" style="--g:#4A3B33"></span><span class="nome-nuance">Castano freddo</span></label>
+      <label class="pastiglia"><input type="radio" name="nuance" value="#221E22">
+        <span class="goccia" style="--g:#221E22"></span><span class="nome-nuance">Nero seta</span></label>
+    </fieldset>
+    <p class="colore-nota">Il colore sullo schermo non è il colore sui
+      capelli: la base di partenza cambia tutto. In salone si prova una
+      ciocca prima di decidere.</p>
+  </section>
+
+  <!-- ===== Quanto tempo serve ===== -->
+  <section class="tempi" id="tempi" aria-labelledby="t-tempi">
+    <div class="sez-testa">
+      <h2 id="t-tempi">Quanto tempo serve</h2>
+      <p>Non i prezzi, che dipendono dalla lunghezza e si dicono prima
+        di cominciare. Il tempo, che è quello che le serve sapere per
+        organizzare la giornata.</p>
+    </div>
+    <ul class="listino">
+      <li><span class="voce-nome">Taglio e piega</span><span class="voce-tempo">45 min</span></li>
+      <li><span class="voce-nome">Piega</span><span class="voce-tempo">30 min</span></li>
+      <li><span class="voce-nome">Colore</span><span class="voce-tempo">2 ore</span></li>
+      <li><span class="voce-nome">Meches o schiariture</span><span class="voce-tempo">3 ore</span></li>
+      <li><span class="voce-nome">Trattamento e cura</span><span class="voce-tempo">20 min</span></li>
+      <li><span class="voce-nome">Consulenza colore</span><span class="voce-tempo">15 min</span></li>
+    </ul>
+    <table class="orari">
+      <caption>Quando siamo aperti</caption>
+      <tbody>
+        <tr><th scope="row">Martedì — Venerdì</th><td>9.30 — 19</td></tr>
+        <tr><th scope="row">Sabato</th><td>9 — 18</td></tr>
+        <tr><th scope="row">Domenica e lunedì</th><td>chiuso</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ===== Prenota ===== -->
+  <section class="poltrona" id="prenota" aria-labelledby="t-prenota">
+    <h2 id="t-prenota">Prenota un trattamento</h2>
+    <form class="modulo" id="modulo-prenota" novalidate>
+      <fieldset class="gruppo">
+        <legend>Che cosa</legend>
+        <label class="chip"><input type="radio" name="servizio" value="Taglio e piega" checked><span>Taglio e piega</span></label>
+        <label class="chip"><input type="radio" name="servizio" value="Piega"><span>Piega</span></label>
+        <label class="chip"><input type="radio" name="servizio" value="Colore"><span>Colore</span></label>
+        <label class="chip"><input type="radio" name="servizio" value="Meches"><span>Meches</span></label>
+        <label class="chip"><input type="radio" name="servizio" value="Trattamento"><span>Trattamento</span></label>
+      </fieldset>
+      <fieldset class="gruppo">
+        <legend>Quando</legend>
+        <label class="chip"><input type="radio" name="fascia" value="mattina" checked><span>Mattina</span></label>
+        <label class="chip"><input type="radio" name="fascia" value="primo pomeriggio"><span>Primo pomeriggio</span></label>
+        <label class="chip"><input type="radio" name="fascia" value="fine giornata"><span>Fine giornata</span></label>
+        <label class="chip"><input type="radio" name="fascia" value="sabato"><span>Sabato</span></label>
+      </fieldset>
+      <div class="campo">
+        <label for="c-nome">A che nome</label>
+        <input type="text" id="c-nome" name="nome" autocomplete="name" required>
+      </div>
+      <button class="tasto tasto-pieno" type="submit">Prenota un trattamento</button>
+      <p class="esito" id="esito-prenota" role="status" hidden></p>
+    </form>
+  </section>
+</main>
+
+<footer class="piede">
+  <span class="piede-nome">Camelia</span>
+  <span class="piede-riga">Taglio, colore, cura</span>
+</footer>
+
+<script type="module" src="./src/main.ts"></script>
+</body>
+</html>

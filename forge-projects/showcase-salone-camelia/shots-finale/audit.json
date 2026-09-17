@@ -1,0 +1,93 @@
+[
+  {
+    "page": "index.html",
+    "viewport": "desktop",
+    "status": 200,
+    "fps": 62,
+    "transferredKB": 164,
+    "errors": [],
+    "failed": [],
+    "screenshot": "/home/user/spectre/forge-projects/showcase-salone-camelia/shots-finale/index_html-desktop.png",
+    "title": "Camelia — taglio, colore, cura",
+    "overflow": false,
+    "scrollW": 1440,
+    "viewW": 1440,
+    "overflowing": [],
+    "clipped": [],
+    "emptySections": [],
+    "hiddenText": [],
+    "minContrast": 5.26,
+    "sottoSoglia": [],
+    "worstContrast": {
+      "t": "Cinque forme su cui si lavor",
+      "r": 5.26,
+      "soglia": 4.5
+    },
+    "cta": {
+      "w": 244,
+      "h": 61,
+      "contrast": 12.58
+    },
+    "headings": [
+      "H1:Camelia",
+      "H2:I look",
+      "H2:Il colore",
+      "H2:Quanto tempo serve",
+      "H2:Prenota un trattamento"
+    ],
+    "fontsUsed": [
+      "system-ui",
+      "Jost Variable",
+      "Bodoni Moda Variable"
+    ]
+  },
+  {
+    "page": "index.html",
+    "viewport": "mobile",
+    "status": 200,
+    "fps": 61,
+    "transferredKB": 164,
+    "errors": [],
+    "failed": [],
+    "screenshot": "/home/user/spectre/forge-projects/showcase-salone-camelia/shots-finale/index_html-mobile.png",
+    "title": "Camelia — taglio, colore, cura",
+    "overflow": false,
+    "scrollW": 390,
+    "viewW": 390,
+    "overflowing": [
+      "li.scheda",
+      "span.scheda-figura",
+      "svg.[object",
+      "use.[object",
+      "h3.-",
+      "p.-"
+    ],
+    "clipped": [],
+    "emptySections": [],
+    "hiddenText": [],
+    "minContrast": 5.26,
+    "sottoSoglia": [],
+    "worstContrast": {
+      "t": "Cinque forme su cui si lavor",
+      "r": 5.26,
+      "soglia": 4.5
+    },
+    "cta": {
+      "w": 351,
+      "h": 61,
+      "contrast": 12.58
+    },
+    "headings": [
+      "H1:Camelia",
+      "H2:I look",
+      "H2:Il colore",
+      "H2:Quanto tempo serve",
+      "H2:Prenota un trattamento"
+    ],
+    "fontsUsed": [
+      "system-ui",
+      "Jost Variable",
+      "Bodoni Moda Variable"
+    ]
+  }
+]

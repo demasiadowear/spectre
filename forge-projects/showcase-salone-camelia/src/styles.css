@@ -1,0 +1,338 @@
+/* ============================================================
+   Camelia — cipria e lacca.
+
+   L'idea: uno specchio ad arco. La geometria e fatta di archi e raggi
+   grandi e asimmetrici; il colore non e un accento fisso ma una
+   variabile, `--nuance`, che chi guarda sceglie e che ridipinge arco,
+   silhouette e bottoni.
+
+   Niente fotografie e niente volti: le forme sono silhouette piatte.
+   ============================================================ */
+
+@font-face{
+  font-family:"Bodoni Moda Variable";
+  font-style:normal;font-weight:400 900;font-display:swap;
+  src:url(/font/bodoni.woff2) format("woff2-variations");
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+20AC,U+2122,U+2212,U+FEFF,U+FFFD;
+}
+@font-face{
+  font-family:"Jost Variable";
+  font-style:normal;font-weight:200 700;font-display:swap;
+  src:url(/font/jost.woff2) format("woff2-variations");
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+20AC,U+2122,U+2212,U+FEFF,U+FFFD;
+}
+
+:root{
+  --cipria:#EEDCE6;
+  --cipria-cupa:#E2CBD9;
+  --melanzana:#251C26;
+  --melanzana-tenue:#5A4C5B;
+  --argento:#B9AFBA;
+  --latte:#FFF6FA;   /* il nome dentro l'arco: deve reggere anche sulla nuance piu chiara */
+  /* La nuance parte da ciliegia e la cambia chi guarda. */
+  --nuance:#C1275B;
+
+  --bordo:clamp(18px,5vw,88px);
+  --display:"Bodoni Moda Variable",Didot,Georgia,serif;
+  --testo:"Jost Variable",system-ui,-apple-system,sans-serif;
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+
+body{
+  margin:0;background:var(--cipria);color:var(--melanzana);
+  font-family:var(--testo);font-weight:400;
+  font-size:clamp(17px,1.05vw,19px);line-height:1.6;
+  -webkit-font-smoothing:antialiased;overflow-x:hidden;
+}
+
+.sprite{position:absolute;width:0;height:0}
+.salta{
+  position:absolute;top:0;left:0;z-index:99;
+  width:1px;height:1px;padding:0;margin:-1px;border:0;
+  overflow:hidden;clip-path:inset(50%);white-space:nowrap;
+  background:var(--melanzana);color:var(--cipria);
+}
+.salta:focus{width:auto;height:auto;margin:0;padding:12px 18px;
+  clip-path:none;overflow:visible}
+:focus-visible{outline:2px solid var(--melanzana);outline-offset:3px}
+
+/* ----- Nota di chi pubblica ----- */
+.nota-concept{
+  position:fixed;left:14px;bottom:14px;z-index:60;
+  max-width:min(330px,calc(100vw - 28px));
+  font-family:system-ui,-apple-system,sans-serif;
+}
+.nota-concept summary{
+  display:inline-flex;align-items:center;gap:7px;cursor:pointer;
+  padding:7px 13px;border-radius:40px;list-style:none;
+  background:#241D26;border:1px solid rgba(255,255,255,.22);
+  color:#EDE6EF;font-size:12px;font-weight:600;
+}
+.nota-concept summary::-webkit-details-marker{display:none}
+.nota-concept summary::before{content:"";width:7px;height:7px;border-radius:50%;
+  background:#E7A3BC;flex:none}
+.nota-concept p{
+  margin:8px 0 0;padding:12px 14px;border-radius:14px;
+  background:#241D26;border:1px solid rgba(255,255,255,.18);
+  color:#DCD3DE;font-size:13px;line-height:1.5;
+}
+.nota-concept strong{color:#fff}
+
+/* ----- Testata ----- */
+.testata{
+  display:flex;align-items:baseline;gap:14px 30px;flex-wrap:wrap;
+  padding:22px var(--bordo) 0;
+}
+.marchio{
+  font-family:var(--display);font-variation-settings:"opsz" 24;
+  font-weight:500;font-size:23px;letter-spacing:.02em;
+  color:var(--melanzana);text-decoration:none;
+}
+.testata nav{display:flex;gap:26px;margin-left:auto;font-size:15.5px}
+.testata nav a{color:var(--melanzana-tenue);text-decoration:none}
+.testata nav a:hover{color:var(--melanzana)}
+
+section{padding:clamp(56px,9vh,130px) var(--bordo)}
+
+/* ============================================================
+   Apertura: lo specchio ad arco
+   ============================================================ */
+/* Composizione asimmetrica: l'arco a sinistra, il testo a destra
+   allineato sul suo bordo inferiore. Tutto centrato era la prima
+   versione, ed e uno dei difetti da evitare per contratto. */
+.specchio{
+  position:relative;
+  padding-top:clamp(24px,4vh,56px);
+  display:grid;gap:clamp(24px,4vw,72px);
+  grid-template-columns:minmax(0,6fr) minmax(0,5fr);
+  align-items:center;
+}
+/* L'arco e lo specchio del salone: raggio pieno in alto, piatto in
+   basso. Il nome ci sta dentro, non accanto. */
+.arco{
+  width:min(50vw,580px);justify-self:start;
+  aspect-ratio:1 / 1.24;
+  border-radius:50% 50% 14px 14px / 62% 62% 8px 8px;
+  background:var(--nuance);
+  display:grid;place-items:center;
+  transition:background .9s cubic-bezier(.22,.61,.36,1);
+  will-change:transform;
+}
+.nome{
+  margin:0;color:var(--latte);
+  font-family:var(--display);font-variation-settings:"opsz" 96;
+  font-weight:400;font-size:clamp(3rem,10vw,7rem);
+  letter-spacing:.005em;line-height:1;
+}
+.specchio-testo{
+  display:flex;flex-direction:column;align-items:flex-start;
+  gap:clamp(20px,2.6vh,34px);
+}
+.claim{
+  margin:0;max-width:34ch;
+  color:var(--melanzana-tenue);
+  font-size:clamp(18px,1.6vw,23px);line-height:1.5;
+}
+/* Un disco solo, e appoggiato sul bordo dell'arco: due dischi sospesi
+   nel vuoto erano due sfere che fluttuano, cioe il tell da evitare.
+   Qui la sovrapposizione e un gesto da stampa, e si vede che e voluta. */
+.disco{
+  position:absolute;border-radius:50%;background:var(--argento);
+  width:clamp(90px,13vw,190px);aspect-ratio:1;
+  left:clamp(160px,31vw,430px);top:38%;
+  mix-blend-mode:multiply;opacity:.62;pointer-events:none;
+}
+
+/* ----- Tasti ----- */
+.tasto{
+  display:inline-flex;align-items:center;justify-content:center;
+  text-decoration:none;font-family:var(--testo);
+  font-weight:500;font-size:17px;letter-spacing:.02em;
+  background:var(--melanzana);color:var(--cipria);
+  border:none;border-radius:999px;cursor:pointer;
+  padding:17px 34px;min-height:54px;
+  transition:background .45s ease,color .45s ease;
+}
+.tasto:hover{background:#3E2F40;color:var(--latte)}
+
+/* ----- Teste di sezione ----- */
+.sez-testa{margin-bottom:clamp(26px,3.6vh,48px)}
+.sez-testa h2{max-width:16ch}
+.sez-testa p{max-width:52ch}
+.sez-testa h2{
+  margin:0 0 .3em;font-family:var(--display);
+  font-variation-settings:"opsz" 72;font-weight:400;
+  font-size:clamp(2.2rem,5vw,4rem);line-height:1.02;letter-spacing:.004em;
+}
+.sez-testa p{margin:0;color:var(--melanzana-tenue)}
+
+/* ============================================================
+   I look — su telefono si scorrono con il pollice
+   ============================================================ */
+.look{background:var(--cipria-cupa)}
+.vetrina{
+  list-style:none;margin:0;padding:0;
+  display:grid;grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:clamp(12px,1.6vw,24px);align-items:start;
+}
+.scheda{display:flex;flex-direction:column;gap:12px;min-width:0}
+/* Sfalsate: allineate tutte sulla stessa riga erano cinque card
+   uguali, e una vetrina non e un listino. */
+.vetrina .scheda:nth-child(even){margin-top:clamp(20px,3.4vw,56px)}
+.vetrina .scheda:nth-child(3){margin-top:clamp(38px,6vw,96px)}
+.scheda-figura{
+  /* Piu chiaro del fondo della sezione: con #E9DCE2 su #E4D5DE l'arco
+     spariva e restavano cinque figure sospese. */
+  display:block;background:#F7EFF3;
+  /* Arco anche qui: e la stessa forma dello specchio, in piccolo. */
+  border-radius:50% 50% 18px 18px / 34% 34% 10px 10px;
+  padding:5% 6% 0;
+}
+.scheda-figura svg{width:100%;height:auto;display:block}
+.scheda h3{
+  margin:0;font-family:var(--display);font-variation-settings:"opsz" 30;
+  font-weight:500;font-size:clamp(1.15rem,1.7vw,1.5rem);letter-spacing:.005em;
+}
+.scheda p{margin:0;font-size:16px;line-height:1.45;color:var(--melanzana-tenue)}
+
+/* ============================================================
+   Il colore
+   ============================================================ */
+.nuance{border:none;margin:0 0 22px;padding:0;
+  display:flex;flex-wrap:wrap;gap:10px}
+.nuance legend{
+  padding:0;margin-bottom:14px;
+  font-size:15px;font-weight:500;color:var(--melanzana-tenue);
+}
+.pastiglia{
+  display:inline-flex;align-items:center;gap:11px;cursor:pointer;
+  background:var(--cipria-cupa);border:1.5px solid transparent;
+  border-radius:999px;padding:10px 20px 10px 12px;min-height:50px;
+  transition:border-color .3s ease,background .3s ease;
+}
+.pastiglia:hover{background:#DFCFD9}
+.pastiglia input{position:absolute;opacity:0;width:0;height:0}
+.pastiglia:has(input:checked){border-color:var(--melanzana);background:#fff}
+.pastiglia:has(input:focus-visible){outline:2px solid var(--melanzana);outline-offset:3px}
+.goccia{
+  width:26px;height:26px;flex:none;background:var(--g);
+  border-radius:50% 50% 50% 4px;transform:rotate(-45deg);
+}
+.nome-nuance{font-size:16px}
+.colore-nota{
+  margin:0;max-width:52ch;color:var(--melanzana-tenue);
+  border-left:2px solid var(--nuance);padding-left:16px;
+  transition:border-color .9s ease;
+}
+
+/* ============================================================
+   Quanto tempo serve
+   ============================================================ */
+.tempi{background:var(--melanzana);color:var(--cipria)}
+.tempi .sez-testa p{color:#C6B8C7}
+.listino{
+  list-style:none;margin:0 0 clamp(30px,4vh,52px);padding:0;
+  columns:2;column-gap:clamp(24px,4vw,72px);
+}
+.listino li{
+  display:flex;align-items:baseline;gap:14px;
+  padding:15px 0;border-bottom:1px solid rgba(239,228,234,.22);
+  break-inside:avoid;
+}
+.voce-nome{font-size:clamp(1.05rem,1.5vw,1.3rem)}
+.voce-tempo{
+  margin-left:auto;color:var(--cipria);font-variant-numeric:tabular-nums;
+  font-family:var(--display);font-variation-settings:"opsz" 28;
+  font-size:clamp(1.05rem,1.5vw,1.3rem);
+}
+.orari{
+  border-collapse:collapse;font-variant-numeric:tabular-nums;
+  width:min(100%,460px);font-size:16.5px;
+}
+.orari caption{text-align:left;padding-bottom:8px;font-size:15px;color:#C6B8C7}
+.orari th,.orari td{padding:11px 0;text-align:left;font-weight:400}
+.orari td{text-align:right;color:#C6B8C7}
+.orari tr + tr th,.orari tr + tr td{border-top:1px solid rgba(239,228,234,.22)}
+
+/* ============================================================
+   Prenota
+   ============================================================ */
+.poltrona h2{
+  margin:0 0 clamp(22px,3vh,36px);font-family:var(--display);
+  font-variation-settings:"opsz" 72;font-weight:400;
+  font-size:clamp(2.2rem,5vw,4rem);line-height:1.02;
+}
+.modulo{display:grid;gap:clamp(20px,2.6vh,32px);max-width:760px}
+.gruppo{border:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:10px}
+.gruppo legend{padding:0;margin-bottom:12px;font-size:15px;color:var(--melanzana-tenue)}
+.chip{
+  display:inline-flex;align-items:center;cursor:pointer;
+  background:var(--cipria-cupa);border:1.5px solid transparent;
+  border-radius:999px;padding:12px 22px;min-height:48px;font-size:16.5px;
+  transition:background .3s ease,border-color .3s ease,color .3s ease;
+}
+.chip input{position:absolute;opacity:0;width:0;height:0}
+.chip:hover{background:#DFCFD9}
+.chip:has(input:checked){
+  background:var(--melanzana);color:var(--latte);
+  box-shadow:0 0 0 3px var(--nuance);
+}
+.chip:has(input:focus-visible){outline:2px solid var(--melanzana);outline-offset:3px}
+.campo{display:flex;flex-direction:column;gap:8px;max-width:420px}
+.campo label{font-size:15px;color:var(--melanzana-tenue)}
+.campo input{
+  font-family:var(--testo);font-size:17px;color:var(--melanzana);
+  background:#fff;border:1.5px solid var(--argento);border-radius:999px;
+  padding:13px 20px;min-height:50px;width:100%;
+}
+.campo input:hover{border-color:var(--melanzana)}
+.tasto-pieno{justify-self:start}
+.esito{
+  margin:0;padding:16px 20px;border-radius:18px 18px 18px 4px;
+  background:var(--cipria-cupa);color:var(--melanzana);
+  font-size:16.5px;line-height:1.5;max-width:56ch;
+}
+
+/* ----- Piede ----- */
+.piede{
+  display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;
+  padding:26px var(--bordo) 40px;
+}
+.piede-nome{font-family:var(--display);font-variation-settings:"opsz" 24;font-size:21px}
+.piede-riga{color:var(--melanzana-tenue);font-size:15.5px}
+
+/* ============================================================
+   Telefono: la vetrina si scorre col pollice
+   ============================================================ */
+@media (max-width:980px){
+  .vetrina{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .listino{columns:1}
+}
+
+@media (max-width:760px){
+  .testata nav{display:none}
+  .specchio{grid-template-columns:1fr;gap:26px}
+  .arco{width:min(78vw,380px);justify-self:center}
+  .disco{left:auto;right:4%;top:14%;width:clamp(72px,20vw,110px)}
+  .specchio-testo{align-items:stretch;padding-bottom:0}
+  .specchio-testo .tasto{justify-content:center}
+  /* Vetrina a scorrimento con aggancio: e il gesto con cui si guardano
+     le immagini sul telefono, e cinque schede in colonna sarebbero una
+     pila lunga il doppio della pagina. */
+  .vetrina{
+    display:flex;gap:14px;
+    overflow-x:auto;scroll-snap-type:x mandatory;
+    margin-inline:calc(var(--bordo) * -1);
+    padding:0 var(--bordo) 8px;
+    scrollbar-width:thin;
+  }
+  .scheda{flex:0 0 min(70vw,260px);scroll-snap-align:start}
+  .piede{padding-bottom:90px}
+}
+
+@media (prefers-reduced-motion:reduce){
+  .arco,.tasto,.chip,.pastiglia,.colore-nota{transition:none}
+}
