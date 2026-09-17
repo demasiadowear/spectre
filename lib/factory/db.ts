@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from "crypto";
 import { turso } from "@/lib/turso";
+import { aggiungiColonne, type RapportoMigrazione } from "./migrazioni";
 import type {
   Activity,
   ActivityType,
@@ -49,6 +50,14 @@ export function newSlug(): string {
 // Specchio runtime di lib/factory/schema.sql, come ensureZoneSchema().
 
 let schemaEnsured = false;
+
+/** Rapporto dell'ultima migrazione delle colonne: serve a poterla
+ *  verificare dall'esterno invece di doverla dedurre. */
+let ultimoRapporto: RapportoMigrazione | null = null;
+
+export function rapportoMigrazione(): RapportoMigrazione | null {
+  return ultimoRapporto;
+}
 
 export async function ensureFactorySchema(): Promise<void> {
   if (!turso || schemaEnsured) return;
@@ -164,31 +173,25 @@ export async function ensureFactorySchema(): Promise<void> {
     create index if not exists idx_demo_views_project on demo_views(forge_project_id, viewed_at);
   `);
 
-  // Colonne sulla pipeline esistente: una per una, e nessuna tabella
-  // preesistente viene ricreata.
+  // Colonne sulla pipeline dell'Autopilot.
   //
-  // Il catch e STRETTO di proposito. Un catch vuoto attorno a un ALTER
-  // nasconde anche «syntax error» e i guasti di connessione: la
-  // migrazione sembrerebbe riuscita mentre non ha fatto niente, e il
-  // difetto salterebbe fuori mesi dopo come una colonna che non c'e.
-  // Qui si ignorano solo i due casi previsti — colonna gia presente, e
-  // tabella non ancora creata perche l'Autopilot non e mai partito — e
-  // ogni altro errore risale.
-  for (const ddl of [
-    "alter table autopilot_pipeline add column website_status text default ''",
-    "alter table autopilot_pipeline add column website_opportunity_score integer not null default 0",
-    "alter table autopilot_pipeline add column website_reasons text default '[]'",
-    "alter table autopilot_pipeline add column website_checked_at text",
-    "alter table autopilot_pipeline add column factory_stage text default ''",
-  ]) {
-    try {
-      await turso.execute(ddl);
-    } catch (e) {
-      const m = (e as Error).message ?? "";
-      const previsto = /duplicate column/i.test(m) || /no such table/i.test(m);
-      if (!previsto) throw e;
-    }
-  }
+  // `autopilot_pipeline` e di un altro modulo e puo legittimamente non
+  // esistere: se l'Autopilot non e mai partito su questo database, non
+  // c'e niente da migrare, e non e un errore. Ma «non c'e» va
+  // VERIFICATO, non dedotto da un'eccezione: «no such table» lo dice
+  // anche un nome sbagliato o un database puntato male, e trattare i
+  // tre casi allo stesso modo produce uno schema aggiornato a meta che
+  // si comporta bene finche qualcuno non legge una colonna assente.
+  //
+  // Vedi lib/factory/migrazioni.ts: esistenza chiesta a sqlite_master,
+  // solo «duplicate column» tollerato, tutto il resto propagato.
+  ultimoRapporto = await aggiungiColonne(turso, "autopilot_pipeline", [
+    { nome: "website_status", definizione: "text default ''" },
+    { nome: "website_opportunity_score", definizione: "integer not null default 0" },
+    { nome: "website_reasons", definizione: "text default '[]'" },
+    { nome: "website_checked_at", definizione: "text" },
+    { nome: "factory_stage", definizione: "text default ''" },
+  ]);
 
   schemaEnsured = true;
 }

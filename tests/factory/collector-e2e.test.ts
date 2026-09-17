@@ -9,7 +9,9 @@ import { createClient } from "@libsql/client";
 import {
   ensureCollectorSchema, leggiDossier, resetCollectorSchemaCache, salvaDossier,
 } from "../../lib/collector/db";
-import { ensureFactorySchema, resetFactorySchemaCache } from "../../lib/factory/db";
+import {
+  ensureFactorySchema, rapportoMigrazione, resetFactorySchemaCache,
+} from "../../lib/factory/db";
 import { claimSpecificJob, dedupKeyFor, enqueueJob, getJob } from "../../lib/factory/queue";
 import { runJobNow } from "../../lib/factory/orchestrator";
 import { raccogli, type ClientPlaces } from "../../lib/collector/collect";
@@ -414,12 +416,20 @@ test("e2e: la migrazione inghiotte SOLO duplicate-column, non ogni errore", asyn
   assert.ok(altro && !/duplicate column/i.test(altro),
     "un errore diverso deve restare distinguibile da duplicate-column");
 
-  // E la migrazione deve RILANCIARE tutto cio che non e previsto: un
-  // catch vuoto farebbe sembrare riuscita una migrazione che non ha
-  // fatto niente, e il difetto uscirebbe mesi dopo.
-  const sorgente = readFileSync("lib/factory/db.ts", "utf8");
-  assert.match(sorgente, /if \(!previsto\) throw e;/,
-    "il catch delle migrazioni deve rilanciare gli errori non previsti");
+  // E lo schema reale deve riportare cosa ha fatto, non lasciarlo
+  // dedurre. Qui `autopilot_pipeline` esiste (l'ha creata lo schema
+  // Autopilot applicato nel before), quindi le colonne sono al posto
+  // loro e il rapporto lo dichiara.
+  const rap = rapportoMigrazione();
+  assert.ok(rap, "la migrazione deve lasciare un rapporto leggibile");
+  assert.equal(rap?.tabella, "autopilot_pipeline");
+  assert.notEqual(rap?.esito, "migration_not_applicable",
+    "la tabella c'e, quindi la migrazione era applicabile");
+  const col = await db.execute("select name from pragma_table_info('autopilot_pipeline')");
+  const nomi = col.rows.map((r) => String((r as Record<string, unknown>).name));
+  for (const c of ["website_status", "factory_stage"]) {
+    assert.ok(nomi.indexOf(c) !== -1, `${c} deve esserci dopo la migrazione`);
+  }
 });
 
 // ----- Nessun outreach ------------------------------------------
