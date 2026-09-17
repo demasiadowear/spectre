@@ -1,0 +1,195 @@
+{
+  "progetto": "Grecale — benchmark fotografico e commerciale",
+  "natura": "concept dimostrativo. Attivita inventata: nessuna immagine puo provenire da un'attivita reale.",
+  "stato": "IN ATTESA DI IMMAGINI — nessun asset posseduto",
+  "aggiornato": "2026-09-17",
+
+  "politica": {
+    "fonti_ammesse": [
+      "immagine originale generata per questo progetto (synthetic: true)",
+      "stock con licenza verificabile e URL della licenza registrato (synthetic: false)"
+    ],
+    "fonti_vietate": [
+      "immagini di attivita reali (incluse quelle nei repository dei siti gia pubblicati)",
+      "fotografie di persone riconoscibili senza licenza",
+      "immagini da ricerca web senza licenza tracciabile",
+      "CDN esterni nella versione autonoma: ogni immagine viaggia col bundle"
+    ],
+    "campi_obbligatori_per_asset": [
+      "id", "source_type", "source_url | generation_id", "autore_o_modello",
+      "licenza", "licenza_url", "data_acquisizione", "synthetic", "allowed_scope"
+    ],
+    "allowed_scope_previsti": [
+      "demo-interna", "demo-cliente", "pubblicazione"
+    ]
+  },
+
+  "budget": {
+    "numero_scene": 10,
+    "file_totali": 22,
+    "nota_file": "ogni scena esce in AVIF + WebP; il browser ne scarica uno solo. La hero ha due tagli (verticale per telefono, orizzontale per desktop).",
+    "peso_massimo_mobile": "2.0 MB",
+    "peso_obiettivo_mobile": "1.3 MB",
+    "formati": ["AVIF (primario)", "WebP (ripiego)"],
+    "nota_formati": "niente JPEG: AVIF piu WebP coprono fino a Safari 14. Rapporto d'aspetto dichiarato in HTML su ogni immagine, per CLS zero."
+  },
+
+  "asset": [
+    {
+      "id": "hero-sala-verticale",
+      "stato": "MANCANTE",
+      "sezione": "apertura",
+      "ruolo": "fondale a tutto schermo su telefono, sotto il claim",
+      "aspect_ratio": "4:5",
+      "dimensioni": "1080x1350",
+      "peso_massimo": "190 KB",
+      "priorita_caricamento": "eager, preload, fetchpriority=high (e la LCP)",
+      "source_type": null,
+      "generation_id": null,
+      "source_url": null,
+      "autore_o_modello": null,
+      "licenza": null,
+      "licenza_url": null,
+      "data_acquisizione": null,
+      "synthetic": null,
+      "allowed_scope": null
+    },
+    {
+      "id": "hero-sala-orizzontale",
+      "stato": "MANCANTE",
+      "sezione": "apertura",
+      "ruolo": "stessa scena, taglio desktop",
+      "aspect_ratio": "16:9",
+      "dimensioni": "1920x1080",
+      "peso_massimo": "240 KB",
+      "priorita_caricamento": "eager, preload su >=900px",
+      "source_type": null, "generation_id": null, "source_url": null,
+      "autore_o_modello": null, "licenza": null, "licenza_url": null,
+      "data_acquisizione": null, "synthetic": null, "allowed_scope": null
+    },
+    {
+      "id": "piatto-orecchiette",
+      "stato": "MANCANTE",
+      "sezione": "i piatti",
+      "ruolo": "primo piatto della galleria",
+      "aspect_ratio": "4:5", "dimensioni": "900x1125", "peso_massimo": "120 KB",
+      "priorita_caricamento": "lazy",
+      "source_type": null, "generation_id": null, "source_url": null,
+      "autore_o_modello": null, "licenza": null, "licenza_url": null,
+      "data_acquisizione": null, "synthetic": null, "allowed_scope": null
+    },
+    {
+      "id": "piatto-agnello",
+      "stato": "MANCANTE",
+      "sezione": "i piatti",
+      "ruolo": "secondo piatto della galleria",
+      "aspect_ratio": "4:5", "dimensioni": "900x1125", "peso_massimo": "120 KB",
+      "priorita_caricamento": "lazy",
+      "source_type": null, "generation_id": null, "source_url": null,
+      "autore_o_modello": null, "licenza": null, "licenza_url": null,
+      "data_acquisizione": null, "synthetic": null, "allowed_scope": null
+    },
+    {
+      "id": "piatto-polpo",
+      "stato": "MANCANTE",
+      "sezione": "i piatti",
+      "ruolo": "terzo piatto della galleria",
+      "aspect_ratio": "4:5", "dimensioni": "900x1125", "peso_massimo": "120 KB",
+      "priorita_caricamento": "lazy",
+      "source_type": null, "generation_id": null, "source_url": null,
+      "autore_o_modello": null, "licenza": null, "licenza_url": null,
+      "data_acquisizione": null, "synthetic": null, "allowed_scope": null
+    },
+    {
+      "id": "piatto-fichi",
+      "stato": "MANCANTE",
+      "sezione": "i piatti",
+      "ruolo": "dolce, chiude la galleria",
+      "aspect_ratio": "4:5", "dimensioni": "900x1125", "peso_massimo": "120 KB",
+      "priorita_caricamento": "lazy",
+      "source_type": null, "generation_id": null, "source_url": null,
+      "autore_o_modello": null, "licenza": null, "licenza_url": null,
+      "data_acquisizione": null, "synthetic": null, "allowed_scope": null
+    },
+    {
+      "id": "forno-fuoco",
+      "stato": "MANCANTE",
+      "sezione": "la cucina",
+      "ruolo": "immagine che apre il racconto della cucina",
+      "aspect_ratio": "3:2", "dimensioni": "1200x800", "peso_massimo": "150 KB",
+      "priorita_caricamento": "lazy",
+      "source_type": null, "generation_id": null, "source_url": null,
+      "autore_o_modello": null, "licenza": null, "licenza_url": null,
+      "data_acquisizione": null, "synthetic": null, "allowed_scope": null
+    },
+    {
+      "id": "mani-orecchiette",
+      "stato": "MANCANTE",
+      "sezione": "la cucina",
+      "ruolo": "dettaglio del mestiere. Nessun volto inquadrato.",
+      "aspect_ratio": "3:2", "dimensioni": "1200x800", "peso_massimo": "140 KB",
+      "priorita_caricamento": "lazy",
+      "source_type": null, "generation_id": null, "source_url": null,
+      "autore_o_modello": null, "licenza": null, "licenza_url": null,
+      "data_acquisizione": null, "synthetic": null, "allowed_scope": null
+    },
+    {
+      "id": "materia-grano-arso",
+      "stato": "MANCANTE",
+      "sezione": "la materia",
+      "ruolo": "primo piano dell'ingrediente",
+      "aspect_ratio": "1:1", "dimensioni": "800x800", "peso_massimo": "100 KB",
+      "priorita_caricamento": "lazy",
+      "source_type": null, "generation_id": null, "source_url": null,
+      "autore_o_modello": null, "licenza": null, "licenza_url": null,
+      "data_acquisizione": null, "synthetic": null, "allowed_scope": null
+    },
+    {
+      "id": "materia-olio-nuovo",
+      "stato": "MANCANTE",
+      "sezione": "la materia",
+      "ruolo": "primo piano dell'ingrediente",
+      "aspect_ratio": "1:1", "dimensioni": "800x800", "peso_massimo": "100 KB",
+      "priorita_caricamento": "lazy",
+      "source_type": null, "generation_id": null, "source_url": null,
+      "autore_o_modello": null, "licenza": null, "licenza_url": null,
+      "data_acquisizione": null, "synthetic": null, "allowed_scope": null
+    },
+    {
+      "id": "sala-tavolata",
+      "stato": "MANCANTE",
+      "sezione": "la sala",
+      "ruolo": "immagine ampia dell'atmosfera, a tutta larghezza",
+      "aspect_ratio": "21:9", "dimensioni": "1800x772", "peso_massimo": "180 KB",
+      "priorita_caricamento": "lazy",
+      "source_type": null, "generation_id": null, "source_url": null,
+      "autore_o_modello": null, "licenza": null, "licenza_url": null,
+      "data_acquisizione": null, "synthetic": null, "allowed_scope": null
+    }
+  ],
+
+  "separazione_contenuti": {
+    "nota": "requisito strutturale: niente puo essere presentato come reale.",
+    "verified": {
+      "descrizione": "dati verificati con fonte. Per Grecale: NESSUNO, perche l'attivita non esiste.",
+      "contenuto": []
+    },
+    "demoOnly": {
+      "descrizione": "contenuti di esempio, mostrati con marcatura visibile e attributo data-demo nel DOM. Esclusi da qualunque dato strutturato.",
+      "contenuto": [
+        "recensioni", "valutazione media e numero recensioni",
+        "orari", "indirizzo e posizione", "numero di telefono e WhatsApp",
+        "nomi dei piatti"
+      ]
+    },
+    "synthetic": {
+      "descrizione": "asset generati, marcati nel manifest con synthetic: true e dichiarati nella nota di chi pubblica.",
+      "contenuto": ["tutte le immagini di questo elenco, una volta consegnate"]
+    }
+  },
+
+  "dati_strutturati": {
+    "json_ld": "ASSENTE per scelta",
+    "motivo": "un LocalBusiness o Restaurant schema su un'attivita inventata e un dato falso leggibile dalle macchine. Resta solo noindex."
+  }
+}
