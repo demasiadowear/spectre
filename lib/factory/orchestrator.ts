@@ -1,4 +1,6 @@
 import { getPipelineLead } from "@/lib/autopilot/db";
+import { raccogli } from "@/lib/collector/collect";
+import { salvaDossier } from "@/lib/collector/db";
 import { getLeadById } from "@/lib/data";
 import { turso } from "@/lib/turso";
 import {
@@ -29,6 +31,8 @@ import {
 } from "./queue";
 import { hasFreshDemo, loadLimits, shouldRecheck } from "./scout-config";
 import { analyzeWebsite, isEligible } from "./website";
+import type { CollectPhase } from "@/types/dossier";
+import { FASI } from "@/types/dossier";
 import type { AgentJob, Fact, FactoryStage, JobKind } from "@/types/factory";
 
 // ============================================================
@@ -60,6 +64,9 @@ export function dailyLimits(env = process.env): Record<JobKind, number> {
   return {
     analyze_website: l.maxSiteAudits,
     research_business: l.maxSiteAudits,
+    // La raccolta esce verso Google e verso il sito del prospect, quindi
+    // segue il tetto delle analisi e non quello dei job interni.
+    collect_business_intelligence: l.maxSiteAudits,
     generate_site: l.maxDemosPerDay,
     run_site_qa: l.maxDemosPerDay * 2,
     prepare_outreach: l.maxDemosPerDay * 2,
@@ -251,6 +258,97 @@ async function handleAnalyzeWebsite(job: AgentJob): Promise<string> {
     budget: 3,
   });
   return `eleggibile: ${analysis.status}, punteggio ${analysis.opportunity_score}`;
+}
+
+/**
+ * collect_business_intelligence — la raccolta completa su un lead.
+ *
+ * Prende SOLO un lead_id. Nessun URL arriva da fuori: quelli che si
+ * visitano vengono da Google Places o dall'HTML del sito che Places
+ * dichiara, e ognuno passa dalla guardia SSRF. Un endpoint che
+ * accettasse un URL dall'operatore sarebbe uno scanner a disposizione
+ * di chiunque abbia una sessione.
+ *
+ * `payload.solo` consente di rilanciare le sole fasi fallite senza
+ * rifare da capo quelle riuscite, che e anche il modo di non ripagare
+ * le chiamate a Places.
+ */
+async function handleCollectBusinessIntelligence(job: AgentJob): Promise<string> {
+  const ctx = await leadContext(job.lead_id);
+  if (!ctx) throw new FatalJobError("lead inesistente");
+
+  const payload = job.payload ?? {};
+  const solo = Array.isArray(payload.solo)
+    ? (payload.solo as string[]).filter((p): p is CollectPhase =>
+        FASI.indexOf(p as CollectPhase) !== -1)
+    : undefined;
+
+  const pipeline = await getPipelineLead(job.lead_id).catch(() => null);
+  const { dossier, phases } = await raccogli({
+    lead_id: job.lead_id,
+    name: ctx.name,
+    city: ctx.city,
+    address: ctx.address,
+    phone: ctx.phone,
+    email: ctx.email,
+    website: ctx.website,
+    place_id: pipeline?.place_id ?? "",
+    manual: ctx.manual,
+    linked_pages: ctx.linked_pages,
+    // Solo cio che un operatore ha dichiarato fornito dal cliente puo
+    // diventare `customer_owned`. Nessuna euristica ci arriva.
+    media_forniti: Array.isArray(payload.media_forniti)
+      ? (payload.media_forniti as unknown[]).filter((x): x is string => typeof x === "string")
+      : [],
+  }, {
+    solo: solo && solo.length ? solo : undefined,
+    // Il budget del job e il tetto di pagine: una raccolta non puo
+    // allargarsi a piacere dentro un sito grande.
+    maxPagine: Math.max(1, Math.min(job.budget || 6, 10)),
+  });
+
+  await salvaDossier({ dossier, phases, job_id: job.id });
+
+  const fallite = phases.filter((p) => p.status === "failed");
+  await logActivity({
+    lead_id: job.lead_id,
+    type: "research",
+    subject: `Raccolta dati e fotografie — ${dossier.recommendation}`,
+    body: [
+      `${dossier.verified.length} fatti verificati, ${dossier.probable.length} probabili, ${dossier.conflicts.length} conflitti.`,
+      `${dossier.identities.length} profili valutati, ${dossier.media.candidates.length} immagini candidate.`,
+      dossier.missing.length ? `Mancano: ${dossier.missing.join(", ")}.` : "",
+      fallite.length ? `Fasi fallite: ${fallite.map((p) => `${p.phase} (${p.detail})`).join("; ")}.` : "",
+      `${dossier.cost.external_calls} chiamate esterne in ${Math.round(dossier.cost.total_ms / 100) / 10}s.`,
+    ].filter(Boolean).join(" "),
+    metadata: {
+      recommendation: dossier.recommendation,
+      place_id: dossier.place_id,
+      official_site: dossier.official_site,
+      phases: phases.map((p) => ({ phase: p.phase, status: p.status })),
+      external_calls: dossier.cost.external_calls,
+    },
+    created_by: "factory",
+  });
+
+  // Le fonti consultate entrano in timeline: fra sei mesi si deve poter
+  // sapere da dove veniva un dato e se quel giorno era raggiungibile.
+  for (const s of dossier.sources) {
+    if (s.outcome === "ok") continue;
+    await logActivity({
+      lead_id: job.lead_id,
+      type: "research",
+      subject: `Fonte non utilizzabile: ${s.source_type}`,
+      body: `${s.url || "(senza URL)"} — ${s.outcome}: ${s.detail}`,
+      metadata: { source_type: s.source_type, outcome: s.outcome },
+      created_by: "factory",
+    });
+  }
+
+  if (fallite.length === phases.length) {
+    throw new Error(`nessuna fase riuscita: ${fallite.map((p) => p.detail).join("; ")}`);
+  }
+  return `${dossier.recommendation}: ${dossier.verified.length} fatti verificati, ${dossier.media.candidates.length} immagini candidate, ${dossier.conflicts.length} conflitti`;
 }
 
 async function handleResearchBusiness(job: AgentJob): Promise<string> {
@@ -626,6 +724,7 @@ async function handleScheduleFollowup(job: AgentJob): Promise<string> {
 const HANDLERS: Record<JobKind, (job: AgentJob) => Promise<string>> = {
   analyze_website: handleAnalyzeWebsite,
   research_business: handleResearchBusiness,
+  collect_business_intelligence: handleCollectBusinessIntelligence,
   generate_site: handleGenerateSite,
   run_site_qa: handleRunSiteQa,
   prepare_outreach: handlePrepareOutreach,

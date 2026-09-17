@@ -221,6 +221,7 @@ export interface QaReport {
 export type JobKind =
   | "analyze_website"
   | "research_business"
+  | "collect_business_intelligence"
   | "generate_site"
   | "run_site_qa"
   | "prepare_outreach"
