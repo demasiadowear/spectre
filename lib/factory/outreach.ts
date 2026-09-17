@@ -38,7 +38,10 @@ const REASON_PHRASES: Record<string, string> = {
 
 /** Riassunto dei RILIEVI MISURATI. Niente aggettivi, solo fatti. */
 export function auditSummary(analysis: WebsiteAnalysis): string {
-  const real = analysis.reasons.filter((r) => r.points > 0);
+  // Ordinati per peso, non per ordine di controllo: si tengono i
+  // quattro rilievi più forti. Al telefono si dice la cosa che pesa di
+  // più, non quella che è capitato di misurare prima.
+  const real = analysis.reasons.filter((r) => r.points > 0).sort((a, b) => b.points - a.points);
   if (real.length === 0) return "Nessun rilievo tecnico sul sito attuale.";
   const parts = real.slice(0, 4).map((r) => {
     const phrase = REASON_PHRASES[r.code] ?? r.label.toLowerCase();
