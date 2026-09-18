@@ -8,6 +8,7 @@ import {
 import GlassCard from "@/components/ui/spectre/GlassCard";
 import NeonButton from "@/components/ui/spectre/NeonButton";
 import { cn } from "@/lib/utils";
+import { MAX_QUERY_PER_LEAD } from "@/types/dossier";
 import type {
   BusinessDossier, CollectPhase, CommercialRecommendation, ContentReadiness,
   IdentityCandidate, MediaCandidate, MediaReadiness, PhaseState, RightsStatus,
@@ -127,7 +128,7 @@ export default function CollectorPanel({ leadId, leadName }: { leadId: string; l
 
   useEffect(() => { void carica(); }, [carica]);
 
-  const avvia = useCallback(async (solo?: CollectPhase[]) => {
+  const avvia = useCallback(async (solo?: CollectPhase[], forzaRicerca = false) => {
     setInCorso(true);
     setErrore("");
     // Le fasi sono in ordine e hanno durate simili: mostrarle avanzare
@@ -142,7 +143,11 @@ export default function CollectorPanel({ leadId, leadName }: { leadId: string; l
     try {
       await api("/api/collector/run", {
         method: "POST",
-        body: JSON.stringify({ lead_id: leadId, ...(solo ? { solo } : {}) }),
+        body: JSON.stringify({
+          lead_id: leadId,
+          ...(solo ? { solo } : {}),
+          ...(forzaRicerca ? { force_search: true } : {}),
+        }),
       });
       await carica();
     } catch (e) {
@@ -278,22 +283,27 @@ export default function CollectorPanel({ leadId, leadName }: { leadId: string; l
         </div>
       )}
 
-      {/* Rilancio mirato di social e fotografie.
-          Serve quando la raccolta e andata ma si vuole ricontrollare
-          solo quelle due cose: ripartire da Places costerebbe chiamate
-          per riconfermare dati che non sono cambiati. Le fasi saltate
-          si reidratano dal dossier precedente, quindi il rilancio
-          integra invece di sovrascrivere. */}
+      {/* Riprova SOLO la ricerca social.
+          Il pulsante di prima diceva «riprendi social e fotografie» e
+          mandava anche `media`: un nome che non corrispondeva a cosa
+          faceva. Questo manda due fasi e basta — Places, sito e
+          fotografie non si toccano e si reidratano dal dossier
+          precedente — e dichiara quanto costa prima di spenderlo. */}
       {d && !inCorso && (
-        <div className="mt-3">
+        <div className="mt-3 rounded-sm border border-border p-3">
           <NeonButton
             variant="cyan" size="sm"
             className="min-h-[40px] w-full sm:w-auto"
             disabled={bloccato}
-            onClick={() => void avvia(["social_discovery", "media", "reconcile"])}
+            onClick={() => void avvia(["social_discovery", "reconcile"], true)}
           >
-            <Search className="h-3.5 w-3.5" /> Riprendi social e fotografie
+            <Search className="h-3.5 w-3.5" /> Riprova solo ricerca social
           </NeonButton>
+          <p className="mt-2 text-[11px] leading-snug text-text2">
+            Costo previsto: fino a {MAX_QUERY_PER_LEAD} ricerche Google tramite Gemini.
+            Non riesegue Google Places, il sito ufficiale o le fotografie:
+            quelli restano come sono.
+          </p>
         </div>
       )}
 

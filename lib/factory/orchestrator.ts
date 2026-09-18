@@ -274,6 +274,23 @@ async function handleAnalyzeWebsite(job: AgentJob): Promise<string> {
  * rifare da capo quelle riuscite, che e anche il modo di non ripagare
  * le chiamate a Places.
  */
+/**
+ * Il rifacimento della ricerca social e concesso?
+ *
+ * Costa fino a quattro interrogazioni a un modello, quindi non deve
+ * poter partire da solo. Si onora SOLO se il payload porta la marca
+ * dell'operatore, che scrive unicamente la rotta POST dopo aver
+ * verificato sessione e origine. Nessun percorso automatico — cron
+ * compreso — la scrive.
+ *
+ * La regola non poggia sul fatto che nessuno accodi mai un job con
+ * `force_search`, ma sul fatto che accodarlo NON BASTEREBBE: e la
+ * differenza fra una convenzione e una garanzia.
+ */
+export function ricercaForzataAmmessa(payload: Record<string, unknown>): boolean {
+  return payload.force_search === true && payload.origine === "operator";
+}
+
 async function handleCollectBusinessIntelligence(job: AgentJob): Promise<string> {
   const ctx = await leadContext(job.lead_id);
   if (!ctx) throw new FatalJobError("lead inesistente");
@@ -293,6 +310,8 @@ async function handleCollectBusinessIntelligence(job: AgentJob): Promise<string>
   // quindi non c'e ne il place_id ne il nome, e il risultato sarebbe la
   // CANCELLAZIONE di quello che il rilancio doveva integrare. Il
   // salvataggio piu sotto sostituisce la riga, non la fonde.
+  const forzaRicerca = ricercaForzataAmmessa(payload);
+
   const precedente = solo && solo.length
     ? (await leggiDossier(job.lead_id).catch(() => null))?.dossier ?? null
     : null;
@@ -316,6 +335,7 @@ async function handleCollectBusinessIntelligence(job: AgentJob): Promise<string>
   }, {
     solo: solo && solo.length ? solo : undefined,
     precedente,
+    forzaRicerca,
     // Il budget del job e il tetto di pagine: una raccolta non puo
     // allargarsi a piacere dentro un sito grande.
     maxPagine: Math.max(1, Math.min(job.budget || 6, 10)),

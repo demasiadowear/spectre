@@ -746,3 +746,100 @@ test("e2e: il rilancio della fase media non perde le fotografie di Places", asyn
   assert.ok(dopo.dossier.media.candidates.every((m) => m.attribution || !m.provider_reference),
     "l'attribuzione delle fotografie del provider non si perde nel rilancio");
 });
+
+// ----- «Riprova solo ricerca social» ------------------------------
+
+test("e2e: il rilancio della sola ricerca non tocca Places, sito o fotografie", async () => {
+  const pieno = await raccogli(LEAD_SENZA_SITO, {
+    places: placesSenzaSito, provider: new ProviderFinto(),
+    ricerca: async () => ({
+      esito: "no_results" as const, candidati: [], queries_used: 4, tokens: 3206,
+      ms: 30, detail: "", conteggi: { citazioni: 0, risolti: 0, profili: 0, unici: 0 },
+    }),
+  });
+  assert.ok(pieno.dossier.media.candidates.length >= 1);
+
+  // Un Places che esplode se lo si chiama: la prova che NON viene
+  // chiamato è che il rilancio riesce lo stesso.
+  const placesVietato: ClientPlaces = {
+    async dettaglio(): Promise<EsitoPlaces> { throw new Error("Places non va richiamato"); },
+    async cerca(): Promise<EsitoPlaces> { throw new Error("Places non va richiamato"); },
+  };
+
+  let cercate = 0;
+  const dopo = await raccogli(LEAD_SENZA_SITO, {
+    places: placesVietato,
+    provider: new ProviderFinto(),
+    solo: ["social_discovery", "reconcile"],
+    precedente: pieno.dossier,
+    forzaRicerca: true,
+    ricerca: async () => {
+      cercate++;
+      return {
+        esito: "ok" as const,
+        candidati: [{
+          url: "https://instagram.com/trattoriadiprova",
+          platform: "instagram" as const, query_index: 0,
+        }],
+        queries_used: 4, tokens: 3100, ms: 40, detail: "",
+        conteggi: { citazioni: 9, risolti: 9, profili: 1, unici: 1 },
+      };
+    },
+  });
+
+  const per = Object.fromEntries(dopo.phases.map((p) => [p.phase, p.status]));
+  assert.equal(per.places, "skipped", "Places non è stato richiesto");
+  assert.equal(per.official_site, "skipped");
+  assert.equal(per.media, "skipped", "le fotografie non si rifanno");
+  assert.equal(per.social_discovery, "ok");
+  assert.equal(per.reconcile, "ok");
+
+  // La forzatura ha davvero rifatto la ricerca su un dossier fresco.
+  assert.equal(cercate, 1, "il force refresh deve saltare la cache di freschezza");
+  assert.equal(dopo.dossier.search?.force_refresh, true);
+  assert.equal(dopo.dossier.search?.cache_hit, false);
+  assert.equal(dopo.dossier.search?.citations, 9);
+  assert.equal(dopo.dossier.search?.resolved, 9);
+  assert.equal(dopo.dossier.search?.profiles, 1);
+
+  // E niente si è perso: è il punto di rilanciare SOLO la ricerca.
+  assert.equal(dopo.dossier.place_id, pieno.dossier.place_id);
+  assert.equal(
+    dopo.dossier.media.candidates.length, pieno.dossier.media.candidates.length,
+    "le fotografie non vanno perse da un rilancio che non le riguarda",
+  );
+  assert.equal(dopo.dossier.media_readiness, "DISPLAYABLE");
+  assert.deepEqual(dopo.dossier.requested_phases, ["social_discovery", "reconcile"]);
+});
+
+test("e2e: senza forzatura, su un dossier fresco la ricerca NON si ripaga", async () => {
+  const pieno = await raccogli(LEAD_SENZA_SITO, {
+    places: placesSenzaSito, provider: new ProviderFinto(),
+    ricerca: async () => ({
+      esito: "ok" as const,
+      candidati: [{ url: "https://instagram.com/trattoriadiprova", platform: "instagram" as const, query_index: 0 }],
+      queries_used: 4, tokens: 3206, ms: 30, detail: "",
+      conteggi: { citazioni: 9, risolti: 9, profili: 1, unici: 1 },
+    }),
+  });
+
+  let cercate = 0;
+  const dopo = await raccogli(LEAD_SENZA_SITO, {
+    places: placesSenzaSito, provider: new ProviderFinto(),
+    solo: ["social_discovery", "reconcile"],
+    precedente: pieno.dossier,
+    // forzaRicerca assente: è il default, e il default non spende.
+    ricerca: async () => {
+      cercate++;
+      return {
+        esito: "ok" as const, candidati: [], queries_used: 4, tokens: 3206, ms: 30,
+        detail: "", conteggi: { citazioni: 0, risolti: 0, profili: 0, unici: 0 },
+      };
+    },
+  });
+
+  assert.equal(cercate, 0, "senza richiesta esplicita non si spendono quattro interrogazioni");
+  assert.equal(dopo.dossier.search?.cache_hit, true);
+  assert.equal(dopo.dossier.search?.force_refresh, false);
+  assert.equal(dopo.dossier.identities.length, 1, "i candidati già scoperti si riusano");
+});

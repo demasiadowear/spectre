@@ -40,6 +40,44 @@ export type ErrorCode =
   | "factory_paused"
   | "internal_error";
 
+/**
+ * Dove si e fermata la scoperta social, in una parola.
+ *
+ * La catena ha cinque anelli e ognuno si rompe in modo diverso. Senza
+ * distinguerli, «zero profili» sembra sempre lo stesso guasto: il primo
+ * rilancio reale ha risposto `no_results` con quattro query e 3206
+ * token spesi, e da li non si poteva dire se la ricerca non avesse
+ * trovato fonti o se i reindirizzamenti non si stessero risolvendo.
+ */
+export type SearchOutcome =
+  | ""                        // la ricerca non e stata tentata
+  | "search_unavailable"      // il grounding non c'e con questo modello
+  | "no_sources"              // Google Search non ha trovato fonti
+  | "redirects_broken"        // ha citato, ma i redirect non si risolvono
+  | "sources_not_social"      // fonti trovate, nessuna era un profilo
+  | "candidates_unverified"   // profili candidati, identita non verificata
+  | "confirmed";              // discovery end-to-end riuscita
+
+export function esitoRicerca(
+  d: BusinessDossier | null,
+  confermati: number,
+): SearchOutcome {
+  const s = d?.search;
+  if (!s || !s.status) return "";
+  if (s.status === "search_unavailable") return "search_unavailable";
+  if (s.status === "not_configured") return "";
+
+  const citazioni = s.citations ?? 0;
+  const risolti = s.resolved ?? 0;
+  const profili = s.profiles ?? 0;
+
+  if (confermati > 0) return "confirmed";
+  if (profili > 0) return "candidates_unverified";
+  if (risolti > 0) return "sources_not_social";
+  if (citazioni > 0) return "redirects_broken";
+  return "no_sources";
+}
+
 export interface RiepilogoRaccolta {
   event: string;
   job_id: string;
@@ -75,6 +113,16 @@ export interface RiepilogoRaccolta {
   search_citations: number;
   search_resolved: number;
   search_profiles: number;
+  /** La scoperta e stata riusata invece di rifarla. */
+  search_cache_hit: boolean;
+  /** Un operatore ne ha chiesto il rifacimento esplicito. */
+  search_force_refresh: boolean;
+  /** Dove si e fermata la catena, in una parola. Vedi `esitoRicerca`. */
+  search_outcome: SearchOutcome;
+  /** Le fasi CHIESTE e quelle ESEGUITE. Senza entrambe, una raccolta
+   *  completa e un rilancio mirato si confondono. */
+  requested_phases: string;
+  executed_phases: string;
   error_code: ErrorCode;
   error_phase: CollectPhase | "";
 }
@@ -136,6 +184,15 @@ export function riepilogo(
 
   const identita = dossier?.identities ?? [];
   const media = dossier?.media;
+  const confermati = identita.filter((i) => i.status === "confirmed").length;
+
+  // Le fasi CHIESTE vengono dal dossier quando ci sono; altrimenti si
+  // deducono da quelle non saltate. La deduzione e un ripiego per i
+  // dossier vecchi, non la fonte: se fosse l'unica, una raccolta
+  // completa e un rilancio mirato resterebbero indistinguibili.
+  const chieste = dossier?.requested_phases?.length
+    ? dossier.requested_phases
+    : phases.filter((p) => p.status !== "skipped").map((p) => p.phase);
 
   return {
     event,
@@ -149,11 +206,15 @@ export function riepilogo(
     website_opportunity_score: dossier?.website_opportunity_score ?? null,
     duration_ms: Math.max(0, Math.round(ctx.duration_ms)),
     phase_statuses: stati,
-    verified_facts_count: dossier?.verified.length ?? 0,
-    conflicts_count: dossier?.conflicts.length ?? 0,
+    // Tutti con `?.`: un dossier salvato illeggibile ripiega su `{}`, e
+    // il riepilogo non deve essere cio che fa cadere la richiesta. Una
+    // telemetria che si rompe fa perdere anche il motivo per cui si e
+    // rotta.
+    verified_facts_count: dossier?.verified?.length ?? 0,
+    conflicts_count: dossier?.conflicts?.length ?? 0,
     blocking_conflicts_count: (dossier?.conflicts ?? []).filter((c) => c.blocking).length,
-    media_candidates_count: media?.candidates.length ?? 0,
-    media_approved_count: media?.approved_ids.length ?? 0,
+    media_candidates_count: media?.candidates?.length ?? 0,
+    media_approved_count: media?.approved_ids?.length ?? 0,
     media_displayable_count: media?.counts?.utilizzabili_in_demo ?? 0,
     search_status: dossier?.search?.status ?? "",
     search_queries: dossier?.search?.queries ?? 0,
@@ -161,6 +222,12 @@ export function riepilogo(
     search_citations: dossier?.search?.citations ?? 0,
     search_resolved: dossier?.search?.resolved ?? 0,
     search_profiles: dossier?.search?.profiles ?? 0,
+    search_cache_hit: dossier?.search?.cache_hit === true,
+    search_force_refresh: dossier?.search?.force_refresh === true,
+    search_outcome: esitoRicerca(dossier, confermati),
+    requested_phases: chieste.join("+") || "-",
+    executed_phases: phases.filter((p) => p.status !== "skipped")
+      .map((p) => p.phase).join("+") || "-",
     social_confirmed_count: identita.filter((i) => i.status === "confirmed").length,
     social_browser_required_count: identita.filter((i) => i.status === "browser_required").length,
     error_code: codice,
@@ -200,6 +267,8 @@ const CHIAVI_AMMESSE: readonly string[] = [
   "media_displayable_count", "social_confirmed_count",
   "social_browser_required_count", "search_status", "search_queries",
   "search_tokens", "search_citations", "search_resolved", "search_profiles",
+  "search_cache_hit", "search_force_refresh", "search_outcome",
+  "requested_phases", "executed_phases",
   "error_code", "error_phase",
 ];
 

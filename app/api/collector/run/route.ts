@@ -103,13 +103,36 @@ export async function POST(req: Request) {
           .filter((p): p is CollectPhase => typeof p === "string" && FASI.indexOf(p as CollectPhase) !== -1)
       : [];
 
+    // Rifare la scoperta social su un dossier ancora fresco costa fino a
+    // MAX_QUERY_PER_LEAD interrogazioni a un modello. Non e una cosa che
+    // debba poter succedere da sola.
+    //
+    // Tre condizioni insieme, e tutte e tre sono gia qui sopra:
+    //  - la sessione operatore, che il middleware ha gia verificato;
+    //  - l'origine, che `guardiaRichiesta` ha gia confrontata;
+    //  - un'azione esplicita, cioe questo campo nel corpo della POST.
+    //
+    // La quarta condizione — mai dal cron — la fa `origine: "operator"`
+    // nel payload: il worker onora `force_search` SOLO con quella
+    // marca, e nessun percorso automatico la scrive. Cosi la regola non
+    // dipende dal fatto che nessuno accodi mai un job con quel campo,
+    // ma dal fatto che accodarlo non basterebbe.
+    const forzaRicerca = raw.force_search === true;
+
+    const payload: Record<string, unknown> = {};
+    if (solo.length) payload.solo = solo;
+    if (forzaRicerca) {
+      payload.force_search = true;
+      payload.origine = "operator";
+    }
+
     const accodato = await enqueueJob({
       lead_id: leadId,
       kind: "collect_business_intelligence",
       reason: solo.length
-        ? `rilancio delle fasi ${solo.join(", ")} richiesto dalla dashboard`
+        ? `rilancio delle fasi ${solo.join(", ")} richiesto dalla dashboard${forzaRicerca ? " con ricerca social forzata" : ""}`
         : "raccolta dati e fotografie richiesta dalla dashboard",
-      payload: solo.length ? { solo } : {},
+      payload,
       budget: 6,
       priority: 10,
       // Chiave con ambito: due raccolte complete sullo stesso lead si
@@ -117,7 +140,13 @@ export async function POST(req: Request) {
       // job vivo con questa chiave esiste gia, `enqueueJob` restituisce
       // QUELLO invece di crearne un secondo — che e cio che succedeva
       // premendo due volte di seguito.
-      dedup_key: dedupKeyFor("collect_business_intelligence", leadId, solo),
+      // Un rilancio FORZATO e una richiesta diversa da uno normale sulle
+      // stesse fasi: senza distinguerli, chiedere il rifacimento
+      // restituirebbe il job vecchio e non rifarebbe niente.
+      dedup_key: dedupKeyFor(
+        "collect_business_intelligence", leadId,
+        forzaRicerca ? solo.concat("force" as CollectPhase) : solo,
+      ),
     });
 
     if (!accodato.id) {

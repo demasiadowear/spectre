@@ -28,8 +28,10 @@ import { controlloUrl } from "./ssrf";
 import { eUrlDiProfilo, normalizzaUrlProfilo, piattaformaDi } from "./identity";
 import type { Platform } from "@/types/dossier";
 
-/** Tetto duro: quattro interrogazioni per lead, non una di piu. */
-export const MAX_QUERY_PER_LEAD = 4;
+/** Tetto duro: quattro interrogazioni per lead, non una di piu.
+ *  Definito in `types/dossier` e ri-esportato qui, dove lo si applica. */
+export { MAX_QUERY_PER_LEAD } from "@/types/dossier";
+import { MAX_QUERY_PER_LEAD } from "@/types/dossier";
 
 export type EsitoRicerca =
   | "ok"

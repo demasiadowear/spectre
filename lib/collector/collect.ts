@@ -99,6 +99,11 @@ export interface OpzioniCollect {
    *  collector che parla con un modello, e va poter essere provata
    *  senza spendere interrogazioni vere. */
   ricerca?: typeof scopriProfili;
+  /** Rifa la scoperta social anche su un dossier ancora fresco.
+   *  Costa fino a MAX_QUERY_PER_LEAD interrogazioni, quindi lo puo
+   *  chiedere solo un operatore con un'azione esplicita: il worker
+   *  automatico non lo imposta mai da solo. */
+  forzaRicerca?: boolean;
   maxPagine?: number;
 }
 
@@ -282,6 +287,9 @@ interface Stato {
   /** Esito della scoperta social con ricerca, per la telemetria. */
   ricerca: { esito: EsitoRicerca; queries: number; tokens: number;
     citazioni: number; risolti: number; profili: number };
+  /** Un operatore ha chiesto di rifare la ricerca anche se il dossier
+   *  e recente. */
+  forzaRicerca: boolean;
   /** Candidati gia scoperti da una ricerca precedente ancora recente. */
   candidatiRicerca: string[];
   /** La ricerca non si rifa: il dossier precedente e abbastanza fresco. */
@@ -728,7 +736,7 @@ function reidrata(s: Stato, p: BusinessDossier, esegui: CollectPhase[]): void {
     const eta = Date.now() - Date.parse(p.generated_at || "");
     const recente = Number.isFinite(eta) && eta >= 0 && eta < FRESCHEZZA_RICERCA_MS;
     const giaCercato = p.sources.some((x) => x.source_type === "grounded_search");
-    if (recente && giaCercato) {
+    if (recente && giaCercato && !s.forzaRicerca) {
       s.saltaRicerca = true;
       // Si riparte dai candidati gia scoperti: la scoperta si riusa, la
       // VERIFICA si rifa comunque, perche e quella che decide. Restano
@@ -795,6 +803,7 @@ export async function raccogli(
     maxPagine: opts.maxPagine ?? MAX_PAGINE_SITO,
     punteggioSito: null,
     ricerca: { esito: "ok", queries: 0, tokens: 0, citazioni: 0, risolti: 0, profili: 0 },
+    forzaRicerca: opts.forzaRicerca === true,
     candidatiRicerca: [],
     saltaRicerca: false,
   };
@@ -857,7 +866,10 @@ export async function raccogli(
       status: s.ricerca.esito, queries: s.ricerca.queries, tokens: s.ricerca.tokens,
       citations: s.ricerca.citazioni, resolved: s.ricerca.risolti,
       profiles: s.ricerca.profili,
+      cache_hit: s.saltaRicerca,
+      force_refresh: s.forzaRicerca,
     },
+    requested_phases: esegui.slice(),
   };
 
   const d = decidi(dossier);

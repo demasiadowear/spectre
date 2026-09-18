@@ -17,6 +17,14 @@
 
 import type { Fact, FactBand, FactStatus } from "./factory";
 
+/** Tetto duro di interrogazioni per lead nella scoperta social.
+ *
+ *  Sta qui, e non nel modulo che le esegue, perche lo legge anche il
+ *  pannello per dichiarare il costo prima di spenderlo — e importarlo da
+ *  li tirerebbe il SDK di Gemini dentro il bundle del browser. Un numero
+ *  non ha bisogno di portarsi dietro una libreria. */
+export const MAX_QUERY_PER_LEAD = 4;
+
 // ----- Fonti ------------------------------------------------------
 
 /** Da CHE COSA arriva un dato, indipendentemente dall'URL preciso. */
@@ -338,7 +346,17 @@ export interface BusinessDossier {
     citations?: number;
     resolved?: number;
     profiles?: number;
+    /** La scoperta e stata riusata invece di rifarla. */
+    cache_hit?: boolean;
+    /** Un operatore ha chiesto esplicitamente di rifarla comunque. */
+    force_refresh?: boolean;
   };
+
+  /** Le fasi CHIESTE. Senza, `phase_statuses` da solo non distingue una
+   *  raccolta completa da un rilancio mirato: nel primo rilancio reale
+   *  e stata premuta la raccolta intera e me ne sono accorto solo
+   *  leggendo che `places` era `ok` invece che `skipped`. */
+  requested_phases?: CollectPhase[];
 }
 
 // ----- Fasi del job ----------------------------------------------
