@@ -31,6 +31,9 @@ import type { BusinessDossier, MediaCandidate } from "@/types/dossier";
 export const INDICE_FOTO = /^\d{1,2}$/;
 
 export interface FotoDemo {
+  /** Identificativo del candidato nel manifest: e la chiave a cui si
+   *  aggancia la curatela, e non cambia se il manifest si riordina. */
+  id: string;
   /** Posizione nel manifest: e l'unico nome che il client conosce. */
   indice: number;
   /** Percorso da mettere in `src`. Non contiene il riferimento. */
@@ -53,6 +56,7 @@ export function fotoMostrabili(d: BusinessDossier, slug: string, w = 1200): Foto
   (d.media?.candidates ?? []).forEach((m, i) => {
     if (!mostrabile(m, approvate)) return;
     out.push({
+      id: m.id,
       indice: i,
       src: `/demo/${encodeURIComponent(slug)}/foto/${i}?w=${w}`,
       larghezza: m.width,

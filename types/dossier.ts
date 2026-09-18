@@ -139,6 +139,70 @@ export interface IdentityCandidate {
   discovered_via: SourceType;
 }
 
+// ----- Identita visiva --------------------------------------------
+
+/** Che cosa e questo candidato. Un wordmark generato da noi NON e in
+ *  questo elenco: non e un candidato, e un ripiego tipografico. */
+export type BrandKind =
+  | "logo" | "wordmark" | "monogram" | "signage" | "favicon" | "color_reference";
+
+export type BrandStatus = "confirmed" | "probable" | "needs_review" | "rejected";
+
+/** Perche un candidato e stato respinto. Insieme chiuso: un motivo
+ *  libero diventa una scusa, e non si puo contare. */
+export type BrandRejection =
+  | ""
+  | "homonym_entity"      // il film, il libro, la canzone, l'omonimo
+  | "platform_asset"      // logo di Facebook, Instagram, Google
+  | "category_icon"       // il pin o l'icona di categoria di Maps
+  | "product_brand"       // un marchio di prodotto presente nel locale
+  | "generated_wordmark"  // lo abbiamo disegnato noi: non e suo
+  | "no_rights"           // provenienza senza stato dei diritti
+  | "too_weak";           // solo nome simile, OCR parziale
+
+export interface BrandCandidate {
+  kind: BrandKind;
+  source_type: SourceType;
+  /** URL diretto, quando la fonte lo consente. */
+  source_url: string;
+  /** Riferimento opaco del provider, per cio che si rende on demand. */
+  provider_reference: string;
+  discovered_via: SourceType;
+  /** Gli stessi segnali forti dell'identita social: la soglia non
+   *  cambia perche cambia l'oggetto. */
+  identity_signals: IdentitySignal[];
+  image_width: number;
+  image_height: number;
+  has_transparency: boolean;
+  /** Testo letto nell'immagine. E un SEGNALE, non una conferma. */
+  detected_text: string;
+  candidate_colors: string[];
+  rights_status: RightsStatus;
+  confidence: number;
+  status: BrandStatus;
+  rejection_reason: BrandRejection;
+  retrieved_at: string;
+}
+
+export type BrandOverall =
+  | "ORIGINAL_CONFIRMED"
+  | "ORIGINAL_PROBABLE"
+  | "SIGNAGE_ONLY"      // si vede l'insegna, ma un logo non si estrae
+  | "NOT_FOUND";
+
+export interface BrandIdentity {
+  primary_logo: BrandCandidate | null;
+  alternate_logo: BrandCandidate | null;
+  favicon: BrandCandidate | null;
+  signage_reference: BrandCandidate | null;
+  palette_candidates: string[];
+  brand_status: BrandOverall;
+  /** true = non si pubblica finche una persona non guarda. */
+  requires_operator_approval: boolean;
+  /** Tutto cio che e stato valutato, comprese le esclusioni. */
+  candidates: BrandCandidate[];
+}
+
 // ----- Media ------------------------------------------------------
 
 /** Che diritto abbiamo su un file. «E pubblica» non e in questo elenco:
