@@ -5,6 +5,9 @@ import { getLeadById } from "@/lib/data";
 import { guardiaRichiesta } from "@/lib/guardia-richiesta";
 import { dedupKeyFor, enqueueJob } from "@/lib/factory/queue";
 import { runJobNow } from "@/lib/factory/orchestrator";
+import {
+  EVENTO_RACCOLTA, riepilogo, scriviRiepilogo, statoHttp, type ErrorCode,
+} from "@/lib/collector/telemetria";
 import { FASI, type CollectPhase } from "@/types/dossier";
 import type { ApiResponse } from "@/types";
 
@@ -27,6 +30,18 @@ import type { ApiResponse } from "@/types";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
+
+export interface RispostaRun {
+  job_id: string;
+  lead_id: string;
+  enqueued: boolean;
+  stato: string;
+  esito: string;
+  errore: string;
+  ms: number;
+  recommendation: string;
+}
+
 
 /** GET su una rotta che muta: 405, mai una mutazione. */
 export async function GET() {
@@ -52,8 +67,10 @@ export async function POST(req: Request) {
     const leadId = typeof raw.lead_id === "string" ? raw.lead_id.trim() : "";
 
     if (!leadId) {
+      // Input invalido, non «richiesta malformata»: la differenza
+      // conta per chi guarda i codici in un grafico.
       return NextResponse.json<ApiResponse<never>>(
-        { success: false, error: "serve lead_id" }, { status: 400 },
+        { success: false, error: "serve lead_id" }, { status: 422 },
       );
     }
 
@@ -73,8 +90,10 @@ export async function POST(req: Request) {
 
     const lead = await getLeadById(leadId);
     if (!lead) {
+      // Un lead_id che non esiste e un input invalido quanto uno vuoto:
+      // in entrambi i casi la richiesta non e eseguibile cosi com'e.
       return NextResponse.json<ApiResponse<never>>(
-        { success: false, error: "lead inesistente" }, { status: 404 },
+        { success: false, error: "lead inesistente" }, { status: 422 },
       );
     }
 
@@ -107,6 +126,20 @@ export async function POST(req: Request) {
       );
     }
 
+    // Un job vivo con la stessa chiave esiste gia: non se ne avvia un
+    // secondo. Si restituisce quello, con 202, e la dashboard si
+    // aggancia al suo stato invece di rifare il lavoro.
+    if (!accodato.created) {
+      return NextResponse.json<ApiResponse<RispostaRun>>({
+        success: true,
+        data: {
+          job_id: accodato.id, lead_id: leadId, enqueued: false,
+          stato: "already_running", esito: "", errore: "", ms: 0,
+          recommendation: "",
+        },
+      }, { status: 202 });
+    }
+
     // Si esegue QUESTO job, non «un job di questo tipo»: chi preme il
     // bottone su un lead si aspetta che giri quello. Il worker
     // periodico sceglie per priorita e poteva prendere il job di un
@@ -114,28 +147,45 @@ export async function POST(req: Request) {
     const run = await runJobNow(accodato.id);
     const salvato = await leggiDossier(leadId);
 
-    return NextResponse.json<ApiResponse<{
-      job_id: string;
-      lead_id: string;
-      enqueued: boolean;
-      stato: string;
-      esito: string;
-      errore: string;
-      ms: number;
-      recommendation: string;
-    }>>({
-      success: true,
-      data: {
+    // Il riepilogo va nei log SEMPRE, riuscita o meno: e l'unico modo
+    // di sapere com'e andata senza aprire la dashboard. Contiene solo
+    // numeri, enum e i due identificativi — nessun nome, telefono,
+    // indirizzo, URL o frammento del dossier.
+    const codiceNoto: ErrorCode | undefined =
+      run.stato === "paused" ? "factory_paused"
+      : run.stato === "not_claimed" ? "job_not_claimed"
+      : run.stato === "no_db" ? "database_unavailable"
+      : undefined;
+
+    const r = riepilogo(
+      salvato?.dossier ?? null,
+      salvato?.phases ?? [],
+      {
         job_id: run.job_id || accodato.id,
-        lead_id: run.lead_id || leadId,
-        enqueued: accodato.created,
-        stato: run.stato,
-        esito: run.outcome,
-        errore: run.error,
-        ms: run.ms,
-        recommendation: salvato?.recommendation ?? "",
+        lead_id: leadId,
+        status: run.stato === "completed" ? "completed" : "failed",
+        duration_ms: run.ms,
+        error_code: codiceNoto,
       },
-    });
+      EVENTO_RACCOLTA,
+    );
+    scriviRiepilogo(r);
+
+    const corpo: RispostaRun = {
+      job_id: run.job_id || accodato.id,
+      lead_id: run.lead_id || leadId,
+      enqueued: accodato.created,
+      stato: run.stato,
+      esito: run.outcome,
+      errore: run.error,
+      ms: run.ms,
+      recommendation: salvato?.recommendation ?? "",
+    };
+
+    return NextResponse.json<ApiResponse<RispostaRun>>(
+      { success: run.stato === "completed", data: corpo, ...(run.stato === "completed" ? {} : { error: run.error }) },
+      { status: statoHttp(run.stato, r.error_code) },
+    );
   } catch (e) {
     return NextResponse.json<ApiResponse<never>>(
       { success: false, error: (e as Error).message }, { status: 500 },
