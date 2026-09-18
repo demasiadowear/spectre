@@ -708,6 +708,9 @@ const GENERI_HERO_DOPO_REVISIONE: readonly GenereContenuto[] = ["person_treatmen
  * SOLO GALLERIA. Non sono difetti: sono fotografie che funzionano in
  * mezzo alle altre e non in cima. `other` sta qui perche un genere che
  * il modello non ha saputo dire non si promuove.
+ *
+ * Il marchio non c'entra: quello e un asse a parte, e lo decide
+ * `gateHero` guardando QUALE marchio, non se ce n'e uno.
  */
 const GENERI_SOLO_GALLERIA: readonly GenereContenuto[] = [
   "treatment_detail", "equipment", "hands_at_work", "product", "other",
@@ -751,11 +754,22 @@ function gateHero(o: Osservazione): MotivoNoHero {
   if (GENERI_HERO_DOPO_REVISIONE.indexOf(o.genere) !== -1) return "serve_revisione";
   if (GENERI_HERO.indexOf(o.genere) === -1) return "genere_non_ammesso";
 
-  // L'APERTURA E L'IMMAGINE IDENTITARIA: nessun marchio irrisolto.
-  // Un logo altrui, anche incidentale, nella fotografia che apre una
-  // pagina che porta il nome del cliente e il posto peggiore in cui
-  // averlo. In galleria non e un problema; qui si.
-  if (o.marchio !== "none") return "marchio_in_apertura";
+  // IL MARCHIO IN APERTURA, per quello che e e non per il fatto che
+  // c'e. Avevo scritto `!== "none"`, e su materiale reale quella riga
+  // avrebbe escluso proprio l'ambiente migliore: in un centro estetico
+  // una confezione su uno scaffale si vede quasi sempre.
+  //
+  //   none                       apre
+  //   incidental_mark            apre — «incidentale» vuol dire
+  //                              esattamente che non e il soggetto, e
+  //                              cio che domina ha un altro nome
+  //   possible_business_mark     non in automatico: se POTREBBE essere
+  //                              l'insegna, in apertura ci va solo dopo
+  //                              che qualcuno l'ha guardata
+  //   dominant_third_party_mark  esclusa — e gia fuori da `decidi`,
+  //                              questa riga e la seconda serratura
+  if (o.marchio === "dominant_third_party_mark") return "marchio_in_apertura";
+  if (o.marchio === "possible_business_mark") return "serve_revisione";
 
   if (o.soggetto_leggibile !== true) return "soggetto_illeggibile";
   // PROVE POSITIVE: `null` non passa. Non sapere non e un merito.

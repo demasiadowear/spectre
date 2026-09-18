@@ -30,10 +30,11 @@ export const ANALYZER_VERSION = "a4";
  *  caratteristiche osservabili, e la scena distinta dal dettaglio. */
 export const PROMPT_VERSION = "p4";
 
-/** Il compositore deterministico. c4 = valuta tutti i candidati
+/** Il compositore deterministico. c5 = valuta tutti i candidati
  *  scaricati, esclude solo per cause esplicite, e l'apertura si
- *  guadagna con prove positive e un genere della prima fascia. */
-export const COMPOSER_VERSION = "c4";
+ *  guadagna con prove positive e un genere della prima fascia. c5: il
+ *  marchio in apertura si valuta per QUALE e, non per il fatto che c'e. */
+export const COMPOSER_VERSION = "c5";
 
 export interface Versioni {
   analyzer_version: string;

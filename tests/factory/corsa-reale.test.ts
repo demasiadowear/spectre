@@ -48,9 +48,12 @@ const apertura = (r: ReturnType<typeof interpretaRisposta>) =>
  *   n.9            inquadratura inclinata verso il soffitto
  */
 const SERIE = [
+  // n.0 porta un marchio INCIDENTALE, come nella corsa vera. E il caso
+  // che ha smentito la mia prima regola: «nessun marchio in apertura»
+  // avrebbe escluso proprio l'ambiente migliore.
   { image_index: 0, content_kind: "clean_interior", commercial_appeal: 0.72, clutter: 0.25,
     quality: 0.78, subject_legible: true, focus_x: 0.5, focus_y: 0.45,
-    confidence: 0.88, identifiable_person: false, brand_observation: "none" },
+    confidence: 0.88, identifiable_person: false, brand_observation: "incidental_mark" },
   { image_index: 1, content_kind: "clean_interior", commercial_appeal: 0.66, clutter: 0.3,
     quality: 0.75, subject_legible: true, focus_x: 0.5, focus_y: 0.5,
     confidence: 0.85, identifiable_person: false, brand_observation: "incidental_mark" },
@@ -118,10 +121,10 @@ test("corsa reale: n.6 entra in galleria e NON apre", () => {
   assert.notEqual(apertura(r), "n6", "un dettaglio ravvicinato non e l'immagine identitaria");
 });
 
-test("corsa reale: apre la n.0, ambiente pulito e senza marchi", () => {
-  // n.1 e n.2 sono ambienti anche loro, ma portano «Academy» in campo:
-  // in galleria va bene, in apertura no. n.3 e n.4 sono alternative
-  // legittime, e n.0 le batte sul richiamo.
+test("corsa reale: apre la n.0, ambiente pulito, marchio incidentale compreso", () => {
+  // n.1 e n.2 sono ambienti anche loro, con lo stesso marchio
+  // incidentale: sono alternative legittime, e n.0 le batte sul
+  // richiamo. Un marchio incidentale non toglie e non aggiunge.
   const r = interpretaRisposta(JSON.stringify(SERIE), LOTTO);
   assert.equal(apertura(r), "n0");
 });

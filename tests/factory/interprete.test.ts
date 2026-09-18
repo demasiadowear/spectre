@@ -193,17 +193,45 @@ test("3. se ci sono SOLO dettagli, l'apertura e testuale", () => {
   assert.equal(sel(r).filter((s) => s.layout_role === "hero").length, 0);
 });
 
-test("3d. un ambiente con marchio incidentale sta in galleria, non in apertura", () => {
-  // L'apertura e l'immagine identitaria: un logo altrui, anche
-  // incidentale, e nel posto peggiore possibile.
+test("3d. clean_interior + marchio incidentale + gate superati -> apertura AMMESSA", () => {
+  // «Incidentale» vuol dire esattamente che il marchio non e il
+  // soggetto. Escluderlo dall'apertura significa escludere quasi ogni
+  // ambiente di un centro estetico, dove una confezione su uno
+  // scaffale si vede sempre. Cio che domina ha un altro nome.
   const testo = JSON.stringify([
-    voce(0, { brand_observation: "incidental_mark", commercial_appeal: 0.95 }),
+    voce(0, { content_kind: "clean_interior", brand_observation: "incidental_mark",
+      commercial_appeal: 0.95 }),
     voce(1, { commercial_appeal: 0.7 }),
     voce(2, { commercial_appeal: 0.7 }),
   ]);
   const r = interpretaRisposta(testo, LOTTO);
-  assert.equal(sel(r).some((s) => s.candidate_id === "cand00"), true);
+  assert.equal(r.hero_status, "OK");
+  assert.equal(sel(r).find((s) => s.layout_role === "hero")?.candidate_id, "cand00");
+});
+
+test("3e. «forse e l'insegna dell'attivita» non apre in automatico", () => {
+  // Se POTREBBE essere il marchio del cliente, in apertura ci va solo
+  // dopo che qualcuno l'ha guardata: in copertina un marchio incerto
+  // e la cosa peggiore da sbagliare.
+  const testo = JSON.stringify([
+    voce(0, { brand_observation: "possible_business_mark", commercial_appeal: 0.99 }),
+    voce(1, { commercial_appeal: 0.7 }),
+    voce(2, { commercial_appeal: 0.7 }),
+  ]);
+  const r = interpretaRisposta(testo, LOTTO);
+  assert.equal(sel(r).some((s) => s.candidate_id === "cand00"), true, "in galleria si");
   assert.notEqual(sel(r).find((s) => s.layout_role === "hero")?.candidate_id, "cand00");
+  assert.deepEqual(motivo(r, "cand00"), ["marchio_attivita_possibile"]);
+});
+
+test("3f. un marchio estraneo dominante non arriva nemmeno al gate", () => {
+  const testo = JSON.stringify([
+    voce(0, { brand_observation: "dominant_third_party_mark", commercial_appeal: 0.99 }),
+    voce(1), voce(2),
+  ]);
+  const r = interpretaRisposta(testo, LOTTO);
+  assert.equal(sel(r).some((s) => s.candidate_id === "cand00"), false);
+  assert.deepEqual(motivo(r, "cand00"), ["marchio_estraneo_dominante"]);
 });
 
 // ----- 4. Persona riconoscibile: revisione, mai consenso --------------
@@ -316,15 +344,15 @@ test("6d. l'unica selezionata non diventa mai l'apertura", () => {
 
 // ----- Il marchio, sull'altro asse -----------------------------------
 
-test("marchio: incidentale non esclude e non segnala, ma non apre", () => {
+test("marchio: incidentale non esclude, non segnala e non impedisce l'apertura", () => {
   const testo = JSON.stringify([
     voce(0, { content_kind: "treatment_room", brand_observation: "incidental_mark" }),
     voce(1), voce(2),
   ]);
   const r = interpretaRisposta(testo, LOTTO);
-  assert.equal(sel(r).length, 3, "resta in galleria");
-  assert.deepEqual(motivo(r, "cand00"), [], "e non e nemmeno un motivo da spiegare");
-  assert.notEqual(sel(r).find((s) => s.layout_role === "hero")?.candidate_id, "cand00");
+  assert.equal(sel(r).length, 3);
+  assert.deepEqual(motivo(r, "cand00"), [], "non e un motivo da spiegare");
+  assert.equal(r.hero_status, "OK");
 });
 
 test("marchio: un logo estraneo DOMINANTE manda a una persona", () => {
