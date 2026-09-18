@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { decidiMedia, decisioniMedia, leggiDossier } from "@/lib/collector/db";
 import { logActivity } from "@/lib/factory/db";
 import { guardiaRichiesta } from "@/lib/guardia-richiesta";
-import { EVENTO_LETTURA, riepilogo, scriviRiepilogo } from "@/lib/collector/telemetria";
+import {
+  EVENTO_LETTURA, riepilogo, scriviRiepilogo, statoDaFasi,
+} from "@/lib/collector/telemetria";
 import type { ApiResponse } from "@/types";
 import type { BusinessDossier, PhaseState } from "@/types/dossier";
 
@@ -75,7 +77,14 @@ export async function GET(req: Request) {
       {
         job_id: salvato.job_id,
         lead_id: leadId,
-        status: salvato.phases.some((p) => p.status === "failed") ? "failed" : "completed",
+        // Il JOB, non le fasi. Una fase fallita su cinque e un
+        // risultato parziale, non un fallimento: il dossier esiste,
+        // e salvato, e utilizzabile. Marcarlo `failed` farebbe suonare
+        // un allarme per un lead senza sito web, che e il caso piu
+        // comune del mestiere — e un allarme che suona sempre viene
+        // ignorato anche quando serve. La parzialita si legge in
+        // `phase_statuses` e in `error_code`, dove sta bene.
+        status: statoDaFasi(salvato.phases),
         duration_ms: salvato.total_ms,
       },
       EVENTO_LETTURA,
