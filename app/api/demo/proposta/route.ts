@@ -10,7 +10,9 @@ import {
   MAX_IN_PAGINA, SEQUENZA_RUOLI, validaProposta,
   type MotivoRevisione, type RuoloLayout, type StatoCuratela,
 } from "@/lib/demo/curatela";
-import { messaggioPubblicazione, messaggioValidazione } from "@/lib/demo/messaggi";
+import {
+  NESSUNA_SELEZIONE, messaggioPubblicazione, messaggioValidazione,
+} from "@/lib/demo/messaggi";
 import { leggiProposta, leggiPubblicata } from "@/lib/demo/proposte-db";
 import { risolviSpec, type StatoPubblicazione } from "@/lib/demo/pubblicazione";
 import { TETTI } from "@/lib/demo/analisi-progetto";
@@ -59,6 +61,11 @@ export interface Provino {
   proposal_revision: string;
   approvata_il: string;
   analisi_in_corso: boolean;
+  /** La proposta e utilizzabile? `incomplete` = nessuna fotografia
+   *  scelta, e da li non si pubblica. Derivato dalle scelte, non
+   *  salvato: e una domanda a cui si risponde guardando. */
+  proposal_status: "complete" | "incomplete";
+  codice: "" | "no_usable_media_selected";
   /** Il messaggio preciso: cosa e successo e cosa fare adesso. */
   messaggio: string;
   bloccante: boolean;
@@ -117,6 +124,13 @@ export async function GET(req: Request) {
   const v = validaProposta(c, foto);
   const msg = messaggioValidazione(v, c);
 
+  // Zero fotografie scelte su un'analisi che E stata eseguita: la
+  // proposta non e utilizzabile, e lo si dice invece di lasciare una
+  // schermata vuota con il pulsante spento e nessuna spiegazione.
+  const eseguita = (c?.scelte.length ?? 0) > 0 || Boolean(proposta);
+  const selezionate = (c?.scelte ?? []).filter((s) => s.stato === "selected").length;
+  const incompleta = eseguita && selezionate === 0;
+
   const perId = new Map((c?.scelte ?? []).map((s) => [s.candidate_id, s]));
   const revisione = new Map((c?.da_rivedere ?? []).map((x) => [x.candidate_id, x.motivo]));
   const visteAllora = new Set((c?.manifest_revision ?? "").split("|").filter(Boolean));
@@ -165,8 +179,10 @@ export async function GET(req: Request) {
       proposal_revision: c?.proposal_revision ?? "",
       approvata_il: proposta?.approvata_il ?? "",
       analisi_in_corso: Boolean(proposta?.in_corso_da),
-      messaggio: msg.testo,
-      bloccante: msg.bloccante,
+      proposal_status: incompleta ? "incomplete" : "complete",
+      codice: incompleta ? "no_usable_media_selected" : "",
+      messaggio: incompleta && !msg.testo ? NESSUNA_SELEZIONE : msg.testo,
+      bloccante: msg.bloccante || incompleta,
       brand: { status: brandStatus, uso: uso.usa, nota: uso.nota },
       costo: proposta?.costo ?? { immagini: 0, token: 0, durata_ms: 0, modello: "" },
       pubblicata: spec ? {

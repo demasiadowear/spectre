@@ -99,6 +99,33 @@ export interface RiepilogoProposta {
   /** true = la pagina si e composta con un'apertura TESTUALE perche
    *  quella fotografica non era piu servibile. */
   apertura_testuale: boolean;
+
+  /**
+   * I contatori STRUTTURALI dell'analisi.
+   *
+   * Esistono per una corsa reale che ha speso 6.542 token su dieci
+   * fotografie buone e ne ha selezionate zero, senza un errore da
+   * nessuna parte. Da `selected_count: 0` non si poteva dire se il
+   * modello non avesse risposto, se la risposta non fosse stata letta,
+   * se gli indici non si fossero agganciati o se avesse davvero
+   * giudicato tutto inservibile: quattro guasti, quattro rimedi, una
+   * parola sola.
+   *
+   * Sono conteggi. Nessuno dice cosa c'era in un'immagine.
+   */
+  analysis_status: string;
+  proposal_status: string;
+  codice: string;
+  images_requested: number;
+  images_downloaded: number;
+  images_sent: number;
+  model_items_returned: number;
+  mapped_items: number;
+  invalid_indices: number;
+  duplicate_indices: number;
+  selected_count: number;
+  needs_review_count: number;
+  parse_failures: number;
 }
 
 export function riepilogoVuoto(
@@ -113,6 +140,11 @@ export function riepilogoVuoto(
     immagini_richieste: 0, immagini_analizzate: 0, immagini_fallite: 0,
     token: 0, pagine_lette: 0, query_ricerca: 0, duration_ms: 0,
     pubblicata: false, stato_pubblicazione: "", apertura_testuale: false,
+    analysis_status: "", proposal_status: "", codice: "",
+    images_requested: 0, images_downloaded: 0, images_sent: 0,
+    model_items_returned: 0, mapped_items: 0, invalid_indices: 0,
+    duplicate_indices: 0, selected_count: 0, needs_review_count: 0,
+    parse_failures: 0,
   };
 }
 
@@ -155,6 +187,11 @@ const CHIAVI_AMMESSE: readonly string[] = [
   "immagini_richieste", "immagini_analizzate", "immagini_fallite",
   "token", "pagine_lette", "query_ricerca", "duration_ms", "pubblicata",
   "stato_pubblicazione", "apertura_testuale",
+  "analysis_status", "proposal_status", "codice",
+  "images_requested", "images_downloaded", "images_sent",
+  "model_items_returned", "mapped_items", "invalid_indices",
+  "duplicate_indices", "selected_count", "needs_review_count",
+  "parse_failures",
 ];
 
 export function soloCampiAmmessi(r: RiepilogoProposta): Record<string, unknown> {

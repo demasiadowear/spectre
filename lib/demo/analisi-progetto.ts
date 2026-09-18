@@ -10,7 +10,9 @@ import {
   manifestRevision, selectionBasisRevision, type CuratelaProgetto,
 } from "./curatela";
 import {
-  MAX_IMMAGINI, proponiImpaginazione, type FotoDaAnalizzare, type Proposta,
+  CONTI_VUOTI, MAX_IMMAGINI, proponiImpaginazione,
+  type CodiceProposta, type ContiInterpretazione, type FotoDaAnalizzare,
+  type Proposta, type StatoAnalisi,
 } from "./analisi-effimera";
 import {
   leggiProposta, rilasciaAnalisi, rivendicaAnalisi, salvaProposta,
@@ -73,11 +75,24 @@ export type EsitoComando =
   | "dossier_assente"
   | "database_non_disponibile";
 
+/** La proposta e utilizzabile com'e? Derivato, non salvato: e vero
+ *  quando c'e almeno una fotografia scelta, e quella e una domanda a cui
+ *  si risponde guardando, non ricordando. */
+export type StatoProposta = "complete" | "incomplete";
+
 export interface RisultatoAnalisi {
   esito: EsitoComando;
   blocco: MotivoBlocco;
   /** Il rimedio operativo, senza nomi di variabili e senza valori. */
   rimedio: string;
+  /** L'ANALISI e andata bene? Distinto dall'esito del comando: una
+   *  corsa puo finire senza guasti e senza aver scelto niente. */
+  analysis_status: StatoAnalisi;
+  /** La PROPOSTA e utilizzabile? Zero fotografie scelte = `incomplete`,
+   *  e da li non si pubblica. */
+  proposal_status: StatoProposta;
+  /** Perche non e completa. Insieme chiuso. */
+  codice: CodiceProposta;
   proposta: PropostaSalvata | null;
   brand: {
     status: BrandOverall | "";
@@ -93,6 +108,11 @@ export interface RisultatoAnalisi {
     query: number;
     durata_ms: number;
   };
+  /** I conteggi strutturali: dicono DOVE si e fermata l'analisi.
+   *  Nessuno descrive il contenuto di un'immagine. */
+  conti: ContiInterpretazione & {
+    images_requested: number; images_downloaded: number; images_sent: number;
+  };
 }
 
 export interface OpzioniComando {
@@ -107,10 +127,16 @@ export interface OpzioniComando {
   env?: NodeJS.ProcessEnv;
 }
 
+const CONTI_ZERO = {
+  ...CONTI_VUOTI, images_requested: 0, images_downloaded: 0, images_sent: 0,
+};
+
 const vuoto = (esito: EsitoComando, blocco: MotivoBlocco = ""): RisultatoAnalisi => ({
   esito, blocco, rimedio: rimedioBlocco(blocco), proposta: null,
+  analysis_status: "NEEDS_REVIEW", proposal_status: "incomplete", codice: "",
   brand: { status: "", uso: "", nota: "" },
   costo: { immagini: 0, analizzate: 0, fallite: 0, token: 0, pagine: 0, query: 0, durata_ms: 0 },
+  conti: { ...CONTI_ZERO },
 });
 
 export async function analizzaProgetto(
@@ -139,8 +165,12 @@ export async function analizzaProgetto(
     && precedente.curatela.manifest_revision === manifest
     && precedente.curatela.scelte.length > 0
   ) {
+    const scelteVive = precedente.curatela.scelte.filter((s) => s.stato === "selected").length;
     return {
       ...vuoto("invariata"),
+      analysis_status: scelteVive > 0 ? "OK" : "NEEDS_REVIEW",
+      proposal_status: scelteVive > 0 ? "complete" : "incomplete",
+      codice: scelteVive > 0 ? "" : "no_usable_media_selected",
       proposta: precedente,
       brand: statoBrand(precedente.brand_status as BrandOverall, precedente.brand_blocco as MotivoBlocco),
       costo: {
@@ -174,6 +204,11 @@ export async function analizzaProgetto(
         costo: { richieste: foto.length, analizzate: 0, fallite: foto.length, token: 0, ms: 0 },
         modello: "", esito: "non_configurato",
         guasto: { esito: "permanent_error", blocco: "configuration_missing" },
+        analysis_status: "NEEDS_REVIEW", codice: "",
+        conti: {
+          ...CONTI_VUOTI,
+          images_requested: foto.length, images_downloaded: 0, images_sent: 0,
+        },
       };
 
     // 4. L'identita visiva. Gira comunque: un blocco sulle fotografie
@@ -219,10 +254,18 @@ export async function analizzaProgetto(
       : m.blocco ? "bloccata"
       : "completata";
 
+    const selezionate = p.scelte.filter((s) => s.stato === "selected").length;
+
     return {
       esito,
       blocco,
       rimedio: rimedioBlocco(blocco),
+      // Una corsa che analizza dieci fotografie e non ne sceglie
+      // nessuna e finita, ma non ha prodotto una proposta. Dirlo
+      // `completata` e basta e come dire che e andata bene.
+      analysis_status: p.analysis_status,
+      proposal_status: selezionate > 0 ? "complete" : "incomplete",
+      codice: p.codice,
       proposta: await leggiProposta(projectId),
       brand: statoBrand(m.identita.brand_status, m.blocco),
       costo: {
@@ -234,6 +277,7 @@ export async function analizzaProgetto(
         query: m.costo.query,
         durata_ms: Date.now() - t0,
       },
+      conti: p.conti,
     };
   } finally {
     // Il lucchetto si molla sempre. Un `finally` mancante qui vuol dire

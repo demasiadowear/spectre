@@ -57,6 +57,8 @@ interface Provino {
   proposal_revision: string;
   approvata_il: string;
   analisi_in_corso: boolean;
+  proposal_status: "complete" | "incomplete";
+  codice: string;
   messaggio: string;
   bloccante: boolean;
   brand: { status: string; uso: string; nota: string };
@@ -306,6 +308,16 @@ export default function PannelloProposta({ leadId }: { leadId: string }) {
             </NeonButton>
           )}
         </div>
+      )}
+
+      {/* L'analisi e finita senza scegliere niente. Non e un errore e
+          non e un successo: e un risultato che non si puo usare, e il
+          pulsante spento da solo non lo spiega a nessuno. */}
+      {p?.proposal_status === "incomplete" && scelte.length === 0 && (
+        <p className="mt-2 text-[11px] leading-snug text-text2">
+          Nessuna fotografia è stata selezionata dall’analisi. Puoi metterne
+          una in pagina a mano dall’elenco qui sotto, oppure rieseguire.
+        </p>
       )}
 
       {/* Lo stato del marchio. `NOT_FOUND` non è un guasto. */}

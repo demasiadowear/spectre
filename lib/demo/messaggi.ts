@@ -84,6 +84,17 @@ function eApertura(c: CuratelaProgetto | null, candidate_id: string): boolean {
   return c.scelte.some((s) => s.candidate_id === candidate_id && s.layout_role === "hero");
 }
 
+/**
+ * L'analisi e finita senza scegliere niente.
+ *
+ * Non e un errore e non e un successo: e un risultato che non si puo
+ * usare. Il messaggio dice che l'analisi E stata fatta — cosi nessuno
+ * la rilancia credendo che non sia partita — e lascia due strade, che
+ * sono le uniche due che esistono.
+ */
+export const NESSUNA_SELEZIONE =
+  "L'analisi non ha selezionato fotografie. Verifica il risultato o riprova.";
+
 /** Cosa manca perche la pubblicazione possa avvenire. Vuoto = niente. */
 export function messaggioPubblicazione(mancanti: number, aperturaMancante: boolean): string {
   if (aperturaMancante) {
