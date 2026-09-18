@@ -6,6 +6,9 @@ import { leggiDossier } from "@/lib/collector/db";
 import { getProjectBySlug } from "@/lib/factory/db";
 import { briefDaDossier } from "@/lib/factory/brief";
 import { fotoMostrabili } from "@/lib/demo/foto";
+import { leggiPubblicata } from "@/lib/demo/proposte-db";
+import { risolviSpec } from "@/lib/demo/pubblicazione";
+import { scriviHeroMancante } from "@/lib/demo/telemetria-proposta";
 import { statoApertura } from "@/lib/demo/orari";
 import { recensioniLive } from "@/lib/demo/recensioni";
 
@@ -72,9 +75,50 @@ export default async function DemoPage({ params }: { params: { slug: string } })
   const apertura = statoApertura(brief.orari);
   const recensioni = await recensioniLive(salvato.dossier.place_id);
 
+  // La revisione PUBBLICATA, quando c'e. Contiene identita e non
+  // indici: l'indice per l'URL della fotografia si risolve adesso, sul
+  // manifest di adesso, e cosi una raccolta che riordina le stesse dieci
+  // immagini non sposta niente in pagina.
+  //
+  // Se una fotografia approvata non c'e piu, viene SALTATA e non
+  // sostituita. Finche nessuno ha approvato niente, la pagina si compone
+  // come prima: una demo gia data a qualcuno non smette di funzionare
+  // perche e comparso un flusso di approvazione.
+  const spec = await leggiPubblicata(progetto.id);
+  const curata = risolviSpec(spec, foto);
+  const inPagina = spec && curata.foto.length > 0 ? curata.foto : foto;
+
+  // L'apertura approvata non e piu servibile.
+  //
+  // Una fotografia di galleria che sparisce si salta e la composizione
+  // regge. L'apertura no: e l'unica posizione in cui saltare vorrebbe
+  // dire far salire un'altra fotografia, e quella scelta non la puo
+  // prendere un programma. Quindi la pagina si apre con il nome, resta
+  // raggiungibile, e lo dichiara nei log — perche questo guasto e
+  // invisibile: la demo risponde 200 e sembra a posto.
+  //
+  // Non fa partire nessuna analisi. Una pagina pubblica che innesca una
+  // fase a pagamento e un modo di far spendere a chiunque abbia lo slug.
+  const aperturaTestuale = Boolean(spec) && curata.apertura_mancante;
+  if (aperturaTestuale) {
+    scriviHeroMancante({
+      project_id: progetto.id,
+      lead_id: progetto.lead_id,
+      proposal_revision: spec?.proposal_revision ?? "",
+      foto_in_pagina: curata.foto.length,
+      foto_mancanti: curata.mancanti.length,
+    });
+  }
+
   return (
     <div className={`${display.variable} ${ui.variable}`}>
-      <DiLato brief={brief} foto={foto} apertura={apertura} recensioni={recensioni} />
+      <DiLato
+        brief={brief}
+        foto={inPagina}
+        apertura={apertura}
+        recensioni={recensioni}
+        aperturaTestuale={aperturaTestuale}
+      />
     </div>
   );
 }

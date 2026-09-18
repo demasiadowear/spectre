@@ -1,4 +1,6 @@
-import type { BusinessDossier, MediaCandidate } from "@/types/dossier";
+import type {
+  BusinessDossier, DisplayStatus, MediaCandidate, RightsStatus,
+} from "@/types/dossier";
 
 // ============================================================
 // Quali fotografie puo mostrare una demo, e come si nominano.
@@ -31,6 +33,9 @@ import type { BusinessDossier, MediaCandidate } from "@/types/dossier";
 export const INDICE_FOTO = /^\d{1,2}$/;
 
 export interface FotoDemo {
+  /** Identificativo del candidato nel manifest: e la chiave a cui si
+   *  aggancia la curatela, e non cambia se il manifest si riordina. */
+  id: string;
   /** Posizione nel manifest: e l'unico nome che il client conosce. */
   indice: number;
   /** Percorso da mettere in `src`. Non contiene il riferimento. */
@@ -41,6 +46,12 @@ export interface FotoDemo {
   attribuzione: string;
   /** true = l'attribuzione non e facoltativa. */
   attribuzione_obbligatoria: boolean;
+
+  /** Le condizioni sotto cui questa fotografia si puo mostrare.
+   *  Servono alla validazione selettiva della proposta: se cambiano su
+   *  una fotografia SCELTA, la proposta non vale piu. */
+  display_status: DisplayStatus;
+  rights_status: RightsStatus;
 }
 
 /** Le fotografie mostrabili di un dossier, gia numerate.
@@ -53,12 +64,15 @@ export function fotoMostrabili(d: BusinessDossier, slug: string, w = 1200): Foto
   (d.media?.candidates ?? []).forEach((m, i) => {
     if (!mostrabile(m, approvate)) return;
     out.push({
+      id: m.id,
       indice: i,
       src: `/demo/${encodeURIComponent(slug)}/foto/${i}?w=${w}`,
       larghezza: m.width,
       altezza: m.height,
       attribuzione: m.attribution,
       attribuzione_obbligatoria: m.display_status === "display_allowed_with_attribution",
+      display_status: m.display_status,
+      rights_status: m.rights_status,
     });
   });
   return out;

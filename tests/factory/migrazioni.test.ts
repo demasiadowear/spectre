@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createClient, type Client } from "@libsql/client";
@@ -194,4 +194,51 @@ test("5c. «no such table» NON viene piu usato come controllo di flusso", async
   // L'esistenza si chiede, non si deduce.
   assert.match(codice, /sqlite_master/,
     "l'esistenza della tabella va verificata su sqlite_master");
+});
+
+// ----- Lo schema della curatela e SOLO additivo -----------------------
+//
+// Il rischio, qui, non e teorico: `ensureProposteSchema()` gira a ogni
+// richiesta che tocca una proposta, su un database che in produzione ha
+// gia dentro il lavoro di tutti i lead. Se una riga di quello schema
+// fosse distruttiva, girerebbe da sola, senza che nessuno esegua una
+// migrazione, e lo si scoprirebbe dopo.
+
+test("curatela: lo schema non contiene nessuna istruzione distruttiva", () => {
+  const src = readFileSync(join(__dirname, "..", "..", "lib", "demo", "proposte-db.ts"), "utf8");
+  // Le istruzioni che possono togliere qualcosa a un database che ha
+  // gia dei dati. `delete from` compreso: qui non si ripulisce niente.
+  for (const proibita of [
+    "drop table", "drop index", "drop column", "delete from",
+    "truncate", "alter table", "create table demo", "replace into",
+  ]) {
+    assert.ok(
+      !src.toLowerCase().includes(proibita),
+      `«${proibita}» in lib/demo/proposte-db.ts: lo schema deve essere additivo`,
+    );
+  }
+  // E cio che invece deve esserci: creazioni condizionate.
+  assert.ok(src.includes("create table if not exists demo_proposte"));
+  assert.ok(src.includes("create table if not exists demo_pubblicazioni"));
+  assert.ok(src.includes("create index if not exists"));
+});
+
+test("curatela: applicare lo schema due volte non cambia niente", async () => {
+  const db = nuovoDb();
+  const schema = `
+    create table if not exists demo_proposte (project_id text primary key, lead_id text not null);
+    create table if not exists demo_pubblicazioni (project_id text primary key, lead_id text not null);
+  `;
+  await db.executeMultiple(schema);
+  await db.execute({
+    sql: "insert into demo_proposte (project_id, lead_id) values (?, ?)",
+    args: ["p1", "l1"],
+  });
+  // La seconda applicazione e quella che conta: e cio che succede a
+  // ogni richiesta dopo un deploy.
+  await db.executeMultiple(schema);
+  const rs = await db.execute("select count(*) as n from demo_proposte");
+  assert.equal(Number((rs.rows[0] as Record<string, unknown>).n), 1,
+    "una riga esistente non deve sparire riapplicando lo schema");
+  db.close();
 });

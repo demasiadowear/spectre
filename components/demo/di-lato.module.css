@@ -258,3 +258,44 @@
     to   { transform: none; opacity: 1; }
   }
 }
+
+/* ---- Apertura testuale ----------------------------------------------
+   Quando la fotografia scelta per l'apertura non e piu servibile, la
+   pagina NON ne promuove un'altra: la prima cosa che il prospect vede
+   non la decide un programma. Si apre con il nome.
+
+   Non e un ripiego travestito da errore — e una variante progettata:
+   senza lastre la colonna del testo non ha piu niente da schivare,
+   quindi `--colonna` torna a zero e il titolo prende tutta la larghezza
+   che la griglia gli lascia. Sul telefono sparisce anche lo spazio che
+   era riservato all'altezza della lastra, che altrimenti lascerebbe in
+   fondo un rettangolo vuoto grande tre quarti di schermo.
+
+   `.hero.soloTesto` e non `.soloTesto`: dentro la media query la regola
+   generale `.hero` vale (0,1,0), e una classe sola non la scavalcherebbe.
+   E la stessa trappola di specificita che aveva gia fatto sparire lo
+   sfalsamento della galleria. */
+.hero.soloTesto {
+  --colonna: 0px;
+  padding-bottom: clamp(44px, 7vh, 88px);
+}
+.hero.soloTesto .titolo :global(h1) {
+  font-size: clamp(3.2rem, 11.5vw, 8.5rem);
+  max-width: 13ch;
+}
+.hero.soloTesto .titolo :global(h1) em { margin-left: 9vw; }
+/* Un filo sopra il nome: da una riga d'appoggio al titolo che senza
+   fotografia galleggerebbe. */
+.filo {
+  width: clamp(56px, 12vw, 148px);
+  height: 1px;
+  background: currentColor;
+  opacity: .35;
+  margin: 0 0 clamp(20px, 3.5vh, 38px);
+}
+
+@media (max-width: 760px) {
+  .hero.soloTesto { padding-bottom: clamp(44px, 7vh, 88px); }
+  .hero.soloTesto .titolo :global(h1) { max-width: 10ch; }
+  .hero.soloTesto .titolo :global(h1) em { margin-left: 8vw; }
+}

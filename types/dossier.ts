@@ -139,6 +139,120 @@ export interface IdentityCandidate {
   discovered_via: SourceType;
 }
 
+// ----- Identita visiva --------------------------------------------
+
+/** Che cosa e questo candidato. Un wordmark generato da noi NON e in
+ *  questo elenco: non e un candidato, e un ripiego tipografico. */
+export type BrandKind =
+  | "logo" | "wordmark" | "monogram" | "signage" | "favicon" | "color_reference";
+
+export type BrandStatus = "confirmed" | "probable" | "needs_review" | "rejected";
+
+/** Perche un candidato e stato respinto. Insieme chiuso: un motivo
+ *  libero diventa una scusa, e non si puo contare. */
+export type BrandRejection =
+  | ""
+  | "homonym_entity"      // il film, il libro, la canzone, l'omonimo
+  | "platform_asset"      // logo di Facebook, Instagram, Google
+  | "category_icon"       // il pin o l'icona di categoria di Maps
+  | "product_brand"       // un marchio di prodotto presente nel locale
+  | "generated_wordmark"  // lo abbiamo disegnato noi: non e suo
+  | "no_rights"           // provenienza senza stato dei diritti
+  | "too_weak";           // solo nome simile, OCR parziale
+
+export interface BrandCandidate {
+  kind: BrandKind;
+  source_type: SourceType;
+  /** URL diretto, quando la fonte lo consente. */
+  source_url: string;
+  /** Riferimento opaco del provider, per cio che si rende on demand. */
+  provider_reference: string;
+  discovered_via: SourceType;
+  /** Gli stessi segnali forti dell'identita social: la soglia non
+   *  cambia perche cambia l'oggetto. */
+  identity_signals: IdentitySignal[];
+  image_width: number;
+  image_height: number;
+  has_transparency: boolean;
+  /** Testo letto nell'immagine. E un SEGNALE, non una conferma. */
+  detected_text: string;
+  candidate_colors: string[];
+  rights_status: RightsStatus;
+  confidence: number;
+  status: BrandStatus;
+  rejection_reason: BrandRejection;
+  retrieved_at: string;
+}
+
+export type BrandOverall =
+  | "PENDING"           // esistono fonti non ancora interrogate
+  | "RETRY_REQUIRED"    // una fonte non ha risposto: si riesegue, non si decide
+  | "BLOCKED"           // manca configurazione, autorizzazione o capacita
+  | "INCONCLUSIVE"      // interrogate, ma restano ambiguita concrete
+  | "NOT_FOUND"         // interrogate tutte quelle disponibili: niente
+  | "SIGNAGE_ONLY"      // si vede l'insegna, ma un logo non si estrae
+  | "ORIGINAL_PROBABLE"
+  | "ORIGINAL_CONFIRMED";
+
+/** Le fonti dell'identita visiva, e se sono state davvero interrogate.
+ *
+ *  Serve a distinguere «non c'e» da «non ho guardato», che e la
+ *  differenza fra un sito che si puo pubblicare e uno che aspetta per
+ *  sempre. Una fonte NON DISPONIBILE — un sito che non esiste, un
+ *  social mai confermato — conta come interrogata: non c'e niente da
+ *  chiedere. */
+export interface FontiBrand {
+  sito_ufficiale: EsitoFonte;
+  social_confermati: EsitoFonte;
+  foto_places: EsitoFonte;
+  ricerca_grounded: EsitoFonte;
+}
+
+/**
+ * Lo stato OPERATIVO di una fonte. Non semantico: dice com'e andata
+ * l'interrogazione, non cosa si e trovato.
+ *
+ * La distinzione che questo tipo esiste per fare e fra «non c'e» e
+ * «non ha risposto». Un timeout, una chiave assente o una risposta
+ * illeggibile somigliano a «nessun risultato» e non lo sono: il primo
+ * chiude la ricerca, il secondo la sospende. Confonderli produce un
+ * NOT_FOUND che nessuno ha guadagnato.
+ */
+/** Perche una fonte e BLOCCATA. Insieme chiuso, e ognuno ha un rimedio
+ *  operativo diverso: non e la stessa cosa mancare una chiave e usare
+ *  un modello che non esiste. Nessuno di questi codici contiene un
+ *  segreto, un nome di variabile o un valore. */
+export type MotivoBlocco =
+  | ""
+  | "configuration_missing"  // una credenziale non e configurata
+  | "provider_unsupported"   // il modello o la capacita non esiste qui
+  | "policy_restricted"      // la richiesta e vietata dalla policy
+  | "quota_exhausted";       // credito o quota finiti: non e un timeout
+
+export type EsitoFonte =
+  | "not_applicable"     // non esiste niente da interrogare
+  | "pending"            // esiste, non ancora interrogata
+  | "success_no_results" // interrogata, nessun candidato
+  | "success_candidates" // interrogata, candidati trovati
+  | "transient_error"    // timeout, rete, 5xx, rate limit: si riprova
+  // Configurazione, autorizzazione, capacita o quota finita: riprovare
+  // non cambia niente finche non si tocca l'ambiente. Porta a BLOCKED,
+  // che NON entra nella revisione umana. Vedi lib/collector/guasti.ts.
+  | "permanent_error";
+
+export interface BrandIdentity {
+  primary_logo: BrandCandidate | null;
+  alternate_logo: BrandCandidate | null;
+  favicon: BrandCandidate | null;
+  signage_reference: BrandCandidate | null;
+  palette_candidates: string[];
+  brand_status: BrandOverall;
+  /** true = non si pubblica finche una persona non guarda. */
+  requires_operator_approval: boolean;
+  /** Tutto cio che e stato valutato, comprese le esclusioni. */
+  candidates: BrandCandidate[];
+}
+
 // ----- Media ------------------------------------------------------
 
 /** Che diritto abbiamo su un file. «E pubblica» non e in questo elenco:

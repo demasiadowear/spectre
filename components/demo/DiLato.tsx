@@ -1,5 +1,6 @@
 import type { Brief } from "@/lib/factory/brief";
 import type { FotoDemo } from "@/lib/demo/foto";
+import type { RuoloLayout } from "@/lib/demo/curatela";
 import type { StatoApertura } from "@/lib/demo/orari";
 import stile from "./di-lato.module.css";
 
@@ -23,12 +24,42 @@ import stile from "./di-lato.module.css";
 // `prefers-reduced-motion`.
 // ============================================================
 
-/** Le tre lastre della hero. Il ruolo lo decide la FORMA, non un
- *  giudizio sul contenuto: il dossier dichiara `probable_role:
- *  unknown` per tutte e dieci, e fingere di sapere quale sia la foto
- *  «hero» sarebbe inventare un dato. Le piu alte reggono il taglio
- *  verticale, la piu larga sta in basso dove il taglio e orizzontale. */
-function disponi(foto: FotoDemo[]): { hero: FotoDemo[]; resto: FotoDemo[] } {
+/** Una fotografia in pagina. `layout_role` e `object_position` ci sono
+ *  quando esiste una revisione APPROVATA; quando non c'e ancora, la
+ *  pagina si compone come prima. */
+export type FotoPagina = FotoDemo & {
+  layout_role?: RuoloLayout;
+  object_position?: string;
+};
+
+/**
+ * Le tre lastre della hero e il resto.
+ *
+ * DUE MODI, E IL PRIMO VINCE SEMPRE.
+ *
+ *  1. C'E UNA CURATELA APPROVATA. Si usa quella, nell'ordine deciso.
+ *     L'apertura e la fotografia a cui e stato dato il ruolo `hero`, e
+ *     se quella fotografia non c'e piu non ne sale un'altra al suo
+ *     posto: l'apertura resta con due lastre invece di tre. Promuovere
+ *     la seconda sarebbe una sostituzione silenziosa proprio nel punto
+ *     che il prospect guarda per primo.
+ *
+ *  2. NON C'E ANCORA. Il ruolo lo decide la FORMA e non un giudizio sul
+ *     contenuto: il dossier dichiara `probable_role: unknown` per tutte
+ *     e dieci, e fingere di sapere quale sia la foto «hero» sarebbe
+ *     inventare un dato. Le piu alte reggono il taglio verticale.
+ */
+function disponi(foto: FotoPagina[]): { hero: FotoPagina[]; resto: FotoPagina[] } {
+  const curata = foto.some((f) => f.layout_role);
+  if (curata) {
+    const apertura = foto.filter((f) => f.layout_role === "hero");
+    const altre = foto.filter((f) => f.layout_role !== "hero");
+    // Le lastre sono al massimo tre: l'apertura approvata e le due che
+    // la seguono nell'ordine deciso.
+    const hero = apertura.concat(altre.slice(0, apertura.length ? 2 : 0));
+    const scelti = new Set(hero.map((f) => f.id));
+    return { hero, resto: foto.filter((f) => !scelti.has(f.id)) };
+  }
   const perAltezza = foto.slice().sort((a, b) =>
     (b.altezza / (b.larghezza || 1)) - (a.altezza / (a.larghezza || 1)));
   const hero = perAltezza.slice(0, 3);
@@ -39,7 +70,7 @@ function disponi(foto: FotoDemo[]): { hero: FotoDemo[]; resto: FotoDemo[] } {
 /** Gli autori distinti, per l'attribuzione collettiva sotto la
  *  galleria. Places puo attribuire a persone diverse dalla titolare:
  *  vanno citate tutte, non solo la prima. */
-function autori(foto: FotoDemo[]): string[] {
+function autori(foto: FotoPagina[]): string[] {
   const visti: string[] = [];
   for (const f of foto) {
     const a = (f.attribuzione || "").trim();
@@ -50,24 +81,41 @@ function autori(foto: FotoDemo[]): string[] {
 
 export interface DatiDemo {
   brief: Brief;
-  foto: FotoDemo[];
+  foto: FotoPagina[];
   apertura: StatoApertura;
   /** Recuperato live da Places al momento della richiesta. `null`
    *  quando non e disponibile: allora il blocco sparisce del tutto,
    *  invece di lasciare un vuoto o un numero vecchio. */
   recensioni: { punteggio: number; totale: number } | null;
+  /**
+   * L'apertura approvata non e piu servibile.
+   *
+   * La pagina si apre con il NOME e non con un'altra fotografia:
+   * promuovere la seconda sarebbe una decisione presa da un programma
+   * sulla prima cosa che il prospect vede. Tutto il resto della pagina
+   * resta com'e — una demo degradata e comunque una demo raggiungibile.
+   */
+  aperturaTestuale?: boolean;
 }
 
-export default function DiLato({ brief, foto, apertura, recensioni }: DatiDemo) {
+export default function DiLato({
+  brief, foto, apertura, recensioni, aperturaTestuale = false,
+}: DatiDemo) {
   const { hero, resto } = disponi(foto);
+  // Senza apertura fotografica le lastre non si rendono affatto: una
+  // lastra vuota lascerebbe un rettangolo di intonaco che sembra
+  // un'immagine che non si e caricata.
+  const lastre = aperturaTestuale ? [] : hero;
+  const galleria = aperturaTestuale ? foto : resto;
   const tel = brief.contatti.telefono.replace(/[^\d+]/g, "");
   const maps = brief.luogo.maps_url;
   const firme = autori(foto);
 
   return (
     <div className={stile.pagina}>
-      <main className={stile.hero}>
-        {hero.map((f, i) => (
+      <main className={aperturaTestuale ? `${stile.hero} ${stile.soloTesto}` : stile.hero}>
+        {aperturaTestuale && <div className={stile.filo} aria-hidden="true" />}
+        {lastre.map((f, i) => (
           <figure key={f.indice} className={`${stile.lastra} ${stile[`l${i + 1}`]}`}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -81,6 +129,10 @@ export default function DiLato({ brief, foto, apertura, recensioni }: DatiDemo) 
               loading={i === 0 ? "eager" : "lazy"}
               fetchPriority={i === 0 ? "high" : "auto"}
               decoding="async"
+              // Il ritaglio approvato, quando c'e. Senza, il CSS decide
+              // e il soggetto puo finire fuori dalla lastra: e cosi che
+              // si e visto mezzo viso capovolto.
+              style={f.object_position ? { objectPosition: f.object_position } : undefined}
             />
           </figure>
         ))}
@@ -159,10 +211,10 @@ export default function DiLato({ brief, foto, apertura, recensioni }: DatiDemo) 
         </div>
       </section>
 
-      {resto.length > 0 && (
+      {galleria.length > 0 && (
         <section className={stile.sezione}>
           <div className={stile.galleria}>
-            {resto.map((f, i) => (
+            {galleria.map((f, i) => (
               // Un ritmo di quattro, non un'alternanza: sfalsare una
               // fotografia su due produce una zigzag meccanica, che e
               // solo un altro modo di essere uniformi.
@@ -170,7 +222,8 @@ export default function DiLato({ brief, foto, apertura, recensioni }: DatiDemo) 
                 className={i % 4 === 1 ? stile.alta : i % 4 === 3 ? stile.bassa : undefined}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={f.src} alt="" width={f.larghezza} height={f.altezza}
-                  loading="lazy" decoding="async" />
+                  loading="lazy" decoding="async"
+                  style={f.object_position ? { objectPosition: f.object_position } : undefined} />
               </figure>
             ))}
           </div>
