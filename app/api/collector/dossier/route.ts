@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { decidiMedia, decisioniMedia, leggiDossier } from "@/lib/collector/db";
 import { logActivity } from "@/lib/factory/db";
 import { guardiaRichiesta } from "@/lib/guardia-richiesta";
+import { EVENTO_LETTURA, riepilogo, scriviRiepilogo } from "@/lib/collector/telemetria";
 import type { ApiResponse } from "@/types";
 import type { BusinessDossier, PhaseState } from "@/types/dossier";
 
@@ -63,6 +64,22 @@ export async function GET(req: Request) {
         }
       }
     }
+
+    // Lo stesso riepilogo sicuro anche in lettura: un dossier gia
+    // prodotto torna cosi osservabile dai log al primo caricamento
+    // della dashboard, senza rieseguire il collector. Le fasi fallite
+    // restano fallite, quindi lo stato riflette com'e andata allora.
+    scriviRiepilogo(riepilogo(
+      dossier,
+      salvato.phases,
+      {
+        job_id: salvato.job_id,
+        lead_id: leadId,
+        status: salvato.phases.some((p) => p.status === "failed") ? "failed" : "completed",
+        duration_ms: salvato.total_ms,
+      },
+      EVENTO_LETTURA,
+    ));
 
     return NextResponse.json<ApiResponse<RispostaDossier>>({
       success: true,
