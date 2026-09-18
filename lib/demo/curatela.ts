@@ -34,7 +34,26 @@ import type { FotoDemo } from "./foto";
 // pagina che abbiamo composto.
 // ============================================================
 
-export type StatoCuratela = "unreviewed" | "selected" | "not_selected" | "needs_review";
+/**
+ * LA DECISIONE DI CURATELA. Un asse solo, e non e quello del marchio.
+ *
+ * Confonderli e costato una proposta reale: dieci fotografie, nove
+ * escluse perche il modello aveva visto un marchio o un volto, e in
+ * pagina e rimasta l'unica immagine che non conteneva niente — un
+ * mucchio di asciugamani. Il sistema aveva ottimizzato l'ASSENZA di
+ * marchi e persone invece della qualita commerciale.
+ *
+ * Adesso il marchio e un'osservazione (vedi `OsservazioneMarchio`) e la
+ * curatela e una decisione. Solo alcune osservazioni la cambiano.
+ */
+export type StatoCuratela =
+  | "unreviewed"           // nessuno l'ha guardata, nemmeno il modello
+  | "selected"
+  | "not_selected"
+  | "needs_visual_review"  // serve l'occhio di una persona
+  /** @deprecated Nome storico di `needs_visual_review`. Si legge, non si
+   *  scrive: `leggiProposta` lo traduce. */
+  | "needs_review";
 
 /** Ruolo di impaginazione: una decisione di layout, non una
  *  descrizione di cosa mostra la fotografia. */
@@ -76,8 +95,18 @@ export interface CuratelaProgetto {
 export type MotivoRevisione =
   | "bassa_confidenza"
   | "possibile_persona_identificabile"
-  | "possibile_marchio"
-  | "analisi_non_disponibile";
+  // I due marchi che fermano, distinti. Un marchio INCIDENTALE — le
+  // confezioni sullo scaffale, il logo sul flacone — non e in questo
+  // elenco perche non ferma niente: si vede in ogni fotografia di ogni
+  // centro estetico del mondo, e trattarlo come un ostacolo significa
+  // scartare il mestiere insieme al marchio.
+  | "marchio_attivita_possibile"   // forse e l'insegna del cliente: conta
+  | "marchio_estraneo_dominante"   // un marchio altrui domina l'inquadratura
+  | "qualita_insufficiente"        // buia, sfocata, soggetto illeggibile
+  | "analisi_non_disponibile"
+  /** @deprecated Sostituito dai due marchi distinti. Si legge, non si
+   *  scrive. */
+  | "possibile_marchio";
 
 export const RITAGLIO_PREDEFINITO = "50% 50%";
 export const MAX_IN_PAGINA = 5;
@@ -302,9 +331,13 @@ export function validaScelteInviate(
     });
   }
 
-  const aperture = out.filter((s) => s.layout_role === "hero").length;
-  if (aperture === 0) return "manca la fotografia di apertura: è la prima cosa che si vede";
-  if (aperture > 1) return "c'è più di una fotografia di apertura";
+  // ZERO APERTURE E AMMESSO. Nessuna fotografia ha superato il gate, o
+  // l'operatore le ha tolte tutte dall'apertura: la pagina si apre con
+  // il nome, che e una composizione progettata e non un buco. Quello
+  // che non si puo fare e averne DUE.
+  if (out.filter((s) => s.layout_role === "hero").length > 1) {
+    return "c'è più di una fotografia di apertura";
+  }
 
   // Si rinumera: l'ordine che conta e quello relativo, e un client che
   // manda 0, 5, 7 ha comunque espresso una sequenza.
@@ -332,10 +365,8 @@ export function puoGenerare(
   if (!c || c.scelte.filter((s) => s.stato === "selected").length === 0) {
     return { ok: false, motivo: "nessuna fotografia selezionata: la pagina non avrebbe immagini" };
   }
-  const hero = c.scelte.find((s) => s.layout_role === "hero");
-  if (!hero || hero.stato === "needs_review" || hero.stato === "unreviewed") {
-    return { ok: false, motivo: "la fotografia di apertura non e stata decisa: e la prima cosa che si vede" };
-  }
+  // Nessun controllo sull'apertura: una pagina che si apre con il nome
+  // e una composizione legittima. Vedi `validaScelteInviate`.
   if (brandBloccante) {
     return { ok: false, motivo: "identita visiva non ancora risolta" };
   }

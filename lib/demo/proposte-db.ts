@@ -103,7 +103,12 @@ export async function leggiProposta(projectId: string): Promise<PropostaSalvata 
       basis_revision: testo(r.basis_revision),
       manifest_revision: testo(r.manifest_revision),
       proposal_revision: testo(r.proposal_revision),
-      scelte: parse(r.scelte, [] as SceltaFoto[]),
+      // `needs_review` e il nome storico di `needs_visual_review`: si
+      // traduce in lettura, cosi il resto del codice conosce un nome
+      // solo e le righe gia scritte non vanno migrate.
+      scelte: parse(r.scelte, [] as SceltaFoto[]).map((s) => (
+        s.stato === "needs_review" ? { ...s, stato: "needs_visual_review" as const } : s
+      )),
       da_rivedere: parse(r.da_rivedere, [] as CuratelaProgetto["da_rivedere"]),
       composta_il: testo(r.composta_il),
     },

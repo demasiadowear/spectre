@@ -42,6 +42,15 @@ export interface SpecPubblicata {
    *  approvato. */
   basis_revision: string;
   foto: VoceImpaginata[];
+  /**
+   * L'apertura e una fotografia, oppure e il nome.
+   *
+   * `NEEDS_REVIEW` non e un guasto e non e una fotografia mancante: e
+   * una composizione legittima, decisa perche nessuna immagine ha
+   * superato il gate dell'apertura. La pagina si apre con il nome, e
+   * quella e la variante progettata — non un ripiego.
+   */
+  hero_status: "OK" | "NEEDS_REVIEW";
   brand_status: BrandOverall;
   /** Cosa il generatore ha avuto il permesso di usare. `tipografia`
    *  NON significa «logo»: significa che un marchio non c'era. */
@@ -57,6 +66,9 @@ export function componiSpec(
   uso: SpecPubblicata["uso_marchio"],
   brand: BrandOverall,
 ): SpecPubblicata {
+  const conApertura = c.scelte.some(
+    (s) => s.stato === "selected" && s.layout_role === "hero",
+  );
   const foto = c.scelte
     .filter((s) => s.stato === "selected")
     .slice()
@@ -71,6 +83,7 @@ export function componiSpec(
   return {
     proposal_revision: c.proposal_revision,
     basis_revision: c.basis_revision,
+    hero_status: conApertura ? "OK" : "NEEDS_REVIEW",
     foto,
     brand_status: brand,
     uso_marchio: uso,

@@ -99,8 +99,20 @@ export default async function DemoPage({ params }: { params: { slug: string } })
   //
   // Non fa partire nessuna analisi. Una pagina pubblica che innesca una
   // fase a pagamento e un modo di far spendere a chiunque abbia lo slug.
-  const aperturaTestuale = Boolean(spec) && curata.apertura_mancante;
-  if (aperturaTestuale) {
+  // DUE STRADE, UNA SOLA APERTURA TESTUALE.
+  //
+  //  - l'apertura approvata non e piu servibile (sparita da Places);
+  //  - nessuna fotografia ha superato il gate dell'apertura, e la
+  //    composizione approvata si apre col nome per scelta.
+  //
+  // La seconda non e un guasto: e la variante progettata, ed e meglio
+  // di una fotografia promossa solo perche era l'unica rimasta.
+  const aperturaTestuale = Boolean(spec)
+    && (curata.apertura_mancante || spec?.hero_status === "NEEDS_REVIEW");
+  // La riga di log vale SOLO per l'apertura sparita. Una pagina che si
+  // apre col nome per scelta non e un guasto, e segnalarla come tale
+  // riempirebbe i log di allarmi su composizioni corrette.
+  if (curata.apertura_mancante) {
     scriviHeroMancante({
       project_id: progetto.id,
       lead_id: progetto.lead_id,

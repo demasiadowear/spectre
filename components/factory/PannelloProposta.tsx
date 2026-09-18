@@ -29,7 +29,7 @@ import { cn } from "@/lib/utils";
 // a capire di quale fotografia si sta parlando, e li basta il numero.
 // ============================================================
 
-type Stato = "unreviewed" | "selected" | "not_selected" | "needs_review";
+type Stato = "unreviewed" | "selected" | "not_selected" | "needs_visual_review" | "needs_review";
 type Ruolo = "hero" | "treatment" | "interior" | "detail" | "closing";
 
 interface FotoInProvino {
@@ -79,11 +79,24 @@ const ETICHETTA_RUOLO: Record<Ruolo, string> = {
   closing: "Chiusura",
 };
 
+/**
+ * Perche una fotografia e dove sta.
+ *
+ * «Forse c'e un marchio» copriva quattro situazioni diverse e le
+ * trattava tutte come un ostacolo: e cosi che nove fotografie su dieci
+ * sono finite fuori pagina e in copertina e rimasto un mucchio di
+ * asciugamani. Un marchio incidentale non e un motivo e qui non compare
+ * proprio: la fotografia sta in pagina, e non c'e niente da spiegare.
+ */
 const ETICHETTA_REVISIONE: Record<string, string> = {
   bassa_confidenza: "Il modello non è sicuro",
-  possibile_persona_identificabile: "Forse c’è una persona riconoscibile",
-  possibile_marchio: "Forse c’è un marchio",
+  possibile_persona_identificabile: "Persona riconoscibile — guarda prima di pubblicare",
+  marchio_attivita_possibile: "Possibile identità dell’attività — verifica",
+  marchio_estraneo_dominante: "Marchio estraneo dominante — verifica",
+  qualita_insufficiente: "Luce, fuoco o soggetto non sufficienti",
   analisi_non_disponibile: "Non è stata guardata",
+  // Lettura dei dati vecchi: prima il marchio era un valore solo.
+  possibile_marchio: "Marchio incidentale — non blocca",
 };
 
 /** Cosa dice lo stato del marchio, in una riga. `NOT_FOUND` non e un
@@ -240,6 +253,8 @@ export default function PannelloProposta({ leadId }: { leadId: string }) {
     return p.foto.filter((f) => !dentro.has(f.candidate_id));
   }, [p, scelte]);
 
+  // Nessuna apertura fotografica non blocca piu: la pagina si apre con
+  // il nome, ed e una composizione progettata. Si dice, non si impedisce.
   const senzaApertura = scelte.length > 0 && !scelte.some((s) => s.layout_role === "hero");
   const brandFerma = p?.brand.status === "PENDING" || p?.brand.status === "RETRY_REQUIRED"
     || p?.brand.status === "BLOCKED";
@@ -362,8 +377,10 @@ export default function PannelloProposta({ leadId }: { leadId: string }) {
             In pagina — {scelte.length} di {p?.tetti.in_pagina ?? 5}
           </h4>
           {senzaApertura && (
-            <p className="mt-1 text-[11px] text-danger">
-              Manca la fotografia di apertura: è la prima cosa che si vede.
+            <p className="mt-1 text-[11px] leading-snug text-text2">
+              Nessuna fotografia ha i requisiti per l’apertura: la demo si aprirà
+              con il nome dell’attività. Puoi metterne una in apertura tu, se ne
+              vedi una adatta.
             </p>
           )}
           <ul className="mt-2 space-y-3">
@@ -461,7 +478,7 @@ export default function PannelloProposta({ leadId }: { leadId: string }) {
                 <p className="mt-1 flex flex-wrap items-center gap-1 text-[10px] text-text2">
                   <span>n. {f.indice}</span>
                   {f.nuova && <span className="text-accent">nuova</span>}
-                  {f.stato === "needs_review" && (
+                  {(f.stato === "needs_visual_review" || f.stato === "needs_review") && (
                     <span className="text-ochre">
                       {ETICHETTA_REVISIONE[f.motivo_revisione] ?? "da guardare"}
                     </span>
@@ -490,7 +507,7 @@ export default function PannelloProposta({ leadId }: { leadId: string }) {
           <NeonButton
             variant="cyan" filled size="md"
             className="min-h-[44px] w-full sm:w-auto"
-            disabled={approvando || scelte.length === 0 || senzaApertura || p.bloccante || brandFerma}
+            disabled={approvando || scelte.length === 0 || p.bloccante || brandFerma}
             onClick={() => void decidi("approva")}
           >
             {approvando ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}

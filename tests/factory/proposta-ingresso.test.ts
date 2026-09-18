@@ -31,6 +31,16 @@ const scelta = (id: string, ruolo = "detail", order = 0) =>
 
 // ----- Ingresso --------------------------------------------------------
 
+test("ingresso: zero aperture e ammesso — la pagina si apre con il nome", () => {
+  // Prima era un rifiuto. La regola e cambiata guardando una proposta
+  // reale: pretendere un'apertura fotografica significa accettarne una
+  // qualunque, ed e cosi che in copertina e finito un mucchio di
+  // asciugamani.
+  const r = validaScelteInviate([scelta("a", "detail"), scelta("b", "interior")], DISPONIBILI);
+  assert.ok(Array.isArray(r), String(r));
+  assert.equal(r.length, 2);
+});
+
 test("ingresso: una selezione buona passa e viene rinumerata", () => {
   const r = validaScelteInviate(
     [scelta("b", "hero", 7), scelta("a", "detail", 2)],
@@ -53,7 +63,6 @@ test("ingresso: ogni rifiuto dice cosa sistemare", () => {
     [[scelta("a", "hero"), scelta("a", "detail")], /due volte/],
     [[scelta("a", "capolavoro")], /ruolo/],
     [[{ ...scelta("a", "hero"), object_position: "javascript:alert(1)" }], /ritaglio/],
-    [[scelta("a", "detail")], /apertura/],
     [[scelta("a", "hero"), scelta("b", "hero")], /più di una fotografia di apertura/],
   ];
   for (const [ingresso, atteso] of casi) {

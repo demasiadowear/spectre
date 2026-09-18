@@ -178,3 +178,26 @@ test("telemetria: la base non esce in chiaro, perche contiene nomi di persone", 
   assert.notEqual(d, digest(`${base}x`), "deve cambiare quando cambia la base");
   assert.equal(digest(""), "");
 });
+
+// ----- 8. Il marchio dell'attivita e quello delle fotografie ----------
+
+test("brand: NOT_FOUND resta separato da cio che si vede nelle fotografie", () => {
+  // Una fotografia con un marchio incidentale — o anche con quello che
+  // POTREBBE essere l'insegna — non sposta di una virgola lo stato
+  // della scoperta del marchio. Sono due domande diverse: «questa
+  // attivita ha un logo?» e «questa fotografia si puo mostrare?».
+  //
+  // La fonte `foto_places` e `not_applicable` per regime, non perche
+  // non abbiamo guardato: un BrandCandidate conterrebbe `detected_text`
+  // e `candidate_colors`, cioe contenuto semantico derivato da
+  // un'immagine di Google e conservato.
+  const b = componiIdentita([], {
+    sito_ufficiale: "not_applicable",
+    social_confermati: "not_applicable",
+    foto_places: "not_applicable",
+    ricerca_grounded: "success_no_results",
+  });
+  assert.equal(b.brand_status, "NOT_FOUND");
+  assert.equal(b.candidates.length, 0, "nessun candidato nasce da una fotografia");
+  assert.equal(b.requires_operator_approval, false);
+});

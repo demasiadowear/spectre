@@ -12,7 +12,7 @@ import {
 import {
   CONTI_VUOTI, MAX_IMMAGINI, proponiImpaginazione,
   type CodiceProposta, type ContiInterpretazione, type FotoDaAnalizzare,
-  type Proposta, type StatoAnalisi,
+  type Proposta, type StatoAnalisi, type StatoHero,
 } from "./analisi-effimera";
 import {
   leggiProposta, rilasciaAnalisi, rivendicaAnalisi, salvaProposta,
@@ -91,6 +91,8 @@ export interface RisultatoAnalisi {
   /** La PROPOSTA e utilizzabile? Zero fotografie scelte = `incomplete`,
    *  e da li non si pubblica. */
   proposal_status: StatoProposta;
+  /** L'apertura c'e, oppure la pagina si apre con il nome. */
+  hero_status: StatoHero;
   /** Perche non e completa. Insieme chiuso. */
   codice: CodiceProposta;
   proposta: PropostaSalvata | null;
@@ -133,7 +135,8 @@ const CONTI_ZERO = {
 
 const vuoto = (esito: EsitoComando, blocco: MotivoBlocco = ""): RisultatoAnalisi => ({
   esito, blocco, rimedio: rimedioBlocco(blocco), proposta: null,
-  analysis_status: "NEEDS_REVIEW", proposal_status: "incomplete", codice: "",
+  analysis_status: "NEEDS_REVIEW", hero_status: "NEEDS_REVIEW",
+  proposal_status: "incomplete", codice: "",
   brand: { status: "", uso: "", nota: "" },
   costo: { immagini: 0, analizzate: 0, fallite: 0, token: 0, pagine: 0, query: 0, durata_ms: 0 },
   conti: { ...CONTI_ZERO },
@@ -169,6 +172,9 @@ export async function analizzaProgetto(
     return {
       ...vuoto("invariata"),
       analysis_status: scelteVive > 0 ? "OK" : "NEEDS_REVIEW",
+      hero_status: precedente.curatela.scelte.some(
+        (s) => s.stato === "selected" && s.layout_role === "hero",
+      ) ? "OK" : "NEEDS_REVIEW",
       proposal_status: scelteVive > 0 ? "complete" : "incomplete",
       codice: scelteVive > 0 ? "" : "no_usable_media_selected",
       proposta: precedente,
@@ -204,7 +210,7 @@ export async function analizzaProgetto(
         costo: { richieste: foto.length, analizzate: 0, fallite: foto.length, token: 0, ms: 0 },
         modello: "", esito: "non_configurato",
         guasto: { esito: "permanent_error", blocco: "configuration_missing" },
-        analysis_status: "NEEDS_REVIEW", codice: "",
+        analysis_status: "NEEDS_REVIEW", hero_status: "NEEDS_REVIEW", codice: "",
         conti: {
           ...CONTI_VUOTI,
           images_requested: foto.length, images_downloaded: 0, images_sent: 0,
@@ -264,6 +270,7 @@ export async function analizzaProgetto(
       // nessuna e finita, ma non ha prodotto una proposta. Dirlo
       // `completata` e basta e come dire che e andata bene.
       analysis_status: p.analysis_status,
+      hero_status: p.hero_status,
       proposal_status: selezionate > 0 ? "complete" : "incomplete",
       codice: p.codice,
       proposta: await leggiProposta(projectId),

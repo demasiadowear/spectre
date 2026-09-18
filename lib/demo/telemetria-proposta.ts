@@ -114,6 +114,7 @@ export interface RiepilogoProposta {
    * Sono conteggi. Nessuno dice cosa c'era in un'immagine.
    */
   analysis_status: string;
+  hero_status: string;
   proposal_status: string;
   codice: string;
   images_requested: number;
@@ -140,7 +141,7 @@ export function riepilogoVuoto(
     immagini_richieste: 0, immagini_analizzate: 0, immagini_fallite: 0,
     token: 0, pagine_lette: 0, query_ricerca: 0, duration_ms: 0,
     pubblicata: false, stato_pubblicazione: "", apertura_testuale: false,
-    analysis_status: "", proposal_status: "", codice: "",
+    analysis_status: "", hero_status: "", proposal_status: "", codice: "",
     images_requested: 0, images_downloaded: 0, images_sent: 0,
     model_items_returned: 0, mapped_items: 0, invalid_indices: 0,
     duplicate_indices: 0, selected_count: 0, needs_review_count: 0,
@@ -187,7 +188,7 @@ const CHIAVI_AMMESSE: readonly string[] = [
   "immagini_richieste", "immagini_analizzate", "immagini_fallite",
   "token", "pagine_lette", "query_ricerca", "duration_ms", "pubblicata",
   "stato_pubblicazione", "apertura_testuale",
-  "analysis_status", "proposal_status", "codice",
+  "analysis_status", "hero_status", "proposal_status", "codice",
   "images_requested", "images_downloaded", "images_sent",
   "model_items_returned", "mapped_items", "invalid_indices",
   "duplicate_indices", "selected_count", "needs_review_count",

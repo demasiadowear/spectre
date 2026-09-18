@@ -136,11 +136,12 @@ function registra(projectId: string, leadId: string, r: RisultatoAnalisi, http: 
     proposal_revision: r.proposta?.curatela.proposal_revision ?? "",
     foto_totali: scelte.length,
     foto_selezionate: conta("selected"),
-    foto_da_rivedere: conta("needs_review"),
+    foto_da_rivedere: conta("needs_visual_review"),
     foto_scartate: conta("not_selected"),
     foto_non_viste: conta("unreviewed"),
     // I contatori strutturali: dicono DOVE si e fermata l'analisi.
     analysis_status: r.analysis_status,
+    hero_status: r.hero_status,
     proposal_status: r.proposal_status,
     codice: r.codice,
     images_requested: r.conti.images_requested,

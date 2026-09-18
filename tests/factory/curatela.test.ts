@@ -222,10 +222,20 @@ test("generazione: valida con hero decisa e brand non bloccante -> si genera", (
   assert.equal(puoGenerare(p, foto, true).ok, false);
 });
 
-test("generazione: senza hero non si genera", () => {
-  const foto = [f("A", 0)];
-  const p = proposta(foto, [scelta("A", 0, { layout_role: "interior" })]);
-  assert.equal(puoGenerare(p, foto, false).ok, false);
+test("generazione: senza hero si genera lo stesso, con l'apertura testuale", () => {
+  // Prima questo test pretendeva un'apertura fotografica. La regola e
+  // cambiata guardando una proposta reale: quando nessuna fotografia
+  // merita l'apertura, la pagina si apre con il nome — che e una
+  // composizione progettata, non un buco. Pretendere una fotografia
+  // significa accettarne una qualunque, ed e cosi che in copertina e
+  // finito un mucchio di asciugamani.
+  const foto = [f("A", 0), f("B", 1)];
+  const p = proposta(foto, [
+    scelta("A", 0, { layout_role: "interior" }),
+    scelta("B", 1, { layout_role: "detail" }),
+  ]);
+  const r = puoGenerare(p, foto, false);
+  assert.equal(r.ok, true, r.motivo);
 });
 
 test("curatela: al massimo cinque in pagina", () => {

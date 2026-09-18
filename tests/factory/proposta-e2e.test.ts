@@ -471,6 +471,7 @@ test("e2e: una demo degradata resta disponibile e non fa partire nessuna analisi
   await salvaPubblicata(projectId, LEAD, {
     proposal_revision: revisione,
     basis_revision: "base-nota",
+    hero_status: "OK",
     foto: [
       { candidate_id: "g1", order: 0, layout_role: "hero", object_position: "50% 30%" },
       { candidate_id: "g2", order: 1, layout_role: "treatment", object_position: "50% 50%" },
