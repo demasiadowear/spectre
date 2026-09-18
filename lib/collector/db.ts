@@ -18,6 +18,7 @@
 import { randomUUID } from "crypto";
 import { turso } from "@/lib/turso";
 import type { BusinessDossier, CollectProgress, PhaseState } from "@/types/dossier";
+import { conDecisioniColmate } from "./decisione";
 
 let schemaPronto = false;
 
@@ -135,7 +136,10 @@ export async function leggiDossier(leadId: string): Promise<DossierSalvato | nul
     id: String(r.id),
     lead_id: String(r.lead_id),
     recommendation: String(r.recommendation ?? "REVIEW"),
-    dossier: parse<BusinessDossier>(r.dossier, {} as BusinessDossier),
+    // Un dossier salvato prima della separazione delle tre decisioni
+    // arriva senza: si colmano in lettura, cosi il pannello non deve
+    // sapere che e esistita una versione precedente.
+    dossier: conDecisioniColmate(parse<BusinessDossier>(r.dossier, {} as BusinessDossier)),
     phases: parse<PhaseState[]>(r.phases, []),
     job_id: String(r.job_id ?? ""),
     external_calls: Number(r.external_calls ?? 0),

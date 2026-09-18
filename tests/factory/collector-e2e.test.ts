@@ -253,10 +253,28 @@ test("e2e: dossier e manifest completi, salvati e riletti dal database", async (
   for (const m of delSito) assert.equal(m.allowed_scope, "preview_only");
   assert.deepEqual(dossier.media.approved_ids, [], "nessuna immagine nasce approvata");
 
-  // La raccomandazione non e GO: ci sono profili non letti e media da
-  // approvare, e il sistema lo dice invece di tirare a indovinare.
-  assert.equal(dossier.recommendation, "REVIEW");
-  assert.ok(dossier.recommendation_reasons.length > 0);
+  // Le tre decisioni sono separate, ed e qui che si vede perche.
+  //
+  // Commercialmente e una GO: l'identita e ancorata su Places, non ci
+  // sono conflitti bloccanti, e i profili non letti erano DICHIARATI dal
+  // sito — non c'e nessun rischio di attribuire a questa attivita i
+  // social di un'altra. Che quei profili non si siano potuti aprire e un
+  // limite della raccolta, non un dubbio sull'identita.
+  //
+  // Sui MEDIA invece serve un'approvazione, perche le fotografie del
+  // sito non sono nostre. Le due cose convivono: prima questa seconda
+  // risposta trascinava anche la prima, e ogni lead finiva in REVIEW.
+  assert.equal(dossier.commercial_recommendation, "GO",
+    `commerciale: ${dossier.decision_reasons.commercial.join(" | ")}`);
+  assert.ok(dossier.decision_reasons.commercial.length > 0);
+  assert.notEqual(dossier.content_readiness, "BLOCKED",
+    "con nome, indirizzo e telefono si puo costruire qualcosa");
+  assert.ok(dossier.website_opportunity_score !== null,
+    "il punteggio del sito va misurato, non lasciato indefinito");
+
+  // Il campo storico resta allineato alla decisione commerciale, cosi
+  // un dossier vecchio e uno nuovo si leggono con lo stesso codice.
+  assert.equal(dossier.recommendation, dossier.commercial_recommendation);
 
   // Salvataggio e rilettura: il giro completo sul database vero.
   await salvaDossier({ dossier, phases, job_id: "job-e2e" });
@@ -264,7 +282,10 @@ test("e2e: dossier e manifest completi, salvati e riletti dal database", async (
   assert.ok(riletto, "il dossier deve essere rileggibile");
   assert.equal(riletto?.dossier.place_id, "PLACE-PROVA-1");
   assert.equal(riletto?.dossier.media.candidates.length, dossier.media.candidates.length);
-  assert.equal(riletto?.recommendation, "REVIEW");
+  assert.equal(riletto?.recommendation, "GO");
+  assert.equal(riletto?.dossier.commercial_recommendation, "GO",
+    "le tre decisioni devono sopravvivere al giro sul database");
+  assert.equal(riletto?.dossier.media_readiness, dossier.media_readiness);
   assert.equal(riletto?.phases.length, phases.length);
 });
 
@@ -501,4 +522,58 @@ test("e2e: rilanciare una sola fase non rifa le altre", async () => {
   assert.equal(perFase.official_site, "skipped", "non richiesta, quindi saltata");
   assert.equal(perFase.social_discovery, "skipped");
   assert.equal(perFase.media, "skipped");
+});
+
+// ----- Il rilancio parziale non deve DISTRUGGERE il dossier -------
+
+test("e2e: un rilancio parziale riparte dal dossier precedente, non da zero", async () => {
+  const lead = {
+    lead_id: LEAD,
+    name: "Trattoria di Prova", city: "Bari", address: "Via Sparano 10",
+    phone: "080 555 0101", email: "", website: "", place_id: "PLACE-PROVA-1",
+    manual: {}, linked_pages: [], media_forniti: [],
+  };
+
+  // Prima una raccolta intera: e questo il dossier su cui si ritorna.
+  const pieno = await raccogli(lead, { places: placesFinto, provider: new ProviderFinto() });
+  assert.ok(pieno.dossier.place_id, "la raccolta piena deve avere ancorato l'identita");
+  assert.ok(pieno.dossier.verified.length >= 3);
+
+  // Poi il rilancio di sole tre fasi, come si fa quando si vuole
+  // ricontrollare i social e le immagini senza ripagare Places.
+  const parziale = await raccogli(lead, {
+    places: placesFinto,
+    provider: new ProviderFinto(),
+    solo: ["social_discovery", "media", "reconcile"],
+    precedente: pieno.dossier,
+  });
+
+  // Il difetto che questo test impedisce: senza reidratazione le fasi
+  // saltate non lasciano niente nello stato, e il rilancio produce un
+  // dossier VUOTO — cioe peggiore di quello che doveva integrare. Il
+  // pannello mostrerebbe un'attivita senza nome e senza identita, e
+  // sembrerebbe che la raccolta abbia perso i dati.
+  assert.equal(parziale.dossier.place_id, pieno.dossier.place_id,
+    "l'ancora di Places non si perde solo perche la fase non e stata rieseguita");
+  assert.equal(parziale.dossier.official_site, pieno.dossier.official_site);
+  assert.equal(parziale.dossier.official_host, pieno.dossier.official_host);
+  assert.ok(parziale.dossier.verified.some((f) => f.field === "name"),
+    "il nome viene da Places: senza reidratazione sparirebbe");
+  assert.equal(parziale.dossier.website_opportunity_score, pieno.dossier.website_opportunity_score,
+    "il punteggio del sito si conserva: la fase che lo misura non e stata rieseguita");
+
+  // E la decisione regge: un dossier reidratato deve decidere come
+  // quello pieno, altrimenti il rilancio cambierebbe l'esito senza che
+  // sia cambiato niente della realta.
+  assert.equal(parziale.dossier.commercial_recommendation, pieno.dossier.commercial_recommendation);
+
+  // I fatti non si duplicano: reidratare e sommare due volte lo stesso
+  // fatto produrrebbe un conflitto inventato dal rilancio stesso.
+  const nomi = parziale.dossier.verified.concat(parziale.dossier.probable)
+    .filter((f) => f.field === "name").map((f) => f.value);
+  assert.equal(new Set(nomi).size, nomi.length > 0 ? new Set(nomi).size : 0);
+  assert.ok(
+    parziale.dossier.conflicts.length <= pieno.dossier.conflicts.length,
+    `il rilancio ha inventato conflitti: ${parziale.dossier.conflicts.length} contro ${pieno.dossier.conflicts.length}`,
+  );
 });

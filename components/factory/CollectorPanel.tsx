@@ -52,9 +52,9 @@ const COLORE_DIRITTI: Record<RightsStatus, string> = {
 };
 
 const ETICHETTA_IDENTITA: Record<IdentityCandidate["status"], string> = {
-  verified: "Confermato",
-  probable: "Probabile",
-  ambiguous: "Incerto",
+  confirmed: "Confermato",
+  likely: "Probabile",
+  unverified_candidate: "Candidato non verificato",
   rejected: "Rifiutato",
   browser_required: "Serve un browser",
 };
@@ -333,9 +333,9 @@ export default function CollectorPanel({ leadId, leadName }: { leadId: string; l
                       <div className="flex flex-wrap items-center gap-2">
                         <span className={cn(
                           "rounded-sm border px-1.5 py-0.5 text-[10px] uppercase tracking-wide",
-                          c.status === "verified" && "border-success/40 text-success",
-                          c.status === "probable" && "border-ochre/40 text-ochre",
-                          c.status === "ambiguous" && "border-border text-text2",
+                          c.status === "confirmed" && "border-success/40 text-success",
+                          c.status === "likely" && "border-ochre/40 text-ochre",
+                          c.status === "unverified_candidate" && "border-border text-text2",
                           c.status === "rejected" && "border-danger/40 text-danger",
                           c.status === "browser_required" && "border-accent/40 text-accent",
                         )}>{ETICHETTA_IDENTITA[c.status]}</span>

@@ -247,7 +247,7 @@ test("identity: nome simile e stessa citta NON bastano", () => {
       testo: "Barberia Centrale — Bari" },
     { ...ctxBase, username_dichiarati: {} },
   );
-  assert.equal(c.status, "ambiguous", `stato ${c.status}: ${c.rationale}`);
+  assert.equal(c.status, "unverified_candidate", `stato ${c.status}: ${c.rationale}`);
   assert.match(c.rationale, /non bastano/i);
   assert.ok(c.confidence < 55, `confidence ${c.confidence} troppo alta per soli segnali deboli`);
 });
@@ -258,7 +258,7 @@ test("identity: due segnali forti fanno verified", () => {
       link_esterni: ["https://barberiacentrale.it/"], testo: "Barberia Centrale Bari" },
     ctxBase,
   );
-  assert.equal(c.status, "verified", `stato ${c.status}: ${c.rationale}`);
+  assert.equal(c.status, "confirmed", `stato ${c.status}: ${c.rationale}`);
   assert.ok(c.positive_signals.includes("declared_username"));
   assert.ok(c.positive_signals.includes("same_domain"));
   assert.ok(c.positive_signals.includes("reciprocal_link"));
@@ -270,7 +270,7 @@ test("identity: un solo segnale forte si ferma a probable", () => {
       link_esterni: ["https://barberiacentrale.it/"] },
     { ...ctxBase, username_dichiarati: {} },
   );
-  assert.equal(c.status, "probable", `stato ${c.status}: ${c.rationale}`);
+  assert.equal(c.status, "likely", `stato ${c.status}: ${c.rationale}`);
 });
 
 test("identity: nome giusto ma telefono diverso viene rifiutato", () => {
@@ -322,7 +322,7 @@ test("identity: due osservazioni dello stesso profilo non sono due candidati", (
   );
   const uniti = unisciCandidati([a, b]);
   assert.equal(uniti.length, 1, "lo stesso profilo e un candidato solo");
-  assert.equal(uniti[0].status, "verified", "unendo le osservazioni si arriva a due segnali forti");
+  assert.equal(uniti[0].status, "confirmed", "unendo le osservazioni si arriva a due segnali forti");
 });
 
 test("identity: i link sul sito diventano username dichiarati", () => {
@@ -462,6 +462,7 @@ test("media: la stessa foto da URL diversi e un duplicato, non due", () => {
     orientation: "landscape", probable_role: "venue", quality_score: 50,
     relevance_score: 50, duplicate_group: "", people_present: false,
     rights_status: "official_public_pending_approval", allowed_scope: "preview_only",
+    display_status: "display_after_approval", storage_status: "store_allowed",
     expires_at: "", provider_reference: "", rejected_reason: "",
   });
   // Stesso SHA: file identico servito da due URL.
@@ -500,7 +501,9 @@ test("media: la selezione non pesca due volte dallo stesso duplicato", () => {
     observed_at: "", width: 1600, height: 1200, format: "jpg", filesize: 1,
     orientation: "landscape" as const, people_present: false,
     rights_status: "official_public_pending_approval" as const,
-    allowed_scope: "preview_only" as const, expires_at: "", provider_reference: "", rejected_reason: "",
+    allowed_scope: "preview_only" as const,
+    display_status: "display_after_approval" as const, storage_status: "store_allowed" as const,
+    expires_at: "", provider_reference: "", rejected_reason: "",
   };
   const migliori = selezionaMigliori([
     { ...base, id: "a", source_url: "https://x/a.jpg", sha256: "S", perceptual_hash: "",
@@ -519,6 +522,7 @@ test("media: un'immagine bloccata non entra mai nella selezione", () => {
     width: 1600, height: 1200, format: "jpg", filesize: 1, orientation: "landscape",
     probable_role: "hero", quality_score: 99, relevance_score: 99, duplicate_group: "g1",
     people_present: false, rights_status: "unknown", allowed_scope: "blocked",
+    display_status: "display_forbidden", storage_status: "do_not_store",
     expires_at: "", provider_reference: "", rejected_reason: "",
   }]);
   assert.equal(migliori.hero, null);

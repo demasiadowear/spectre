@@ -61,7 +61,8 @@ const foto = (url: string): MediaCandidate => ({
   probable_role: "venue", quality_score: 80, relevance_score: 80,
   duplicate_group: "g1", people_present: false,
   rights_status: "official_public_pending_approval",
-  allowed_scope: "preview_only", expires_at: "", provider_reference: "",
+  allowed_scope: "preview_only", display_status: "display_after_approval",
+  storage_status: "store_allowed", expires_at: "", provider_reference: "",
   rejected_reason: "",
 });
 
@@ -95,9 +96,9 @@ const DOSSIER: BusinessDossier = {
   ],
   missing: ["services"],
   identities: [
-    profilo("https://instagram.com/trattoriadamichele", "verified"),
+    profilo("https://instagram.com/trattoriadamichele", "confirmed"),
     profilo("https://facebook.com/trattoriadamichele", "browser_required"),
-    profilo("https://tiktok.com/@altro", "ambiguous"),
+    profilo("https://tiktok.com/@altro", "unverified_candidate"),
   ],
   media: {
     lead_id: "lead-42", generated_at: "2026-09-18T06:53:06Z",
@@ -108,11 +109,23 @@ const DOSSIER: BusinessDossier = {
       customer_owned: 0, official_public_pending_approval: 1,
       provider_rendered: 0, unknown: 0, forbidden: 1,
     },
+    counts: {
+      totali: 1, tramite_provider: 0, proprietarie: 0, copiabili: 1,
+      utilizzabili_in_demo: 1, da_approvare: 0,
+    },
   },
   sources: [
     { source_type: "google_places", url: "https://maps.google.com/?cid=1", ok: true, outcome: "ok", detail: "Trattoria Da Michele", ms: 300 },
     { source_type: "official_site", url: "https://trattoria-esempio.it/", ok: true, outcome: "ok", detail: "", ms: 800 },
   ],
+  website_opportunity_score: 55,
+  commercial_recommendation: "REVIEW",
+  content_readiness: "PARTIAL",
+  media_readiness: "APPROVAL_REQUIRED",
+  decision_reasons: {
+    commercial: ["conflitto su phone"], content: ["mancano i servizi"],
+    media: ["1 immagine in attesa di approvazione"],
+  },
   recommendation: "REVIEW",
   recommendation_reasons: ["conflitto su phone", "1 profilo non letto"],
   cost: { external_calls: 4, total_ms: 4900 },

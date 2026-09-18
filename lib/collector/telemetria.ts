@@ -18,7 +18,8 @@
 // ============================================================
 
 import type {
-  BusinessDossier, CollectPhase, DossierRecommendation, PhaseState,
+  BusinessDossier, CollectPhase, CommercialRecommendation, ContentReadiness,
+  DossierRecommendation, MediaReadiness, PhaseState,
 } from "@/types/dossier";
 
 export const EVENTO_RACCOLTA = "collector_run_finished";
@@ -44,7 +45,16 @@ export interface RiepilogoRaccolta {
   job_id: string;
   lead_id: string;
   status: "completed" | "failed";
+  /** @deprecated Vale `commercial_recommendation`: resta perche i log
+   *  gia raccolti si leggono con questo nome. */
   recommendation: DossierRecommendation | "";
+  /** Le tre decisioni separate. Una riga di log con la sola
+   *  raccomandazione non permetteva di distinguere «non vale la pena»
+   *  da «mi manca il materiale»: sono due problemi con due rimedi. */
+  commercial_recommendation: CommercialRecommendation | "";
+  content_readiness: ContentReadiness | "";
+  media_readiness: MediaReadiness | "";
+  website_opportunity_score: number | null;
   duration_ms: number;
   phase_statuses: Record<string, string>;
   verified_facts_count: number;
@@ -54,6 +64,13 @@ export interface RiepilogoRaccolta {
   media_approved_count: number;
   social_confirmed_count: number;
   social_browser_required_count: number;
+  /** Immagini che si possono davvero mostrare, non solo possedere. */
+  media_displayable_count: number;
+  /** Costo della scoperta social: se sale senza che salgano i profili
+   *  confermati, la ricerca sta pagando per niente. */
+  search_status: string;
+  search_queries: number;
+  search_tokens: number;
   error_code: ErrorCode;
   error_phase: CollectPhase | "";
 }
@@ -122,6 +139,10 @@ export function riepilogo(
     lead_id: ctx.lead_id,
     status: ctx.status,
     recommendation: dossier?.recommendation ?? "",
+    commercial_recommendation: dossier?.commercial_recommendation ?? "",
+    content_readiness: dossier?.content_readiness ?? "",
+    media_readiness: dossier?.media_readiness ?? "",
+    website_opportunity_score: dossier?.website_opportunity_score ?? null,
     duration_ms: Math.max(0, Math.round(ctx.duration_ms)),
     phase_statuses: stati,
     verified_facts_count: dossier?.verified.length ?? 0,
@@ -129,7 +150,11 @@ export function riepilogo(
     blocking_conflicts_count: (dossier?.conflicts ?? []).filter((c) => c.blocking).length,
     media_candidates_count: media?.candidates.length ?? 0,
     media_approved_count: media?.approved_ids.length ?? 0,
-    social_confirmed_count: identita.filter((i) => i.status === "verified").length,
+    media_displayable_count: media?.counts?.utilizzabili_in_demo ?? 0,
+    search_status: dossier?.search?.status ?? "",
+    search_queries: dossier?.search?.queries ?? 0,
+    search_tokens: dossier?.search?.tokens ?? 0,
+    social_confirmed_count: identita.filter((i) => i.status === "confirmed").length,
     social_browser_required_count: identita.filter((i) => i.status === "browser_required").length,
     error_code: codice,
     error_phase: fallita?.phase ?? "",
@@ -160,11 +185,14 @@ export function statoDaFasi(phases: PhaseState[]): "completed" | "failed" {
  *  E una lista bianca e non nera di proposito: aggiungere un campo al
  *  dossier non deve poterlo far comparire nei log per distrazione. */
 const CHIAVI_AMMESSE: readonly string[] = [
-  "event", "job_id", "lead_id", "status", "recommendation", "duration_ms",
+  "event", "job_id", "lead_id", "status", "recommendation",
+  "commercial_recommendation", "content_readiness", "media_readiness",
+  "website_opportunity_score", "duration_ms",
   "phase_statuses", "verified_facts_count", "conflicts_count",
   "blocking_conflicts_count", "media_candidates_count", "media_approved_count",
-  "social_confirmed_count", "social_browser_required_count",
-  "error_code", "error_phase",
+  "media_displayable_count", "social_confirmed_count",
+  "social_browser_required_count", "search_status", "search_queries",
+  "search_tokens", "error_code", "error_phase",
 ];
 
 /** Filtra sulla lista bianca prima di serializzare. */
