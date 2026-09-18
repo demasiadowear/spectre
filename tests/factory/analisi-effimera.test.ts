@@ -9,8 +9,8 @@ import {
   CAMPI_SEMANTICI, puoPersistereSemantica, regimeDi, senzaSemantica,
 } from "../../lib/demo/policy-media";
 import {
-  applicaCuratela, firmaManifest, puoGenerare, MAX_IN_PAGINA,
-  type CuratelaProgetto,
+  applicaCuratela, puoGenerare, revisioneManifest, validitaProposta,
+  MAX_IN_PAGINA, type CuratelaProgetto,
 } from "../../lib/demo/curatela";
 import type { RightsStatus } from "../../types/dossier";
 
@@ -138,7 +138,8 @@ const curatela = (over: Partial<CuratelaProgetto> = {}): CuratelaProgetto => ({
     { indice: 5, ordine: 1, ruolo: "treatment", object_position: "40% 25%", stato: "selected" },
     { indice: 9, ordine: 9, ruolo: "detail", object_position: "50% 50%", stato: "not_selected" },
   ],
-  da_rivedere: [], composta_il: "2026-09-18T12:00:00Z", firma_manifest: "x",
+  da_rivedere: [], composta_il: "2026-09-18T12:00:00Z",
+  media_manifest_revision: "x",
   ...over,
 });
 
@@ -184,20 +185,24 @@ test("curatela: la generazione si ferma quando non sa, e dice quale non sa", () 
 });
 
 test("curatela: al massimo cinque, e non si riempie per arrivarci", () => {
+  const foto = Array.from({ length: 9 }, (_, i) => ({
+    id: `f${i}`, indice: i, src: `/x/${i}`, larghezza: 1200, altezza: 1600,
+    attribuzione: "Rosita", attribuzione_obbligatoria: true,
+  }));
+  const rev = revisioneManifest(foto);
+
   const molte = curatela({
+    media_manifest_revision: rev,
     scelte: Array.from({ length: 9 }, (_, i) => ({
       indice: i, ordine: i, ruolo: "detail" as const,
       object_position: "50% 50%", stato: "selected" as const,
     })),
   });
-  const foto = Array.from({ length: 9 }, (_, i) => ({
-    id: `f${i}`, indice: i, src: `/x/${i}`, larghezza: 1200, altezza: 1600,
-    attribuzione: "Rosita", attribuzione_obbligatoria: true,
-  }));
   assert.equal(applicaCuratela(foto, molte).length, MAX_IN_PAGINA);
 
   // Tre selezionate restano tre: non si pesca fra le scartate.
   const tre = curatela({
+    media_manifest_revision: rev,
     scelte: [0, 1, 2].map((i) => ({
       indice: i, ordine: i, ruolo: "detail" as const,
       object_position: "50% 50%", stato: "selected" as const,
@@ -206,11 +211,88 @@ test("curatela: al massimo cinque, e non si riempie per arrivarci", () => {
   assert.equal(applicaCuratela(foto, tre).length, 3);
 });
 
-test("curatela: la firma cambia se il manifest cambia", () => {
-  const a = [{ id: "x", indice: 0, src: "", larghezza: 0, altezza: 0, attribuzione: "", attribuzione_obbligatoria: false }];
-  const b = [{ id: "y", indice: 0, src: "", larghezza: 0, altezza: 0, attribuzione: "", attribuzione_obbligatoria: false }];
-  assert.notEqual(firmaManifest(a), firmaManifest(b));
-  assert.equal(firmaManifest(a), firmaManifest(a.slice()));
-  // La firma non contiene niente dell'immagine: solo indice e id.
-  assert.equal(firmaManifest(a), "0:x");
+test("curatela: la revisione cambia se cambia quale foto sta a quale indice", () => {
+  const a = [{ indice: 0, id: "x" }];
+  const b = [{ indice: 0, id: "y" }];
+  assert.notEqual(revisioneManifest(a), revisioneManifest(b));
+  assert.equal(revisioneManifest(a), revisioneManifest(a.slice()));
+  // La revisione non contiene niente dell'immagine: solo indice e id.
+  assert.equal(revisioneManifest(a), "0:x");
+});
+
+// ----- IL TEST CRITICO: l'indice non e stabile ------------------------
+
+test("stale: una proposta della revisione 1 non deve MAI applicarsi alla revisione 2", () => {
+  // Il difetto che questo test esiste per impedire, ed e il piu
+  // pericoloso di tutta la fase perche NON SEMBRA UN ERRORE: la pagina
+  // si costruisce, le immagini si caricano, e in apertura c'e una
+  // fotografia che nessuno ha scelto.
+  //
+  // Dopo una nuova raccolta, Places puo restituire le stesse dieci
+  // fotografie in un altro ordine. «Indice 3» ieri era la foto A, oggi
+  // e la foto B. Una proposta salvata come «indice 3 in posizione hero»
+  // applicata al manifest nuovo mette in hero la B.
+  const fotoDi = (id: string, indice: number) => ({
+    id, indice, src: `/demo/S/foto/${indice}`, larghezza: 1200, altezza: 1600,
+    attribuzione: "Rosita", attribuzione_obbligatoria: true,
+  });
+
+  // Revisione 1: all'indice 3 c'e la foto A.
+  const rev1 = [fotoDi("foto-A", 3), fotoDi("foto-Z", 4)];
+  // Revisione 2: all'indice 3 c'e la foto B. Stessa posizione, altra
+  // immagine.
+  const rev2 = [fotoDi("foto-B", 3), fotoDi("foto-Z", 4)];
+
+  const r1 = revisioneManifest(rev1);
+  const r2 = revisioneManifest(rev2);
+  assert.notEqual(r1, r2, "due manifest diversi non possono avere la stessa revisione");
+
+  const proposta: CuratelaProgetto = {
+    media_manifest_revision: r1,
+    scelte: [{ indice: 3, ordine: 0, ruolo: "hero", object_position: "50% 30%", stato: "selected" }],
+    da_rivedere: [], composta_il: "2026-09-18T12:00:00Z",
+  };
+
+  // Sulla revisione su cui e stata composta, si applica e prende la A.
+  const suRev1 = applicaCuratela(rev1, proposta);
+  assert.equal(validitaProposta(proposta, r1), "valida");
+  assert.equal(suRev1.length, 1);
+  assert.equal(suRev1[0].id, "foto-A");
+
+  // Sulla revisione nuova: STALE, e non si applica affatto.
+  assert.equal(validitaProposta(proposta, r2), "stale");
+  const suRev2 = applicaCuratela(rev2, proposta);
+  // La garanzia che conta davvero: la foto B non compare MAI.
+  assert.ok(!suRev2.some((f) => f.id === "foto-B"),
+    "la proposta della revisione 1 ha raggiunto la fotografia della revisione 2");
+  assert.equal(suRev2.length, 0, "una proposta stale non si applica nemmeno in parte");
+});
+
+test("stale: si scarta tutta, non «per quel che si puo»", () => {
+  // Applicarne la meta sarebbe peggio del rifiuto: la pagina si
+  // costruirebbe con alcune fotografie scelte e altre no, e nessuno
+  // saprebbe quali.
+  const f = (id: string, indice: number) => ({
+    id, indice, src: "", larghezza: 1200, altezza: 1600,
+    attribuzione: "", attribuzione_obbligatoria: false,
+  });
+  const vecchio = [f("A", 0), f("B", 1), f("C", 2)];
+  const nuovo = [f("A", 0), f("B", 1), f("D", 2)];  // solo l'ultima cambia
+
+  const proposta: CuratelaProgetto = {
+    media_manifest_revision: revisioneManifest(vecchio),
+    scelte: [
+      { indice: 0, ordine: 0, ruolo: "hero", object_position: "50% 50%", stato: "selected" },
+      { indice: 1, ordine: 1, ruolo: "treatment", object_position: "50% 50%", stato: "selected" },
+    ],
+    da_rivedere: [], composta_il: "",
+  };
+  // Le prime due fotografie sono identiche, ma la proposta si scarta
+  // lo stesso: la revisione e dell'intero manifest, non per immagine.
+  assert.deepEqual(applicaCuratela(nuovo, proposta), []);
+});
+
+test("stale: senza proposta, `assente` e non `stale`", () => {
+  // Sono due cose diverse: una va composta, l'altra va ricomposta.
+  assert.equal(validitaProposta(null, "qualunque"), "assente");
 });

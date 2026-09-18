@@ -5,7 +5,13 @@ import {
   componiIdentita, eOmonimo, haAncoraggio, motivoRifiuto, usoConsentito,
   valutaCandidato, type ContestoBrand,
 } from "../../lib/collector/brand";
-import type { BrandCandidate } from "../../types/dossier";
+import type { BrandCandidate, FontiBrand } from "../../types/dossier";
+
+/** Tutte le fonti gia esaurite: e il caso in cui NOT_FOUND e vero. */
+const ESAURITE: FontiBrand = {
+  sito_ufficiale: "non_disponibile", social_confermati: "non_disponibile",
+  foto_places: "interrogata", ricerca_grounded: "interrogata",
+};
 
 // ============================================================
 // Il modo piu rapido di sbagliare l'identita visiva non e non trovare
@@ -174,7 +180,7 @@ const confermato = (k: BrandCandidate["kind"]): BrandCandidate =>
   ({ ...cand({ kind: k }), status: "confirmed", confidence: 95 }) as BrandCandidate;
 
 test("brand: nessun candidato vivo -> NOT_FOUND, e non si inventa niente", () => {
-  const b = componiIdentita([{ ...cand(), status: "rejected", rejection_reason: "homonym_entity" } as BrandCandidate]);
+  const b = componiIdentita([{ ...cand(), status: "rejected", rejection_reason: "homonym_entity" } as BrandCandidate], ESAURITE);
   assert.equal(b.brand_status, "NOT_FOUND");
   assert.equal(b.primary_logo, null);
   assert.equal(b.requires_operator_approval, false);
@@ -188,21 +194,21 @@ test("brand: nessun candidato vivo -> NOT_FOUND, e non si inventa niente", () =>
 });
 
 test("brand: logo confermato -> ORIGINAL_CONFIRMED, pubblicabile", () => {
-  const b = componiIdentita([confermato("logo")]);
+  const b = componiIdentita([confermato("logo")], ESAURITE);
   assert.equal(b.brand_status, "ORIGINAL_CONFIRMED");
   assert.equal(b.requires_operator_approval, false);
   assert.equal(usoConsentito(b).puo_pubblicare, true);
 });
 
 test("brand: logo probabile -> non si pubblica senza approvazione", () => {
-  const b = componiIdentita([{ ...cand({ kind: "logo" }), status: "probable", confidence: 65 } as BrandCandidate]);
+  const b = componiIdentita([{ ...cand({ kind: "logo" }), status: "probable", confidence: 65 } as BrandCandidate], ESAURITE);
   assert.equal(b.brand_status, "ORIGINAL_PROBABLE");
   assert.equal(b.requires_operator_approval, true);
   assert.equal(usoConsentito(b).puo_pubblicare, false);
 });
 
 test("brand: solo insegna -> SIGNAGE_ONLY, e non se ne estrae un logo finto", () => {
-  const b = componiIdentita([{ ...cand({ kind: "signage" }), status: "needs_review" } as BrandCandidate]);
+  const b = componiIdentita([{ ...cand({ kind: "signage" }), status: "needs_review" } as BrandCandidate], ESAURITE);
   assert.equal(b.brand_status, "SIGNAGE_ONLY");
   const uso = usoConsentito(b);
   assert.equal(uso.usa, "riferimento_insegna");
@@ -216,7 +222,48 @@ test("brand: un wordmark generato da noi non e mai un candidato", () => {
   // sarebbe inventare un fatto, con la differenza che questo si vede.
   const b = componiIdentita([
     { ...cand({ kind: "wordmark" }), status: "rejected", rejection_reason: "generated_wordmark" } as BrandCandidate,
-  ]);
+  ], ESAURITE);
   assert.equal(b.brand_status, "NOT_FOUND");
   assert.equal(b.primary_logo, null);
+});
+
+// ----- I tre «non lo so» che si somigliano ----------------------------
+
+test("brand: PENDING, INCONCLUSIVE e NOT_FOUND non sono la stessa cosa", () => {
+  // La distinzione che evita il difetto peggiore: trasformare «questa
+  // attivita non ha un logo» in «questo sito non si pubblica mai».
+  const respinto = { ...cand(), status: "rejected", rejection_reason: "homonym_entity" } as BrandCandidate;
+  const ambiguo = { ...cand({ kind: "color_reference" }), status: "needs_review" } as BrandCandidate;
+
+  // Fonti ancora aperte: bloccare e giusto, guardare e ancora possibile.
+  const aperte: FontiBrand = { ...ESAURITE, foto_places: "non_interrogata" };
+  const pending = componiIdentita([respinto], aperte);
+  assert.equal(pending.brand_status, "PENDING");
+  assert.equal(usoConsentito(pending).puo_pubblicare, false);
+  assert.equal(pending.requires_operator_approval, false, "prima si esegue l'analisi, non si chiede a una persona");
+
+  // Tutto interrogato, resta qualcosa di ambiguo: decide una persona.
+  const inconcl = componiIdentita([ambiguo], ESAURITE);
+  assert.equal(inconcl.brand_status, "INCONCLUSIVE");
+  assert.equal(usoConsentito(inconcl).puo_pubblicare, false);
+  assert.equal(inconcl.requires_operator_approval, true);
+
+  // Tutto interrogato, niente di vivo: NON blocca.
+  const nf = componiIdentita([respinto], ESAURITE);
+  assert.equal(nf.brand_status, "NOT_FOUND");
+  assert.equal(usoConsentito(nf).puo_pubblicare, true);
+  assert.equal(usoConsentito(nf).usa, "tipografia");
+});
+
+test("brand: una fonte che NON ESISTE conta come interrogata", () => {
+  // Per Collateral Beauty il sito non c'e e i social confermati sono
+  // zero: tenere quelle fonti «aperte» bloccherebbe il progetto per
+  // sempre, aspettando qualcosa che non arrivera.
+  const senzaSito: FontiBrand = {
+    sito_ufficiale: "non_disponibile", social_confermati: "non_disponibile",
+    foto_places: "interrogata", ricerca_grounded: "interrogata",
+  };
+  const b = componiIdentita([], senzaSito);
+  assert.equal(b.brand_status, "NOT_FOUND", "niente da interrogare non e «non ho interrogato»");
+  assert.equal(usoConsentito(b).puo_pubblicare, true);
 });

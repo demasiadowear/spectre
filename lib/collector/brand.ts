@@ -1,7 +1,7 @@
 import { SEGNALI_FORTI } from "@/types/dossier";
 import type {
   BrandCandidate, BrandIdentity, BrandOverall, BrandRejection,
-  IdentitySignal,
+  FontiBrand, IdentitySignal,
 } from "@/types/dossier";
 
 // ============================================================
@@ -191,8 +191,34 @@ export function valutaCandidato(
   return { status: "rejected", rejection_reason: "too_weak", confidence: 20 };
 }
 
-/** L'identita visiva complessiva, dai candidati gia valutati. */
-export function componiIdentita(candidati: readonly BrandCandidate[]): BrandIdentity {
+/** Le fonti non ancora interrogate. Una fonte che NON ESISTE — un sito
+ *  che non c'e, zero social confermati — conta come interrogata: non
+ *  c'e niente da chiedere, e tenerla aperta bloccherebbe per sempre. */
+export function fontiAperte(f: FontiBrand): (keyof FontiBrand)[] {
+  return (Object.keys(f) as (keyof FontiBrand)[])
+    .filter((k) => f[k] === "non_interrogata");
+}
+
+/**
+ * L'identita visiva complessiva.
+ *
+ * La distinzione che questa funzione esiste per fare e fra tre «non
+ * lo so» che si somigliano e hanno conseguenze opposte:
+ *
+ *   PENDING       ci sono fonti che nessuno ha ancora guardato.
+ *                 Bloccare e giusto: guardare e ancora possibile.
+ *   INCONCLUSIVE  abbiamo guardato e qualcosa c'e, ma e ambiguo.
+ *                 Decide una persona.
+ *   NOT_FOUND     abbiamo guardato tutto il guardabile e non c'e.
+ *                 NON blocca: si compone il nome tipograficamente.
+ *
+ * Trattare il terzo come il primo e il difetto che trasforma «questa
+ * attivita non ha un logo» in «questo sito non si pubblica mai».
+ */
+export function componiIdentita(
+  candidati: readonly BrandCandidate[],
+  fonti: FontiBrand,
+): BrandIdentity {
   const vivi = candidati.filter((c) => c.status !== "rejected");
   const per = (k: BrandCandidate["kind"], st: BrandCandidate["status"]) =>
     vivi.find((c) => c.kind === k && c.status === st) ?? null;
@@ -203,10 +229,14 @@ export function componiIdentita(candidati: readonly BrandCandidate[]): BrandIden
     ?? per("monogram", "probable") ?? per("monogram", "needs_review");
   const insegna = vivi.find((c) => c.kind === "signage") ?? null;
 
+  const aperte = fontiAperte(fonti);
+
   let brand_status: BrandOverall;
   if (logoConfermato) brand_status = "ORIGINAL_CONFIRMED";
   else if (logoProbabile) brand_status = "ORIGINAL_PROBABLE";
   else if (insegna) brand_status = "SIGNAGE_ONLY";
+  else if (aperte.length > 0) brand_status = "PENDING";
+  else if (vivi.length > 0) brand_status = "INCONCLUSIVE";
   else brand_status = "NOT_FOUND";
 
   const colori: string[] = [];
@@ -225,7 +255,12 @@ export function componiIdentita(candidati: readonly BrandCandidate[]): BrandIden
     brand_status,
     // Tutto cio che non e confermato passa da una persona prima di
     // finire su una pagina che porta il nome del cliente.
-    requires_operator_approval: brand_status !== "ORIGINAL_CONFIRMED" && brand_status !== "NOT_FOUND",
+    // Serve una persona solo dove c'e qualcosa da guardare. Ne
+    // `NOT_FOUND` ne `PENDING` lo richiedono: il primo perche non c'e
+    // niente, il secondo perche prima va eseguita l'analisi.
+    requires_operator_approval:
+      brand_status === "ORIGINAL_PROBABLE" || brand_status === "SIGNAGE_ONLY"
+      || brand_status === "INCONCLUSIVE",
     candidates: candidati.slice(),
   };
 }
@@ -244,6 +279,12 @@ export function usoConsentito(b: BrandIdentity): {
   nota: string;
 } {
   switch (b.brand_status) {
+    case "PENDING":
+      return { usa: "tipografia", puo_pubblicare: false,
+        nota: "Identita visiva non ancora cercata: l'analisi non e stata eseguita." };
+    case "INCONCLUSIVE":
+      return { usa: "tipografia", puo_pubblicare: false,
+        nota: "Candidati ambigui: decide una persona prima di pubblicare." };
     case "ORIGINAL_CONFIRMED":
       return { usa: "logo_originale", puo_pubblicare: true,
         nota: "Logo originale verificato: si usa com'e." };

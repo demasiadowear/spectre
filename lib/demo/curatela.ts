@@ -55,15 +55,17 @@ export interface SceltaFoto {
 /** La curatela di un progetto: cosa e stato scelto, e cosa aspetta una
  *  persona. Vive nel progetto, non nel dossier. */
 export interface CuratelaProgetto {
+  /** La revisione del manifest su cui questa proposta e stata
+   *  composta. Senza, `indice 3` di ieri puo indicare la fotografia di
+   *  un'altra oggi — ed e un errore che non sembra un errore: la
+   *  pagina si costruisce, e mostra l'immagine sbagliata. */
+  media_manifest_revision: string;
   scelte: SceltaFoto[];
   /** Indici che richiedono una decisione umana, con il motivo in una
    *  parola NON derivata dall'immagine. */
   da_rivedere: { indice: number; motivo: MotivoRevisione }[];
   /** Quando e stata composta. Serve a sapere se e vecchia. */
   composta_il: string;
-  /** Firma del manifest su cui e stata composta: se il manifest
-   *  cambia, la curatela non e piu valida per quelle fotografie. */
-  firma_manifest: string;
 }
 
 /** Perche serve una persona. Insieme chiuso, e nessuna voce descrive
@@ -97,6 +99,10 @@ export function applicaCuratela(
   foto: readonly FotoDemo[],
   c: CuratelaProgetto | null,
 ): FotoInPagina[] {
+  // Una proposta composta su un altro manifest non si applica, e non
+  // si applica «per quel che si puo»: si scarta. Applicarne la meta
+  // significherebbe mettere in pagina fotografie che nessuno ha scelto.
+  if (validitaProposta(c, revisioneManifest(foto)) !== "valida") return [];
   if (!c) return [];
   const perIndice = new Map(foto.map((f) => [f.indice, f]));
   return c.scelte
@@ -140,9 +146,31 @@ export function puoGenerare(
   return { ok: true, motivo: "" };
 }
 
-/** Firma del manifest: cambia se cambiano le fotografie o il loro
- *  ordine. Non e un hash del CONTENUTO — sono gli id, che gia
- *  conserviamo. */
-export function firmaManifest(foto: readonly FotoDemo[]): string {
+/**
+ * La revisione del manifest.
+ *
+ * Cambia se cambia QUALE fotografia sta a QUALE indice. Non e un hash
+ * del contenuto delle immagini — sono gli id dei candidati, che gia
+ * conserviamo: niente di derivato dai pixel.
+ *
+ * Serve perche un indice da solo non e stabile. Dopo una nuova
+ * raccolta Places puo restituire le stesse dieci fotografie in un
+ * altro ordine, e `foto[3]` diventa un'altra immagine. Una proposta
+ * salvata come «indice 3 in posizione hero» applicata a quel manifest
+ * metterebbe in apertura una fotografia che nessuno ha scelto, senza
+ * che niente sembri rotto.
+ */
+export function revisioneManifest(foto: readonly { indice: number; id: string }[]): string {
   return foto.map((f) => `${f.indice}:${f.id}`).join("|");
+}
+
+export type ValiditaProposta = "valida" | "stale" | "assente";
+
+/** La proposta vale ancora per questo manifest? */
+export function validitaProposta(
+  c: CuratelaProgetto | null,
+  revisioneCorrente: string,
+): ValiditaProposta {
+  if (!c) return "assente";
+  return c.media_manifest_revision === revisioneCorrente ? "valida" : "stale";
 }

@@ -2,7 +2,7 @@ import { gemini, COMPLEX_MODEL } from "@/lib/gemini";
 import { puoPersistereSemantica, senzaSemantica } from "./policy-media";
 import {
   MAX_IN_PAGINA, RITAGLIO_PREDEFINITO, SEQUENZA_RUOLI,
-  type CuratelaProgetto, type MotivoRevisione, type RuoloLayout, type SceltaFoto,
+  type MotivoRevisione, type RuoloLayout, type SceltaFoto,
 } from "./curatela";
 import type { RightsStatus } from "@/types/dossier";
 

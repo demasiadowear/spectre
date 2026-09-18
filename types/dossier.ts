@@ -185,10 +185,31 @@ export interface BrandCandidate {
 }
 
 export type BrandOverall =
-  | "ORIGINAL_CONFIRMED"
-  | "ORIGINAL_PROBABLE"
+  | "PENDING"           // esistono fonti non ancora interrogate
+  | "INCONCLUSIVE"      // interrogate, ma restano ambiguita concrete
+  | "NOT_FOUND"         // interrogate tutte quelle disponibili: niente
   | "SIGNAGE_ONLY"      // si vede l'insegna, ma un logo non si estrae
-  | "NOT_FOUND";
+  | "ORIGINAL_PROBABLE"
+  | "ORIGINAL_CONFIRMED";
+
+/** Le fonti dell'identita visiva, e se sono state davvero interrogate.
+ *
+ *  Serve a distinguere «non c'e» da «non ho guardato», che e la
+ *  differenza fra un sito che si puo pubblicare e uno che aspetta per
+ *  sempre. Una fonte NON DISPONIBILE — un sito che non esiste, un
+ *  social mai confermato — conta come interrogata: non c'e niente da
+ *  chiedere. */
+export interface FontiBrand {
+  sito_ufficiale: EsitoFonte;
+  social_confermati: EsitoFonte;
+  foto_places: EsitoFonte;
+  ricerca_grounded: EsitoFonte;
+}
+
+export type EsitoFonte =
+  | "non_disponibile"   // non esiste niente da interrogare: conta come fatta
+  | "non_interrogata"   // esiste ma non e stata ancora guardata
+  | "interrogata";
 
 export interface BrandIdentity {
   primary_logo: BrandCandidate | null;
