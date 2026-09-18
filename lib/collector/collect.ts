@@ -36,7 +36,7 @@ import { decidi } from "./decisione";
 import { scopriProfili, type EsitoRicerca } from "./ricerca";
 import {
   contestoConDichiarazioni, eUrlDiProfilo, normalizzaUrlProfilo,
-  piattaformaDi, unisciCandidati, valutaProfilo,
+  unisciCandidati, valutaProfilo,
 } from "./identity";
 import {
   costruisciCandidati, manifestDa, type CandidatoGrezzo, type ContestoMedia,
@@ -95,6 +95,10 @@ export interface OpzioniCollect {
   solo?: CollectPhase[];
   /** Dossier precedente, per rilanciare solo le fasi mancanti. */
   precedente?: BusinessDossier | null;
+  /** La scoperta social. Sostituibile nei test: e l'unica parte del
+   *  collector che parla con un modello, e va poter essere provata
+   *  senza spendere interrogazioni vere. */
+  ricerca?: typeof scopriProfili;
   maxPagine?: number;
 }
 
@@ -260,6 +264,7 @@ interface Stato {
   lead: LeadInput;
   provider: BrowserWorkerProvider;
   places: ClientPlaces;
+  cerca: typeof scopriProfili;
   env: NodeJS.ProcessEnv;
   fatti: DossierFact[];
   identita: IdentityCandidate[];
@@ -547,7 +552,7 @@ async function faseSocial(s: Stato): Promise<string> {
         detail: `dossier ancora recente: ${s.candidatiRicerca.length} candidati riusati invece di ricercarli`,
         ms: Date.now() - t0 });
     } else {
-      const r = await scopriProfili({
+      const r = await s.cerca({
         nome: s.scheda?.name || s.lead.name,
         citta: s.lead.city,
         indirizzo: s.scheda?.address || s.lead.address,
@@ -748,6 +753,7 @@ export async function raccogli(
     lead,
     provider: opts.provider ?? providerPredefinito(opts.env),
     places: opts.places ?? PLACES_REALE,
+    cerca: opts.ricerca ?? scopriProfili,
     env: opts.env ?? process.env,
     fatti: [],
     identita: [],

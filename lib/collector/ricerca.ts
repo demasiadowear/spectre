@@ -80,7 +80,7 @@ export function queryPerLead(c: ContestoRicerca): string[] {
 
 /** La forma della risposta che ci interessa. Il tipo del SDK non copre
  *  il grounding, quindi si legge difensivamente. */
-interface RispostaGrounded {
+export interface RispostaGrounded {
   candidates?: {
     groundingMetadata?: {
       groundingChunks?: { web?: { uri?: string; title?: string } }[];
@@ -89,8 +89,10 @@ interface RispostaGrounded {
   usageMetadata?: { totalTokenCount?: number };
 }
 
-/** Gli URL delle citazioni, e nient'altro. */
-function urlDalleCitazioni(r: RispostaGrounded): string[] {
+/** Gli URL delle citazioni, e nient'altro.
+ *  Esportata perche e LA regola del modulo, e una regola che non si
+ *  puo verificare e una regola che prima o poi salta. */
+export function urlDalleCitazioni(r: RispostaGrounded): string[] {
   const out: string[] = [];
   for (const c of r.candidates ?? []) {
     for (const g of c.groundingMetadata?.groundingChunks ?? []) {
@@ -110,7 +112,7 @@ function urlDalleCitazioni(r: RispostaGrounded): string[] {
  * fuori: un reindirizzamento e pur sempre un indirizzo scelto da
  * qualcun altro.
  */
-async function risolvi(url: string): Promise<string> {
+export async function risolvi(url: string): Promise<string> {
   if (!/grounding-api-redirect|vertexaisearch/i.test(url)) return url;
   const v = await controlloUrl(url);
   if (!v.ok) return "";
@@ -168,6 +170,11 @@ export async function scopriProfili(
       // Il tool di ricerca non e nei tipi del SDK legacy: si passa
       // esplicitamente, e se il modello non lo supporta la chiamata
       // fallisce e viene dichiarata `search_unavailable`.
+      //
+      // Il nome del campo e verificato contro l'API vera: su v1beta la
+      // validazione dello schema precede quella della chiave, e
+      // `googleSearch` supera la prima con `gemini-2.5-flash`. Un campo
+      // inesistente risponderebbe «Cannot find field».
       tools: [{ googleSearch: {} }] as unknown as never,
     });
   } catch (e) {

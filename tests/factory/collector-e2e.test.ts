@@ -577,3 +577,122 @@ test("e2e: un rilancio parziale riparte dal dossier precedente, non da zero", as
     `il rilancio ha inventato conflitti: ${parziale.dossier.conflicts.length} contro ${pieno.dossier.conflicts.length}`,
   );
 });
+
+// ----- La scoperta social quando un sito non c'e -----------------
+
+/** Places senza sito dichiarato: e il caso che ha motivato tutto. */
+const SCHEDA_SENZA_SITO: PlacesScheda = { ...SCHEDA, website: "" };
+const placesSenzaSito: ClientPlaces = {
+  async dettaglio(): Promise<EsitoPlaces> {
+    return { ok: true, scheda: SCHEDA_SENZA_SITO, candidati: [], error: "", calls: 1, ms: 5 };
+  },
+  async cerca(): Promise<EsitoPlaces> {
+    return { ok: true, scheda: null, candidati: [SCHEDA_SENZA_SITO], error: "", calls: 1, ms: 5 };
+  },
+};
+
+const LEAD_SENZA_SITO = {
+  lead_id: LEAD,
+  name: "Trattoria di Prova", city: "Bari", address: "Via Sparano 10",
+  phone: "080 555 0101", email: "", website: "", place_id: "PLACE-PROVA-1",
+  manual: {}, linked_pages: [], media_forniti: [],
+};
+
+test("e2e: senza sito la scoperta social parte, e i suoi candidati NON sono verita", async () => {
+  const { dossier, phases } = await raccogli(LEAD_SENZA_SITO, {
+    places: placesSenzaSito,
+    provider: new ProviderFinto(),
+    // La ricerca ha trovato un profilo. Gemini SCOPRE: non verifica.
+    ricerca: async () => ({
+      esito: "ok" as const,
+      candidati: [{
+        url: "https://instagram.com/trattoriadiprova",
+        platform: "instagram" as const,
+        query_index: 0,
+      }],
+      queries_used: 1, tokens: 420, ms: 12, detail: "",
+    }),
+  });
+
+  const social = phases.find((p) => p.phase === "social_discovery");
+  assert.equal(social?.status, "ok", `la scoperta non deve fallire: ${social?.detail}`);
+  assert.equal(dossier.identities.length, 1, "il candidato trovato va valutato, non ignorato");
+
+  const c = dossier.identities[0];
+  assert.equal(c.discovered_via, "grounded_search",
+    "la provenienza non deve poter fingere di essere una dichiarazione del sito");
+  assert.notEqual(c.status, "confirmed",
+    "una citazione di ricerca non e una prova di identita: servono due segnali forti");
+
+  // E la cosa che il candidato NON deve fare: entrare nei link del sito.
+  // Solo `confirmed` ci arriva, e questo non lo e.
+  assert.equal(
+    dossier.identities.filter((i) => i.status === "confirmed").length, 0,
+    "un profilo scoperto e non verificato non puo diventare un link del cliente",
+  );
+
+  // Il costo e visibile, o non lo si puo tenere sotto controllo.
+  assert.equal(dossier.search?.queries, 1);
+  assert.equal(dossier.search?.tokens, 420);
+  assert.equal(dossier.search?.status, "ok");
+});
+
+test("e2e: se il grounding non e disponibile la raccolta prosegue e lo dichiara", async () => {
+  const { dossier, phases } = await raccogli(LEAD_SENZA_SITO, {
+    places: placesSenzaSito,
+    provider: new ProviderFinto(),
+    ricerca: async () => ({
+      esito: "search_unavailable" as const,
+      candidati: [], queries_used: 0, tokens: 0, ms: 4,
+      detail: "Google Search grounding non disponibile con il modello o il progetto corrente",
+    }),
+  });
+
+  // Il punto: una capacita mancante e una lacuna dichiarata, non un
+  // guasto. Se facesse fallire la raccolta, nessuna attivita senza sito
+  // produrrebbe mai un dossier — cioe proprio quelle che servono.
+  assert.equal(phases.find((p) => p.phase === "social_discovery")?.status, "ok");
+  assert.equal(dossier.search?.status, "search_unavailable");
+  assert.equal(dossier.search?.queries, 0, "niente da pagare per una capacita che non c'e");
+  assert.equal(dossier.commercial_recommendation, "GO",
+    "senza social e senza sito resta il cliente ideale, non un dubbio");
+  assert.ok(
+    dossier.sources.some((s) => s.source_type === "grounded_search"),
+    "il tentativo va registrato fra le fonti, anche quando non e riuscito",
+  );
+});
+
+test("e2e: un rilancio su un dossier fresco NON ripaga la ricerca", async () => {
+  const primo = await raccogli(LEAD_SENZA_SITO, {
+    places: placesSenzaSito,
+    provider: new ProviderFinto(),
+    ricerca: async () => ({
+      esito: "ok" as const,
+      candidati: [{ url: "https://instagram.com/trattoriadiprova", platform: "instagram" as const, query_index: 0 }],
+      queries_used: 4, tokens: 1200, ms: 30, detail: "",
+    }),
+  });
+  assert.equal(primo.dossier.search?.queries, 4);
+
+  let richiamata = 0;
+  const secondo = await raccogli(LEAD_SENZA_SITO, {
+    places: placesSenzaSito,
+    provider: new ProviderFinto(),
+    solo: ["social_discovery", "media", "reconcile"],
+    precedente: primo.dossier,
+    ricerca: async () => {
+      richiamata++;
+      return { esito: "ok" as const, candidati: [], queries_used: 4, tokens: 1200, ms: 30, detail: "" };
+    },
+  });
+
+  // Le pagine social si rileggono — la VERIFICA e cio che decide, e si
+  // rifa sempre. Ma la SCOPERTA no: i profili di un'attivita non
+  // cambiano in due settimane, e ogni interrogazione in piu e denaro
+  // speso per riconfermare la stessa cosa.
+  assert.equal(richiamata, 0, "la ricerca e ripartita su un dossier ancora fresco");
+  assert.equal(secondo.dossier.identities.length, 1,
+    "i candidati gia scoperti si riusano, invece di sparire");
+  assert.equal(secondo.dossier.identities[0].discovered_via, "grounded_search",
+    "e restano marcati per come sono stati trovati");
+});
