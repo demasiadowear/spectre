@@ -186,6 +186,7 @@ export interface BrandCandidate {
 
 export type BrandOverall =
   | "PENDING"           // esistono fonti non ancora interrogate
+  | "RETRY_REQUIRED"    // una fonte non ha risposto: si riesegue, non si decide
   | "INCONCLUSIVE"      // interrogate, ma restano ambiguita concrete
   | "NOT_FOUND"         // interrogate tutte quelle disponibili: niente
   | "SIGNAGE_ONLY"      // si vede l'insegna, ma un logo non si estrae
@@ -206,10 +207,23 @@ export interface FontiBrand {
   ricerca_grounded: EsitoFonte;
 }
 
+/**
+ * Lo stato OPERATIVO di una fonte. Non semantico: dice com'e andata
+ * l'interrogazione, non cosa si e trovato.
+ *
+ * La distinzione che questo tipo esiste per fare e fra «non c'e» e
+ * «non ha risposto». Un timeout, una chiave assente o una risposta
+ * illeggibile somigliano a «nessun risultato» e non lo sono: il primo
+ * chiude la ricerca, il secondo la sospende. Confonderli produce un
+ * NOT_FOUND che nessuno ha guadagnato.
+ */
 export type EsitoFonte =
-  | "non_disponibile"   // non esiste niente da interrogare: conta come fatta
-  | "non_interrogata"   // esiste ma non e stata ancora guardata
-  | "interrogata";
+  | "not_applicable"     // non esiste niente da interrogare
+  | "pending"            // esiste, non ancora interrogata
+  | "success_no_results" // interrogata, nessun candidato
+  | "success_candidates" // interrogata, candidati trovati
+  | "transient_error"    // timeout, quota, chiave assente: si riprova
+  | "permanent_error";   // rifiuto definitivo: non si riprova
 
 export interface BrandIdentity {
   primary_logo: BrandCandidate | null;

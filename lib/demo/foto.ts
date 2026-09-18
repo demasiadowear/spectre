@@ -1,4 +1,6 @@
-import type { BusinessDossier, MediaCandidate } from "@/types/dossier";
+import type {
+  BusinessDossier, DisplayStatus, MediaCandidate, RightsStatus,
+} from "@/types/dossier";
 
 // ============================================================
 // Quali fotografie puo mostrare una demo, e come si nominano.
@@ -44,6 +46,12 @@ export interface FotoDemo {
   attribuzione: string;
   /** true = l'attribuzione non e facoltativa. */
   attribuzione_obbligatoria: boolean;
+
+  /** Le condizioni sotto cui questa fotografia si puo mostrare.
+   *  Servono alla validazione selettiva della proposta: se cambiano su
+   *  una fotografia SCELTA, la proposta non vale piu. */
+  display_status: DisplayStatus;
+  rights_status: RightsStatus;
 }
 
 /** Le fotografie mostrabili di un dossier, gia numerate.
@@ -63,6 +71,8 @@ export function fotoMostrabili(d: BusinessDossier, slug: string, w = 1200): Foto
       altezza: m.height,
       attribuzione: m.attribution,
       attribuzione_obbligatoria: m.display_status === "display_allowed_with_attribution",
+      display_status: m.display_status,
+      rights_status: m.rights_status,
     });
   });
   return out;

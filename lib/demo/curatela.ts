@@ -2,74 +2,77 @@ import type { FotoDemo } from "./foto";
 
 // ============================================================
 // La curatela fotografica: quali fotografie vanno in pagina, in che
-// ordine e con quale ritaglio.
+// ordine, con quale ritaglio.
 //
-// GLI STATI, E PERCHE IL DEFAULT NON E «ESCLUDI».
+// L'IDENTITA DI UNA FOTOGRAFIA E `candidate_id`, NON L'INDICE.
 //
-// Avevo scritto `exclude` come stato predefinito, ragionando che
-// mostrare per difetto significa pubblicare il magazzino. Era sbagliato
-// nel nome: `exclude` e un GIUDIZIO, e un giudizio su una fotografia
-// che nessuno — nessuna persona e nessun modello — ha mai guardato non
-// esiste. Dire «esclusa» di un'immagine mai vista e la stessa specie
-// di errore che dire «non ha social» di un profilo mai aperto.
+// L'indice e una POSIZIONE nell'elenco che Places restituisce, e quella
+// posizione non e una proprieta della fotografia: e una proprieta di
+// come Google ce l'ha consegnata quel giorno. Una nuova raccolta puo
+// riordinare le stesse dieci immagini, e «indice 3» diventa un'altra
+// foto senza che niente sembri cambiato.
 //
-//   unreviewed    nessuno ha ancora osservato i byte
-//   selected      va in pagina
-//   not_selected  non va in pagina, in QUESTO progetto
-//   needs_review  la decisione richiede una persona
+// `candidate_id` e `sha256(provider_reference)`: assegnato
+// all'ingestione, identico se lo stesso riferimento ricompare, opaco,
+// indipendente dall'ordine e non derivato dal contenuto dell'immagine.
 //
-// E per le fotografie di Places `selected` / `not_selected` sono
-// decisioni DEL PROGETTO, non classificazioni permanenti
-// dell'immagine: la stessa fotografia puo entrare in un progetto e
-// restare fuori dal successivo senza che nessuna verita cambi.
+// La rotta pubblica continua a usare `/foto/3`, e va bene: quel 3 e
+// risolto dalla revisione PUBBLICATA del progetto, che e ferma. Nel
+// dominio interno — proposta, approvazione, validazione — si usa solo
+// `candidate_id`.
+//
+// TRE REVISIONI, NON UNA.
+//
+//   manifest_revision          fotografia esatta del manifest
+//   selection_basis_revision   identita e condizioni delle SOLE foto
+//                              usate dalla proposta
+//   proposal_revision          versione della composizione approvata
+//
+// La validita dipende dalla seconda. Legarla alla prima invaliderebbe
+// una proposta perfetta perche Places ha aggiunto una foto che non
+// usiamo — cioe per un fatto che non ha niente a che vedere con la
+// pagina che abbiamo composto.
 // ============================================================
 
 export type StatoCuratela = "unreviewed" | "selected" | "not_selected" | "needs_review";
 
-/** Il ruolo di impaginazione. E una decisione di layout, non una
+/** Ruolo di impaginazione: una decisione di layout, non una
  *  descrizione di cosa mostra la fotografia. */
 export type RuoloLayout = "hero" | "treatment" | "interior" | "detail" | "closing";
 
 /**
- * Cio che si conserva di una fotografia scelta.
- *
- * Solo impaginazione: indice, ordine, ruolo, ritaglio. Nessuna
- * descrizione, nessun punteggio, nessuna motivazione — vedi
+ * Cio che si conserva di una fotografia scelta. Solo impaginazione:
+ * nessuna descrizione, nessun punteggio, nessuna motivazione —
  * lib/demo/policy-media.ts e la nota sul regime Places.
- *
- * Manca di proposito il PERCHE. Sembra una perdita, ed e la riga che
- * tiene separata una decisione di impaginazione da un indice di
- * contenuti derivato da immagini altrui.
  */
 export interface SceltaFoto {
-  /** Indice nel MediaManifest: l'unico nome stabile. */
-  indice: number;
+  /** L'identita stabile. Mai l'indice. */
+  candidate_id: string;
   /** Posizione in pagina, da 0. */
-  ordine: number;
-  ruolo: RuoloLayout;
-  /** `object-position` da applicare, es. "50% 28%". */
+  order: number;
+  layout_role: RuoloLayout;
+  /** `object-position`, es. "50% 28%". */
   object_position: string;
   stato: StatoCuratela;
 }
 
-/** La curatela di un progetto: cosa e stato scelto, e cosa aspetta una
- *  persona. Vive nel progetto, non nel dossier. */
 export interface CuratelaProgetto {
-  /** La revisione del manifest su cui questa proposta e stata
-   *  composta. Senza, `indice 3` di ieri puo indicare la fotografia di
-   *  un'altra oggi — ed e un errore che non sembra un errore: la
-   *  pagina si costruisce, e mostra l'immagine sbagliata. */
-  media_manifest_revision: string;
+  /** Le condizioni delle sole fotografie usate: e da questa che
+   *  dipende la validita. */
+  basis_revision: string;
+  /** Il manifest intero al momento della composizione. Non decide la
+   *  validita: serve a sapere se sono comparse foto nuove. */
+  manifest_revision: string;
+  /** Versione della composizione approvata. Cambia a ogni
+   *  approvazione, anche se le fotografie sono le stesse. */
+  proposal_revision: string;
   scelte: SceltaFoto[];
-  /** Indici che richiedono una decisione umana, con il motivo in una
-   *  parola NON derivata dall'immagine. */
-  da_rivedere: { indice: number; motivo: MotivoRevisione }[];
-  /** Quando e stata composta. Serve a sapere se e vecchia. */
+  da_rivedere: { candidate_id: string; motivo: MotivoRevisione }[];
   composta_il: string;
 }
 
-/** Perche serve una persona. Insieme chiuso, e nessuna voce descrive
- *  il CONTENUTO: sono stati della decisione, non dell'immagine. */
+/** Perche serve una persona. Nessuna voce descrive il CONTENUTO: sono
+ *  stati della decisione, non dell'immagine. */
 export type MotivoRevisione =
   | "bassa_confidenza"
   | "possibile_persona_identificabile"
@@ -77,100 +80,196 @@ export type MotivoRevisione =
   | "analisi_non_disponibile";
 
 export const RITAGLIO_PREDEFINITO = "50% 50%";
-
-/** Al massimo cinque: oltre, una sequenza torna a essere un mosaico.
- *  Non si riempie per arrivare al numero. */
 export const MAX_IN_PAGINA = 5;
 
-/** L'ordine dei ruoli in pagina. La sequenza editoriale e questa, e
- *  non cambia con il numero di fotografie disponibili: con tre foto si
- *  usano i primi tre ruoli, non si inventa una griglia. */
 export const SEQUENZA_RUOLI: readonly RuoloLayout[] = [
   "hero", "treatment", "interior", "detail", "closing",
 ];
 
 export interface FotoInPagina extends FotoDemo {
-  ruolo: RuoloLayout;
+  layout_role: RuoloLayout;
   object_position: string;
 }
 
-/** Applica una curatela alle fotografie mostrabili, in ordine. */
+// ----- Le tre revisioni ---------------------------------------------
+
+/**
+ * Le CONDIZIONI di una fotografia: cio che, cambiando, rende invalida
+ * una scelta gia presa.
+ *
+ * Non e un hash dei pixel. Sono i quattro fatti che determinano se
+ * quella fotografia si puo ancora mostrare come l'avevamo scelta: chi
+ * e, se si puo mostrare, sotto quale regime, e con quale attribuzione.
+ * Se l'autore cambia, l'attribuzione stampata sotto l'immagine
+ * diventerebbe sbagliata — ed e una riga che nessuno rilegge.
+ */
+export function condizioniDi(f: FotoDemo): string {
+  return [f.id, f.display_status, f.rights_status, f.attribuzione].join("~");
+}
+
+/** Fotografia esatta del manifest: quali foto, in quale ordine. */
+export function manifestRevision(foto: readonly FotoDemo[]): string {
+  return foto.map((f) => f.id).join("|");
+}
+
+/**
+ * Le condizioni delle sole fotografie SCELTE, ordinate per id.
+ *
+ * Ordinate per id e non per posizione di proposito: riordinare la
+ * pagina e una decisione nostra e non deve invalidare niente, mentre
+ * cambiare una condizione si.
+ */
+export function selectionBasisRevision(
+  scelte: readonly SceltaFoto[],
+  foto: readonly FotoDemo[],
+): string {
+  const perId = new Map(foto.map((f) => [f.id, f]));
+  return scelte
+    .filter((s) => s.stato === "selected")
+    .map((s) => s.candidate_id)
+    .sort()
+    .map((id) => {
+      const f = perId.get(id);
+      return f ? condizioniDi(f) : `${id}~ASSENTE`;
+    })
+    .join("|");
+}
+
+// ----- Validazione selettiva ----------------------------------------
+
+export type EsitoValidazione =
+  | { stato: "assente" }
+  | { stato: "valida"; outdated: boolean; nuove: number }
+  | { stato: "stale"; motivo: MotivoStale; candidate_id: string };
+
+/** Perche una proposta non vale piu. Tutti riguardano una fotografia
+ *  SCELTA: quello che succede alle altre non la tocca. */
+export type MotivoStale =
+  | "foto_scomparsa"
+  | "non_piu_mostrabile"
+  | "regime_diritti_cambiato"
+  | "attribuzione_cambiata";
+
+const mostrabile = (f: FotoDemo) =>
+  f.display_status === "display_allowed"
+  || f.display_status === "display_allowed_with_attribution";
+
+/**
+ * La proposta vale ancora?
+ *
+ * Si guardano SOLO le fotografie scelte. Che Places abbia riordinato
+ * l'elenco, tolto una foto che non usavamo o aggiunto una nuova non
+ * cambia niente di quello che abbiamo composto — e invalidare per quei
+ * motivi significherebbe rifare l'analisi, e ripagarla, per un fatto
+ * che non ci riguarda.
+ *
+ * Le foto nuove non invalidano: segnalano. `outdated` dice che c'e
+ * materiale che nessuno ha ancora guardato, e la demo esistente resta
+ * in piedi.
+ */
+export function validaProposta(
+  c: CuratelaProgetto | null,
+  foto: readonly FotoDemo[],
+): EsitoValidazione {
+  if (!c) return { stato: "assente" };
+
+  const perId = new Map(foto.map((f) => [f.id, f]));
+  const scelte = c.scelte.filter((s) => s.stato === "selected");
+
+  for (const s of scelte) {
+    const f = perId.get(s.candidate_id);
+    if (!f) return { stato: "stale", motivo: "foto_scomparsa", candidate_id: s.candidate_id };
+    if (!mostrabile(f)) {
+      return { stato: "stale", motivo: "non_piu_mostrabile", candidate_id: s.candidate_id };
+    }
+  }
+
+  // Le condizioni: il confronto e sulla stringa che le riassume, cosi
+  // un campo aggiunto domani entra nel controllo da solo.
+  const attuale = selectionBasisRevision(c.scelte, foto);
+  if (attuale !== c.basis_revision) {
+    // Si dice QUALE e cambiata, non solo che qualcosa e cambiato.
+    for (const s of scelte) {
+      const f = perId.get(s.candidate_id);
+      if (!f) continue;
+      const prima = c.basis_revision.split("|").find((x) => x.startsWith(`${s.candidate_id}~`));
+      if (!prima || prima === condizioniDi(f)) continue;
+      const campiPrima = prima.split("~");
+      const motivo: MotivoStale =
+        campiPrima[2] !== f.rights_status ? "regime_diritti_cambiato"
+        : campiPrima[3] !== f.attribuzione ? "attribuzione_cambiata"
+        : "non_piu_mostrabile";
+      return { stato: "stale", motivo, candidate_id: s.candidate_id };
+    }
+    return { stato: "stale", motivo: "foto_scomparsa", candidate_id: "" };
+  }
+
+  // Fotografie comparse DOPO la composizione: e a questo che serve
+  // `manifest_revision`, che altrimenti non deciderebbe niente.
+  //
+  // Il confronto e con il manifest di allora, non con le scelte: una
+  // proposta puo legittimamente non nominare una fotografia che ha
+  // visto e scartato, e contarla come «nuova» segnalerebbe materiale
+  // da guardare che invece e gia stato guardato.
+  const allora = new Set(c.manifest_revision.split("|").filter(Boolean));
+  const nuove = foto.filter((f) => !allora.has(f.id)).length;
+  return { stato: "valida", outdated: nuove > 0, nuove };
+}
+
+/**
+ * Applica una curatela, rimappando per `candidate_id`.
+ *
+ * Se Places ha riordinato, qui non cambia niente: si cerca per
+ * identita, non per posizione. E la ragione per cui questa funzione
+ * non vede mai un indice.
+ */
 export function applicaCuratela(
   foto: readonly FotoDemo[],
   c: CuratelaProgetto | null,
 ): FotoInPagina[] {
-  // Una proposta composta su un altro manifest non si applica, e non
-  // si applica «per quel che si puo»: si scarta. Applicarne la meta
-  // significherebbe mettere in pagina fotografie che nessuno ha scelto.
-  if (validitaProposta(c, revisioneManifest(foto)) !== "valida") return [];
-  if (!c) return [];
-  const perIndice = new Map(foto.map((f) => [f.indice, f]));
+  const v = validaProposta(c, foto);
+  if (v.stato !== "valida" || !c) return [];
+
+  const perId = new Map(foto.map((f) => [f.id, f]));
   return c.scelte
     .filter((s) => s.stato === "selected")
     .slice()
-    .sort((a, b) => a.ordine - b.ordine)
+    .sort((a, b) => a.order - b.order)
     .slice(0, MAX_IN_PAGINA)
     .map((s) => {
-      const f = perIndice.get(s.indice);
-      return f ? { ...f, ruolo: s.ruolo, object_position: s.object_position } : null;
+      const f = perId.get(s.candidate_id);
+      return f ? { ...f, layout_role: s.layout_role, object_position: s.object_position } : null;
     })
     .filter((f): f is FotoInPagina => f !== null);
 }
 
 /**
- * La generazione del sito puo partire?
+ * La generazione puo partire?
  *
- * Tre condizioni, e sono tutte «non so» travestiti da «no»:
- *  - nessuna fotografia scelta: la pagina sarebbe muta;
- *  - la hero e da rivedere: e l'immagine che si vede per prima, e
- *    pubblicarla senza averla guardata e il difetto che ha fatto
- *    bocciare la versione precedente;
- *  - l'identita visiva e ancora inconcludente: non sappiamo se un logo
- *    esista, e comporre il nome senza saperlo significa scegliere per
- *    stanchezza.
+ * `NOT_FOUND` sull'identita visiva NON blocca: una attivita senza logo
+ * e un caso normale, e il nome si compone tipograficamente.
  */
 export function puoGenerare(
   c: CuratelaProgetto | null,
-  brandInconcludente: boolean,
+  foto: readonly FotoDemo[],
+  brandBloccante: boolean,
 ): { ok: boolean; motivo: string } {
+  const v = validaProposta(c, foto);
+  if (v.stato === "assente") {
+    return { ok: false, motivo: "nessuna proposta: va eseguita l'analisi" };
+  }
+  if (v.stato === "stale") {
+    return { ok: false, motivo: `proposta non piu valida (${v.motivo}): va rieseguita l'analisi` };
+  }
   if (!c || c.scelte.filter((s) => s.stato === "selected").length === 0) {
     return { ok: false, motivo: "nessuna fotografia selezionata: la pagina non avrebbe immagini" };
   }
-  const hero = c.scelte.find((s) => s.ruolo === "hero");
+  const hero = c.scelte.find((s) => s.layout_role === "hero");
   if (!hero || hero.stato === "needs_review" || hero.stato === "unreviewed") {
     return { ok: false, motivo: "la fotografia di apertura non e stata decisa: e la prima cosa che si vede" };
   }
-  if (brandInconcludente) {
-    return { ok: false, motivo: "identita visiva ancora inconcludente: non sappiamo se esista un logo" };
+  if (brandBloccante) {
+    return { ok: false, motivo: "identita visiva non ancora risolta" };
   }
   return { ok: true, motivo: "" };
-}
-
-/**
- * La revisione del manifest.
- *
- * Cambia se cambia QUALE fotografia sta a QUALE indice. Non e un hash
- * del contenuto delle immagini — sono gli id dei candidati, che gia
- * conserviamo: niente di derivato dai pixel.
- *
- * Serve perche un indice da solo non e stabile. Dopo una nuova
- * raccolta Places puo restituire le stesse dieci fotografie in un
- * altro ordine, e `foto[3]` diventa un'altra immagine. Una proposta
- * salvata come «indice 3 in posizione hero» applicata a quel manifest
- * metterebbe in apertura una fotografia che nessuno ha scelto, senza
- * che niente sembri rotto.
- */
-export function revisioneManifest(foto: readonly { indice: number; id: string }[]): string {
-  return foto.map((f) => `${f.indice}:${f.id}`).join("|");
-}
-
-export type ValiditaProposta = "valida" | "stale" | "assente";
-
-/** La proposta vale ancora per questo manifest? */
-export function validitaProposta(
-  c: CuratelaProgetto | null,
-  revisioneCorrente: string,
-): ValiditaProposta {
-  if (!c) return "assente";
-  return c.media_manifest_revision === revisioneCorrente ? "valida" : "stale";
 }

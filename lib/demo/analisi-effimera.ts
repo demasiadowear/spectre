@@ -48,7 +48,7 @@ interface Osservazione {
 /** Cio che esce. Solo impaginazione. */
 export interface Proposta {
   scelte: SceltaFoto[];
-  da_rivedere: { indice: number; motivo: MotivoRevisione }[];
+  da_rivedere: { candidate_id: string; motivo: MotivoRevisione }[];
   /** Costi, senza contenuto. */
   costo: { richieste: number; analizzate: number; fallite: number; token: number; ms: number };
   modello: string;
@@ -56,6 +56,9 @@ export interface Proposta {
 }
 
 export interface FotoDaAnalizzare {
+  /** L'identita stabile. L'indice serve solo a nominare l'immagine
+   *  dentro la conversazione con il modello, e muore con essa. */
+  candidate_id: string;
   indice: number;
   rights_status: RightsStatus;
   /** Come recuperare i byte. Il chiamante li prende on demand. */
@@ -160,7 +163,7 @@ export async function proponiImpaginazione(
 }
 
 const tutteDaRivedere = (foto: readonly FotoDaAnalizzare[]) =>
-  foto.map((f) => ({ indice: f.indice, motivo: "analisi_non_disponibile" as MotivoRevisione }));
+  foto.map((f) => ({ candidate_id: f.candidate_id, motivo: "analisi_non_disponibile" as MotivoRevisione }));
 
 /** Legge la risposta senza fidarsi della forma. Qualunque campo
  *  descrittivo che il modello aggiungesse di sua iniziativa non viene
@@ -206,16 +209,19 @@ export const SOGLIA_CONFIDENZA = 0.6;
 function componi(
   oss: readonly Osservazione[],
   foto: readonly FotoDaAnalizzare[],
-): { scelte: SceltaFoto[]; da_rivedere: { indice: number; motivo: MotivoRevisione }[] } {
+): { scelte: SceltaFoto[]; da_rivedere: { candidate_id: string; motivo: MotivoRevisione }[] } {
+  // L'indice serve solo a rileggere la risposta del modello: da qui in
+  // poi si parla di identita, e l'indice non compare piu.
+  const idPerIndice = new Map(foto.map((f) => [f.indice, f.candidate_id]));
   const visti = new Set(oss.map((o) => o.indice));
-  const da_rivedere: { indice: number; motivo: MotivoRevisione }[] = [];
+  const da_rivedere: { candidate_id: string; motivo: MotivoRevisione }[] = [];
   const scelte: SceltaFoto[] = [];
 
   // Cio che il modello non ha nemmeno visto resta `unreviewed`.
   for (const f of foto) {
     if (!visti.has(f.indice)) {
-      scelte.push(sceltaNeutra(f.indice, "unreviewed"));
-      da_rivedere.push({ indice: f.indice, motivo: "analisi_non_disponibile" });
+      scelte.push(sceltaNeutra(f.candidate_id, "unreviewed"));
+      da_rivedere.push({ candidate_id: f.candidate_id, motivo: "analisi_non_disponibile" });
     }
   }
 
@@ -223,20 +229,22 @@ function componi(
   let posto = 0;
 
   for (const o of candidate) {
+    const id = idPerIndice.get(o.indice);
+    if (!id) continue;
     const motivo = motivoRevisione(o);
     if (motivo) {
-      scelte.push(sceltaNeutra(o.indice, "needs_review"));
-      da_rivedere.push({ indice: o.indice, motivo });
+      scelte.push(sceltaNeutra(id, "needs_review"));
+      da_rivedere.push({ candidate_id: id, motivo });
       continue;
     }
     if (!o.adatta || o.ruolo === "none" || posto >= MAX_IN_PAGINA) {
-      scelte.push(sceltaNeutra(o.indice, "not_selected"));
+      scelte.push(sceltaNeutra(id, "not_selected"));
       continue;
     }
     scelte.push({
-      indice: o.indice,
-      ordine: posto,
-      ruolo: SEQUENZA_RUOLI[posto] ?? "detail",
+      candidate_id: id,
+      order: posto,
+      layout_role: SEQUENZA_RUOLI[posto] ?? "detail",
       object_position: `${Math.round(o.fuoco_x * 100)}% ${Math.round(o.fuoco_y * 100)}%`,
       stato: "selected",
     });
@@ -255,8 +263,8 @@ function motivoRevisione(o: Osservazione): MotivoRevisione | "" {
   return "";
 }
 
-const sceltaNeutra = (indice: number, stato: SceltaFoto["stato"]): SceltaFoto => ({
-  indice, ordine: 999, ruolo: "detail",
+const sceltaNeutra = (candidate_id: string, stato: SceltaFoto["stato"]): SceltaFoto => ({
+  candidate_id, order: 999, layout_role: "detail",
   object_position: RITAGLIO_PREDEFINITO, stato,
 });
 

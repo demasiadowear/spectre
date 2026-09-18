@@ -9,8 +9,8 @@ import type { BrandCandidate, FontiBrand } from "../../types/dossier";
 
 /** Tutte le fonti gia esaurite: e il caso in cui NOT_FOUND e vero. */
 const ESAURITE: FontiBrand = {
-  sito_ufficiale: "non_disponibile", social_confermati: "non_disponibile",
-  foto_places: "interrogata", ricerca_grounded: "interrogata",
+  sito_ufficiale: "not_applicable", social_confermati: "not_applicable",
+  foto_places: "success_no_results", ricerca_grounded: "success_no_results",
 };
 
 // ============================================================
@@ -236,7 +236,7 @@ test("brand: PENDING, INCONCLUSIVE e NOT_FOUND non sono la stessa cosa", () => {
   const ambiguo = { ...cand({ kind: "color_reference" }), status: "needs_review" } as BrandCandidate;
 
   // Fonti ancora aperte: bloccare e giusto, guardare e ancora possibile.
-  const aperte: FontiBrand = { ...ESAURITE, foto_places: "non_interrogata" };
+  const aperte: FontiBrand = { ...ESAURITE, foto_places: "pending" };
   const pending = componiIdentita([respinto], aperte);
   assert.equal(pending.brand_status, "PENDING");
   assert.equal(usoConsentito(pending).puo_pubblicare, false);
@@ -260,10 +260,61 @@ test("brand: una fonte che NON ESISTE conta come interrogata", () => {
   // zero: tenere quelle fonti «aperte» bloccherebbe il progetto per
   // sempre, aspettando qualcosa che non arrivera.
   const senzaSito: FontiBrand = {
-    sito_ufficiale: "non_disponibile", social_confermati: "non_disponibile",
-    foto_places: "interrogata", ricerca_grounded: "interrogata",
+    sito_ufficiale: "not_applicable", social_confermati: "not_applicable",
+    foto_places: "success_no_results", ricerca_grounded: "success_no_results",
   };
   const b = componiIdentita([], senzaSito);
   assert.equal(b.brand_status, "NOT_FOUND", "niente da interrogare non e «non ho interrogato»");
   assert.equal(usoConsentito(b).puo_pubblicare, true);
+});
+
+// ----- IL TEST OBBLIGATORIO: un timeout non e un «non c'e» ------------
+
+test("fonti: sito assente + social assenti + Places vuoto + ricerca in timeout -> RETRY_REQUIRED", () => {
+  // Lo scenario esatto di Collateral Beauty con una rete che fa i
+  // capricci. Tre fonti hanno detto la loro; la quarta non ha
+  // risposto.
+  //
+  // Se `transient_error` collassasse in «nessun risultato», il verdetto
+  // sarebbe NOT_FOUND — cioe «questa attivita non ha un logo» — e il
+  // sito si pubblicherebbe con un trattamento tipografico deciso da un
+  // timeout. Un errore di rete non e un fatto sul mondo.
+  const fonti: FontiBrand = {
+    sito_ufficiale: "not_applicable",        // il sito non esiste
+    social_confermati: "not_applicable",     // zero profili confermati
+    foto_places: "success_no_results",       // guardate, niente insegna
+    ricerca_grounded: "transient_error",     // timeout
+  };
+  const b = componiIdentita([], fonti);
+
+  assert.equal(b.brand_status, "RETRY_REQUIRED");
+  assert.notEqual(b.brand_status, "NOT_FOUND", "un timeout non puo chiudere la ricerca");
+  assert.equal(usoConsentito(b).puo_pubblicare, false);
+  // Non entra nella coda umana: non c'e niente da decidere.
+  assert.equal(b.requires_operator_approval, false);
+  assert.ok(/nuova esecuzione, non una decisione/i.test(usoConsentito(b).nota));
+});
+
+test("fonti: chiave assente e risposta illeggibile sono transient, non risultati", () => {
+  // Tre modi diversi di non sapere, che si somigliano tutti a «zero
+  // candidati» e non lo sono.
+  for (const guasto of ["transient_error", "permanent_error"] as const) {
+    const b = componiIdentita([], { ...ESAURITE, ricerca_grounded: guasto });
+    if (guasto === "transient_error") {
+      assert.equal(b.brand_status, "RETRY_REQUIRED");
+    } else {
+      // Un rifiuto definitivo chiude quella fonte: le altre hanno gia
+      // risposto, quindi la conclusione e legittima.
+      assert.equal(b.brand_status, "NOT_FOUND");
+    }
+  }
+});
+
+test("fonti: success_candidates senza candidati vivi resta INCONCLUSIVE", () => {
+  // La fonte ha trovato qualcosa, e stato tutto respinto: e diverso da
+  // «non ha trovato niente», perche qualcosa da guardare c'era.
+  const ambiguo = { ...cand({ kind: "color_reference" }), status: "needs_review" } as BrandCandidate;
+  const b = componiIdentita([ambiguo], { ...ESAURITE, ricerca_grounded: "success_candidates" });
+  assert.equal(b.brand_status, "INCONCLUSIVE");
+  assert.equal(b.requires_operator_approval, true);
 });

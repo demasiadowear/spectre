@@ -191,12 +191,17 @@ export function valutaCandidato(
   return { status: "rejected", rejection_reason: "too_weak", confidence: 20 };
 }
 
-/** Le fonti non ancora interrogate. Una fonte che NON ESISTE — un sito
- *  che non c'e, zero social confermati — conta come interrogata: non
- *  c'e niente da chiedere, e tenerla aperta bloccherebbe per sempre. */
+/** Fonti applicabili che nessuno ha ancora interrogato. Una fonte che
+ *  NON ESISTE — un sito che non c'e, zero social confermati — non e in
+ *  questo elenco: non c'e niente da chiedere, e tenerla aperta
+ *  bloccherebbe il progetto per sempre. */
 export function fontiAperte(f: FontiBrand): (keyof FontiBrand)[] {
-  return (Object.keys(f) as (keyof FontiBrand)[])
-    .filter((k) => f[k] === "non_interrogata");
+  return (Object.keys(f) as (keyof FontiBrand)[]).filter((k) => f[k] === "pending");
+}
+
+/** Fonti che hanno fallito in modo ritentabile. */
+export function fontiDaRiprovare(f: FontiBrand): (keyof FontiBrand)[] {
+  return (Object.keys(f) as (keyof FontiBrand)[]).filter((k) => f[k] === "transient_error");
 }
 
 /**
@@ -230,12 +235,15 @@ export function componiIdentita(
   const insegna = vivi.find((c) => c.kind === "signage") ?? null;
 
   const aperte = fontiAperte(fonti);
+  const daRiprovare = fontiDaRiprovare(fonti);
 
   let brand_status: BrandOverall;
   if (logoConfermato) brand_status = "ORIGINAL_CONFIRMED";
   else if (logoProbabile) brand_status = "ORIGINAL_PROBABLE";
   else if (insegna) brand_status = "SIGNAGE_ONLY";
   else if (aperte.length > 0) brand_status = "PENDING";
+  // Un timeout non e un «non c'e». Prima si riprova, poi si conclude.
+  else if (daRiprovare.length > 0) brand_status = "RETRY_REQUIRED";
   else if (vivi.length > 0) brand_status = "INCONCLUSIVE";
   else brand_status = "NOT_FOUND";
 
@@ -258,6 +266,8 @@ export function componiIdentita(
     // Serve una persona solo dove c'e qualcosa da guardare. Ne
     // `NOT_FOUND` ne `PENDING` lo richiedono: il primo perche non c'e
     // niente, il secondo perche prima va eseguita l'analisi.
+    // `RETRY_REQUIRED` e `PENDING` non chiedono una persona: chiedono
+    // una nuova esecuzione automatica.
     requires_operator_approval:
       brand_status === "ORIGINAL_PROBABLE" || brand_status === "SIGNAGE_ONLY"
       || brand_status === "INCONCLUSIVE",
@@ -282,6 +292,12 @@ export function usoConsentito(b: BrandIdentity): {
     case "PENDING":
       return { usa: "tipografia", puo_pubblicare: false,
         nota: "Identita visiva non ancora cercata: l'analisi non e stata eseguita." };
+    case "RETRY_REQUIRED":
+      // NON entra nella revisione umana: non c'e niente da decidere,
+      // c'e da rieseguire. Mandare qui una persona vuol dire darle una
+      // coda di cose su cui non puo fare nulla.
+      return { usa: "tipografia", puo_pubblicare: false,
+        nota: "Una fonte non ha risposto: serve una nuova esecuzione, non una decisione." };
     case "INCONCLUSIVE":
       return { usa: "tipografia", puo_pubblicare: false,
         nota: "Candidati ambigui: decide una persona prima di pubblicare." };
