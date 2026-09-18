@@ -339,6 +339,16 @@ export interface SceltaInviata {
   order: number;
   layout_role: RuoloLayout;
   object_position: string;
+  /**
+   * L'operatore ha messo QUESTA fotografia in pagina deliberatamente.
+   *
+   * Serve per le `needs_visual_review`: approvare la proposta non e
+   * approvare cio che la proposta aveva messo da parte. Una persona
+   * riconoscibile, o una fotografia con un marchio altrui dominante,
+   * entra solo se qualcuno l'ha guardata e trascinata dentro — non
+   * perche ha premuto «Approva» sull'insieme.
+   */
+  rivisto: boolean;
 }
 
 const RITAGLIO = /^\d{1,3}% \d{1,3}%$/;
@@ -388,6 +398,7 @@ export function validaScelteInviate(
       order: Number.isInteger(order) && order >= 0 ? order : out.length,
       layout_role: ruolo as RuoloLayout,
       object_position: pos || RITAGLIO_PREDEFINITO,
+      rivisto: o.rivisto === true,
     });
   }
 
@@ -402,6 +413,27 @@ export function validaScelteInviate(
   // Si rinumera: l'ordine che conta e quello relativo, e un client che
   // manda 0, 5, 7 ha comunque espresso una sequenza.
   return out.slice().sort((a, b) => a.order - b.order).map((s, i) => ({ ...s, order: i }));
+}
+
+/**
+ * Le fotografie che la proposta aveva messo in revisione e che l'invio
+ * vuole in pagina SENZA che nessuno le abbia guardate.
+ *
+ * Restituisce gli identificativi, non un booleano: il messaggio deve
+ * poter dire QUALE, e «una fotografia richiede una revisione» manda a
+ * cercarla fra dieci.
+ */
+export function revisioniNonEsplicite(
+  inviate: readonly SceltaInviata[],
+  salvate: readonly SceltaFoto[],
+): string[] {
+  const daRivedere = new Set(
+    salvate
+      .filter((s) => s.stato === "needs_visual_review" || s.stato === "needs_review")
+      .map((s) => s.candidate_id),
+  );
+  return inviate.filter((s) => daRivedere.has(s.candidate_id) && !s.rivisto)
+    .map((s) => s.candidate_id);
 }
 
 /**

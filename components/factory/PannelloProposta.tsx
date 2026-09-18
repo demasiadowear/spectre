@@ -46,6 +46,8 @@ interface FotoInProvino {
   order: number;
   motivo_revisione: string;
   nuova: boolean;
+  /** L'operatore l'ha messa in pagina a mano. */
+  rivisto?: boolean;
 }
 
 interface Provino {
@@ -190,6 +192,7 @@ export default function PannelloProposta({ leadId }: { leadId: string }) {
               order: i,
               layout_role: s.layout_role || "detail",
               object_position: s.object_position,
+              rivisto: s.rivisto === true,
             })),
           }),
         },
@@ -236,11 +239,14 @@ export default function PannelloProposta({ leadId }: { leadId: string }) {
 
   const rimuovi = (id: string) => setScelte((v) => v.filter((f) => f.candidate_id !== id));
 
+  /** Metterla in pagina a mano E l'atto esplicito: da qui in poi quella
+   *  fotografia porta `rivisto`, e il server la accetta. Senza, una
+   *  `needs_visual_review` non entra nemmeno approvando tutto. */
   const aggiungi = (f: FotoInProvino) => {
     setScelte((v) => {
       if (v.length >= (p?.tetti.in_pagina ?? 5)) return v;
       if (v.some((x) => x.candidate_id === f.candidate_id)) return v;
-      return v.concat({ ...f, layout_role: v.some((x) => x.layout_role === "hero") ? "detail" : "hero" });
+      return v.concat({ ...f, rivisto: true, layout_role: "detail" });
     });
   };
 

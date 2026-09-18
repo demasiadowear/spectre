@@ -42,7 +42,7 @@ const LOTTO = lotto(10);
  *  Nota: NON c'e `usable` e NON c'e `role`. Il modello non ha piu un
  *  campo con cui chiudere la selezione. */
 const voce = (i: number, o: Record<string, unknown> = {}) => ({
-  image_index: i, content_kind: "interior",
+  image_index: i, content_kind: "clean_interior",
   commercial_appeal: 0.8, clutter: 0.2, quality: 0.8, subject_legible: true,
   focus_x: 0.5, focus_y: 0.4, confidence: 0.9,
   identifiable_person: false, brand_observation: "none", ...o,
@@ -78,9 +78,9 @@ test("1. il modello descrive bene i tessili -> il compositore li esclude e scegl
   // escono per una causa esplicita mentre gli ambienti entrano.
   const testo = JSON.stringify([
     voce(5, { content_kind: "linen", commercial_appeal: 0.95, confidence: 0.99 }),
-    voce(0, { content_kind: "interior" }),
-    voce(3, { content_kind: "interior" }),
-    voce(4, { content_kind: "interior" }),
+    voce(0, { content_kind: "clean_interior" }),
+    voce(3, { content_kind: "clean_interior" }),
+    voce(4, { content_kind: "clean_interior" }),
   ]);
   const r = interpretaRisposta(testo, LOTTO);
 
@@ -134,18 +134,76 @@ test("3b. deposito e soffitto escono per la stessa causa", () => {
   }
 });
 
-test("3c. macchinario e oggetto non identificabile restano in galleria ma non aprono", () => {
-  // L'esclusione automatica e per cause esplicite, e queste due non
-  // sono nell'elenco: un macchinario e un dettaglio del mestiere.
+test("3c. macchinario, mani e prodotto restano in galleria ma non aprono", () => {
+  // Non sono difetti: sono fotografie che funzionano in mezzo alle
+  // altre e non in cima.
   const testo = JSON.stringify([
-    voce(0, { content_kind: "equipment_detail" }),
-    voce(1, { content_kind: "unidentified_object" }),
-    voce(2, { content_kind: "interior" }),
+    voce(0, { content_kind: "equipment" }),
+    voce(1, { content_kind: "hands_at_work" }),
+    voce(2, { content_kind: "product" }),
+    voce(3, { content_kind: "clean_interior" }),
   ]);
   const r = interpretaRisposta(testo, LOTTO);
-  assert.equal(sel(r).length, 3);
-  assert.equal(sel(r).find((s) => s.layout_role === "hero")?.candidate_id, "cand02",
+  assert.equal(sel(r).length, 4, "tutte in galleria");
+  assert.equal(sel(r).find((s) => s.layout_role === "hero")?.candidate_id, "cand03",
     "apre l'ambiente, non il macchinario");
+});
+
+// ----- 1. treatment_detail non apre MAI ------------------------------
+
+test("1. un treatment_detail con tutti i punteggi a 1 non puo essere apertura", () => {
+  // Il difetto che questo test esiste per non avere piu: sostituire gli
+  // asciugamani con un primo piano di guanto e sostituire un soggetto
+  // sbagliato con un altro soggetto sbagliato.
+  const testo = JSON.stringify([
+    voce(0, {
+      content_kind: "treatment_detail", commercial_appeal: 1, clutter: 0,
+      quality: 1, confidence: 1,
+    }),
+    voce(1, { content_kind: "clean_interior", commercial_appeal: 0.66 }),
+    voce(2, { content_kind: "clean_interior", commercial_appeal: 0.66 }),
+  ]);
+  const r = interpretaRisposta(testo, LOTTO);
+  assert.equal(sel(r).some((s) => s.candidate_id === "cand00"), true, "in galleria si");
+  assert.notEqual(sel(r).find((s) => s.layout_role === "hero")?.candidate_id, "cand00");
+});
+
+test("2. un clean_interior con punteggio piu basso batte un treatment_detail perfetto", () => {
+  const testo = JSON.stringify([
+    voce(0, { content_kind: "treatment_detail", commercial_appeal: 1, clutter: 0, quality: 1 }),
+    voce(1, { content_kind: "clean_interior", commercial_appeal: 0.66, quality: 0.62 }),
+    voce(2, { content_kind: "clean_interior", commercial_appeal: 0.7 }),
+  ]);
+  const r = interpretaRisposta(testo, LOTTO);
+  const apre = sel(r).find((s) => s.layout_role === "hero")?.candidate_id;
+  assert.ok(apre === "cand01" || apre === "cand02", `ha aperto ${apre}`);
+  assert.notEqual(apre, "cand00");
+});
+
+test("3. se ci sono SOLO dettagli, l'apertura e testuale", () => {
+  const testo = JSON.stringify([
+    voce(0, { content_kind: "treatment_detail" }),
+    voce(1, { content_kind: "hands_at_work" }),
+    voce(2, { content_kind: "equipment" }),
+    voce(3, { content_kind: "product" }),
+  ]);
+  const r = interpretaRisposta(testo, LOTTO);
+  assert.equal(r.hero_status, "NEEDS_REVIEW");
+  assert.equal(sel(r).length, 4, "restano tutte in galleria");
+  assert.equal(sel(r).filter((s) => s.layout_role === "hero").length, 0);
+});
+
+test("3d. un ambiente con marchio incidentale sta in galleria, non in apertura", () => {
+  // L'apertura e l'immagine identitaria: un logo altrui, anche
+  // incidentale, e nel posto peggiore possibile.
+  const testo = JSON.stringify([
+    voce(0, { brand_observation: "incidental_mark", commercial_appeal: 0.95 }),
+    voce(1, { commercial_appeal: 0.7 }),
+    voce(2, { commercial_appeal: 0.7 }),
+  ]);
+  const r = interpretaRisposta(testo, LOTTO);
+  assert.equal(sel(r).some((s) => s.candidate_id === "cand00"), true);
+  assert.notEqual(sel(r).find((s) => s.layout_role === "hero")?.candidate_id, "cand00");
 });
 
 // ----- 4. Persona riconoscibile: revisione, mai consenso --------------
@@ -168,11 +226,11 @@ test("4. una persona riconoscibile va in revisione: non esclusa, e non consentit
 
 test("5. una sola fotografia valida -> proposta incompleta, e non si pubblica", () => {
   const testo = JSON.stringify([
-    voce(0, { content_kind: "interior" }),
+    voce(0, { content_kind: "clean_interior" }),
     voce(1, { content_kind: "linen" }),
     voce(2, { content_kind: "storage" }),
     voce(3, { content_kind: "ceiling" }),
-    voce(4, { content_kind: "interior", quality: 0.1 }),
+    voce(4, { content_kind: "clean_interior", quality: 0.1 }),
   ]);
   const r = interpretaRisposta(testo, LOTTO);
   assert.equal(sel(r).length, 1);
@@ -213,9 +271,9 @@ test("5d. un manifest piccolo non e una proposta incompleta", () => {
 
 test("6. nessuna candidata supera il gate -> apertura testuale, nessuna promossa", () => {
   const testo = JSON.stringify([
-    voce(0, { content_kind: "equipment_detail" }),
+    voce(0, { content_kind: "equipment" }),
     voce(1, { content_kind: "product" }),
-    voce(2, { content_kind: "unidentified_object" }),
+    voce(2, { content_kind: "hands_at_work" }),
   ]);
   const r = interpretaRisposta(testo, LOTTO);
   assert.equal(r.hero_status, "NEEDS_REVIEW");
@@ -228,7 +286,7 @@ test("6b. il gate vuole PROVE: un valore non dichiarato non apre", () => {
   // dichiarato, il disordine non c'era. Adesso ogni condizione va
   // dimostrata.
   for (const mancante of ["commercial_appeal", "clutter", "quality"]) {
-    const o: Record<string, unknown> = { content_kind: "treatment" };
+    const o: Record<string, unknown> = { content_kind: "treatment_room" };
     o[mancante] = null;
     const r = interpretaRisposta(
       JSON.stringify([voce(0, o), voce(1, { content_kind: "product" })]), LOTTO,
@@ -243,7 +301,7 @@ test("6c. disordine, luce, richiamo e ritaglio fermano l'apertura", () => {
     { focus_y: 0.9 }, { focus_x: 0.1 }, { subject_legible: null },
   ]) {
     const testo = JSON.stringify([
-      voce(0, { content_kind: "treatment", ...o }),
+      voce(0, { content_kind: "treatment_room", ...o }),
       voce(1, { content_kind: "product" }),
     ]);
     assert.equal(interpretaRisposta(testo, LOTTO).hero_status, "NEEDS_REVIEW", JSON.stringify(o));
@@ -251,23 +309,22 @@ test("6c. disordine, luce, richiamo e ritaglio fermano l'apertura", () => {
 });
 
 test("6d. l'unica selezionata non diventa mai l'apertura", () => {
-  const r = interpretaRisposta(JSON.stringify([voce(0, { content_kind: "treatment" })]), LOTTO);
+  const r = interpretaRisposta(JSON.stringify([voce(0, { content_kind: "treatment_room" })]), LOTTO);
   assert.equal(sel(r).length, 1);
   assert.equal(r.hero_status, "NEEDS_REVIEW");
 });
 
 // ----- Il marchio, sull'altro asse -----------------------------------
 
-test("marchio: incidentale non esclude e non segnala", () => {
+test("marchio: incidentale non esclude e non segnala, ma non apre", () => {
   const testo = JSON.stringify([
-    voce(0, { content_kind: "treatment", brand_observation: "incidental_mark" }),
+    voce(0, { content_kind: "treatment_room", brand_observation: "incidental_mark" }),
     voce(1), voce(2),
   ]);
   const r = interpretaRisposta(testo, LOTTO);
-  assert.equal(sel(r).length, 3);
-  assert.equal(sel(r).find((s) => s.layout_role === "hero")?.candidate_id, "cand00",
-    "puo perfino aprire");
-  assert.deepEqual(motivo(r, "cand00"), []);
+  assert.equal(sel(r).length, 3, "resta in galleria");
+  assert.deepEqual(motivo(r, "cand00"), [], "e non e nemmeno un motivo da spiegare");
+  assert.notEqual(sel(r).find((s) => s.layout_role === "hero")?.candidate_id, "cand00");
 });
 
 test("marchio: un logo estraneo DOMINANTE manda a una persona", () => {
@@ -290,7 +347,7 @@ test("marchio: «forse e l'insegna» segnala e resta in pagina", () => {
 
 test("marchio: il vecchio booleano vale incidentale, non blocco", () => {
   const testo = JSON.stringify([
-    { image_index: 0, content_kind: "interior", quality: 0.8, subject_legible: true,
+    { image_index: 0, content_kind: "clean_interior", quality: 0.8, subject_legible: true,
       confidence: 0.9, brand_visible: true },
     voce(1), voce(2),
   ]);
@@ -309,14 +366,16 @@ test("mappatura: l'indice 0 viene mantenuto", () => {
 
 test("mappatura: 6, 7 e 8 finiscono sui candidate_id giusti", () => {
   const testo = JSON.stringify([
-    voce(6, { content_kind: "treatment" }),
+    voce(6, { content_kind: "treatment_room" }),
     voce(7, { content_kind: "person_treatment", identifiable_person: true }),
-    voce(8, { content_kind: "interior" }),
+    voce(8, { content_kind: "clean_interior" }),
   ]);
   const r = interpretaRisposta(testo, LOTTO);
   assert.deepEqual(sel(r).map((s) => s.candidate_id).sort(), ["cand06", "cand08"]);
   assert.deepEqual(rev(r).map((s) => s.candidate_id), ["cand07"]);
-  assert.equal(sel(r).find((s) => s.layout_role === "hero")?.candidate_id, "cand06");
+  // `clean_interior` viene prima di `treatment_room` nell'elenco delle
+  // aperture ammesse: apre l'ambiente.
+  assert.equal(sel(r).find((s) => s.layout_role === "hero")?.candidate_id, "cand08");
 });
 
 test("mappatura: il modello parla per posizione nel LOTTO", () => {

@@ -22,17 +22,18 @@
 // ============================================================
 
 /** Lo schema della risposta: quali campi si chiedono al modello.
- *  a3 = il modello non decide piu, descrive soltanto. */
-export const ANALYZER_VERSION = "a3";
+ *  a4 = tredici generi in tre fasce: chi puo aprire, chi sta solo in
+ *  galleria, chi non entra. */
+export const ANALYZER_VERSION = "a4";
 
-/** Le istruzioni. p3 = niente `usable`, niente `role`: solo
- *  caratteristiche osservabili. */
-export const PROMPT_VERSION = "p3";
+/** Le istruzioni. p4 = niente `usable`, niente `role`: solo
+ *  caratteristiche osservabili, e la scena distinta dal dettaglio. */
+export const PROMPT_VERSION = "p4";
 
-/** Il compositore deterministico. c3 = valuta tutti i candidati
+/** Il compositore deterministico. c4 = valuta tutti i candidati
  *  scaricati, esclude solo per cause esplicite, e l'apertura si
- *  guadagna con prove positive. */
-export const COMPOSER_VERSION = "c3";
+ *  guadagna con prove positive e un genere della prima fascia. */
+export const COMPOSER_VERSION = "c4";
 
 export interface Versioni {
   analyzer_version: string;

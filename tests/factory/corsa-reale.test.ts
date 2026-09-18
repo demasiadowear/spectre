@@ -48,25 +48,29 @@ const apertura = (r: ReturnType<typeof interpretaRisposta>) =>
  *   n.9            inquadratura inclinata verso il soffitto
  */
 const SERIE = [
-  { image_index: 0, content_kind: "interior", commercial_appeal: 0.72, clutter: 0.25,
+  { image_index: 0, content_kind: "clean_interior", commercial_appeal: 0.72, clutter: 0.25,
     quality: 0.78, subject_legible: true, focus_x: 0.5, focus_y: 0.45,
     confidence: 0.88, identifiable_person: false, brand_observation: "none" },
-  { image_index: 1, content_kind: "interior", commercial_appeal: 0.66, clutter: 0.3,
+  { image_index: 1, content_kind: "clean_interior", commercial_appeal: 0.66, clutter: 0.3,
     quality: 0.75, subject_legible: true, focus_x: 0.5, focus_y: 0.5,
     confidence: 0.85, identifiable_person: false, brand_observation: "incidental_mark" },
-  { image_index: 2, content_kind: "interior", commercial_appeal: 0.64, clutter: 0.32,
+  { image_index: 2, content_kind: "clean_interior", commercial_appeal: 0.64, clutter: 0.32,
     quality: 0.72, subject_legible: true, focus_x: 0.45, focus_y: 0.5,
     confidence: 0.84, identifiable_person: false, brand_observation: "incidental_mark" },
-  { image_index: 3, content_kind: "interior", commercial_appeal: 0.70, clutter: 0.28,
+  { image_index: 3, content_kind: "clean_interior", commercial_appeal: 0.70, clutter: 0.28,
     quality: 0.76, subject_legible: true, focus_x: 0.5, focus_y: 0.48,
     confidence: 0.86, identifiable_person: false, brand_observation: "none" },
-  { image_index: 4, content_kind: "interior", commercial_appeal: 0.69, clutter: 0.3,
+  { image_index: 4, content_kind: "clean_interior", commercial_appeal: 0.69, clutter: 0.3,
     quality: 0.74, subject_legible: true, focus_x: 0.52, focus_y: 0.47,
     confidence: 0.85, identifiable_person: false, brand_observation: "none" },
   { image_index: 5, content_kind: "linen", commercial_appeal: 0.95, clutter: 0.6,
     quality: 0.9, subject_legible: true, focus_x: 0.5, focus_y: 0.5,
     confidence: 0.99, identifiable_person: false, brand_observation: "none" },
-  { image_index: 6, content_kind: "treatment", commercial_appeal: 0.80, clutter: 0.2,
+  // n.6 e un DETTAGLIO ravvicinato — guanto, apparecchiatura, prodotto —
+  // non una scena. E la distinzione che mancava: sostituire gli
+  // asciugamani con un primo piano di guanto e sostituire un soggetto
+  // sbagliato con un altro soggetto sbagliato.
+  { image_index: 6, content_kind: "treatment_detail", commercial_appeal: 0.80, clutter: 0.2,
     quality: 0.82, subject_legible: true, focus_x: 0.5, focus_y: 0.45,
     confidence: 0.9, identifiable_person: false, brand_observation: "incidental_mark" },
   { image_index: 7, content_kind: "person_treatment", commercial_appeal: 0.85, clutter: 0.2,
@@ -108,12 +112,26 @@ test("corsa reale: n.0, n.3 e n.4 sono considerate come ambiente", () => {
   }
 });
 
-test("corsa reale: n.6 entra come trattamento e prende l'apertura", () => {
+test("corsa reale: n.6 entra in galleria e NON apre", () => {
   const r = interpretaRisposta(JSON.stringify(SERIE), LOTTO);
-  assert.equal(sel(r).some((s) => s.candidate_id === "n6"), true);
-  // Fra le idonee e l'unica di genere `treatment`, che e il primo
-  // dell'elenco positivo: apre per merito, non per eliminazione.
-  assert.equal(apertura(r), "n6");
+  assert.equal(sel(r).some((s) => s.candidate_id === "n6"), true, "va in galleria");
+  assert.notEqual(apertura(r), "n6", "un dettaglio ravvicinato non e l'immagine identitaria");
+});
+
+test("corsa reale: apre la n.0, ambiente pulito e senza marchi", () => {
+  // n.1 e n.2 sono ambienti anche loro, ma portano «Academy» in campo:
+  // in galleria va bene, in apertura no. n.3 e n.4 sono alternative
+  // legittime, e n.0 le batte sul richiamo.
+  const r = interpretaRisposta(JSON.stringify(SERIE), LOTTO);
+  assert.equal(apertura(r), "n0");
+});
+
+test("corsa reale: n.3 e n.4 sono le alternative di ambiente", () => {
+  // Tolta la n.0, l'apertura passa alla successiva per richiamo — non
+  // a un dettaglio e non a una foto con un marchio in campo.
+  const senzaZero = SERIE.filter((v) => v.image_index !== 0);
+  const r = interpretaRisposta(JSON.stringify(senzaZero), LOTTO);
+  assert.equal(apertura(r), "n3");
 });
 
 test("corsa reale: n.7 e n.8 sono marcate per revisione persona, non escluse", () => {
@@ -164,17 +182,40 @@ test("corsa reale: la n.5 non apre NEMMENO se il modello la descrive nel modo mi
   assert.notEqual(apertura(r), "n5");
 });
 
-test("corsa reale: se il modello SBAGLIA il genere della n.5, apre comunque un'altra", () => {
-  // Il caso onesto: il gate legge un'osservazione, e se l'osservazione
-  // e sbagliata il gate non puo saperlo. Cio che il modello NON puo
-  // piu fare e escludere le altre nove — quindi anche mentendo sulla
-  // n.5 non se la prende, perche l'apertura va a chi ha il genere
-  // preferibile piu alto e il richiamo maggiore fra le idonee.
-  const travestita = { ...SERIE[5], content_kind: "interior", clutter: 0.2 };
+test("corsa reale: un genere sbagliato e il limite del sistema, e si dice", () => {
+  // IL PUNTO IN CUI QUESTO SISTEMA NON PUO ARRIVARE.
+  //
+  // Il gate legge un'osservazione. Se il modello chiama `clean_interior`
+  // un mucchio di asciugamani E gli da il richiamo piu alto, niente a
+  // valle puo saperlo: ogni campo su cui deciderei viene dalla stessa
+  // fonte che ha mentito. Non esiste una soglia che salvi da una
+  // descrizione coerente e falsa.
+  //
+  // Questo test non finge il contrario: fissa cosa RESTA garantito.
+  const travestita = {
+    ...SERIE[5], content_kind: "clean_interior", clutter: 0.2, commercial_appeal: 0.95,
+  };
   const r = interpretaRisposta(
     JSON.stringify(SERIE.map((v) => (v.image_index === 5 ? travestita : v))), LOTTO,
   );
-  assert.equal(apertura(r), "n6", "apre il trattamento, non l'intruso");
+
+  // Cio che il modello NON puo piu fare: escludere le altre. La pagina
+  // ha comunque la sua sequenza, e l'operatore ha davanti tutto il
+  // materiale buono per cambiare l'apertura con un click.
+  const dentro = sel(r).map((s) => s.candidate_id);
+  for (const id of ["n0", "n3"]) {
+    assert.ok(dentro.indexOf(id) !== -1, `${id} deve restare disponibile`);
+  }
+  assert.ok(sel(r).length >= 3, "la proposta resta una pagina");
+
+  // E basta che UNA delle tre descrizioni sia onesta perche il danno
+  // non avvenga: se il disordine e dichiarato per quello che e, il gate
+  // la ferma comunque.
+  const conDisordineVero = { ...travestita, clutter: 0.6 };
+  const r2 = interpretaRisposta(
+    JSON.stringify(SERIE.map((v) => (v.image_index === 5 ? conDisordineVero : v))), LOTTO,
+  );
+  assert.equal(apertura(r2), "n0", "un solo campo onesto basta a fermarla");
 });
 
 test("corsa reale: nessun ordine di risposta cambia il risultato", () => {

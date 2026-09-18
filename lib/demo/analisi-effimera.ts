@@ -145,16 +145,22 @@ type OsservazioneMarchio =
  * confidenza 0,99.
  */
 type GenereContenuto =
-  | "treatment"            // un trattamento in corso, composizione leggibile
-  | "person_treatment"     // una persona durante un trattamento
-  | "interior"             // l'ambiente
-  | "detail"               // un dettaglio coerente col benessere
-  | "product"              // un prodotto
-  | "linen"                // tessili, asciugamani, biancheria
-  | "storage"              // deposito, disordine, ripostiglio
-  | "ceiling"              // soffitto, o inquadratura fortemente inclinata
-  | "equipment_detail"     // un macchinario, spesso tagliato
-  | "unidentified_object"  // un oggetto isolato che non si capisce
+  // --- Fascia 1: possono APRIRE ---
+  | "clean_interior"     // l'ambiente, in ordine e leggibile
+  | "treatment_room"     // la cabina, la postazione: dove si lavora
+  | "welcoming_space"    // ingresso, accoglienza, attesa
+  // --- Fascia 1b: apre solo dopo che una persona l'ha guardata ---
+  | "person_treatment"   // una persona durante un trattamento
+  // --- Fascia 2: solo GALLERIA ---
+  | "treatment_detail"   // il primo piano: guanto, sonda, applicazione
+  | "equipment"          // un macchinario, un lettino
+  | "hands_at_work"      // le mani che lavorano, ravvicinate
+  | "product"            // un prodotto o una confezione come soggetto
+  // --- Fascia 3: MAI ---
+  | "linen"              // tessili, asciugamani, biancheria
+  | "storage"            // deposito, scaffali di servizio, disordine
+  | "ceiling"            // soffitto, faretti, inquadratura verso l'alto
+  | "unreadable_subject" // non si capisce cosa sia
   | "other";
 
 /**
@@ -234,8 +240,9 @@ export interface FotoDaAnalizzare {
 }
 
 const GENERI = [
-  "treatment", "person_treatment", "interior", "detail", "product",
-  "linen", "storage", "ceiling", "equipment_detail", "unidentified_object", "other",
+  "clean_interior", "treatment_room", "welcoming_space", "person_treatment",
+  "treatment_detail", "equipment", "hands_at_work", "product",
+  "linen", "storage", "ceiling", "unreadable_subject", "other",
 ] as const;
 
 const MARCHI = [
@@ -251,20 +258,28 @@ const ISTRUZIONI = [
   "numero. Rispondi per OGNI immagine ricevuta, anche per quelle che ti",
   "sembrano brutte: servono anche quelle.",
   "",
-  "Per ogni immagine restituisci:",
-  "- image_index: il numero della riga che precede l'immagine;",
-  "- content_kind: che cosa e, fra",
-  "  treatment (un trattamento in corso, composizione leggibile),",
-  "  person_treatment (una persona durante un trattamento),",
-  "  interior (l'ambiente, la sala, la postazione),",
-  "  detail (un dettaglio coerente col benessere),",
-  "  product (un prodotto o una confezione come soggetto),",
-  "  linen (tessili, asciugamani, biancheria, teli — ammassati o piegati),",
-  "  storage (deposito, scaffali di servizio, disordine, ripostiglio),",
-  "  ceiling (soffitto, faretti, o inquadratura fortemente inclinata verso l'alto),",
-  "  equipment_detail (un macchinario o un lettino, spesso tagliato),",
-  "  unidentified_object (un oggetto isolato che non si capisce),",
-  "  other;",
+  "IL CAMPO PIU IMPORTANTE E `content_kind`. Distingui la SCENA dal",
+  "DETTAGLIO: una cabina inquadrata per intero e `treatment_room`, un",
+  "primo piano di un guanto, di una sonda o di un'applicazione e",
+  "`treatment_detail`. E la differenza fra una fotografia che puo aprire",
+  "una pagina e una che sta bene in mezzo alle altre.",
+  "",
+  "content_kind, valori possibili:",
+  "- clean_interior: l'ambiente inquadrato per intero, in ordine, leggibile;",
+  "- treatment_room: la cabina o la postazione di lavoro, vista d'insieme;",
+  "- welcoming_space: ingresso, reception, sala d'attesa;",
+  "- person_treatment: una persona durante un trattamento;",
+  "- treatment_detail: primo piano ravvicinato di un gesto o di un'applicazione;",
+  "- equipment: un macchinario o un lettino come soggetto;",
+  "- hands_at_work: mani che lavorano, inquadratura ravvicinata;",
+  "- product: un prodotto o una confezione come soggetto;",
+  "- linen: tessili, asciugamani, biancheria, teli — ammassati o piegati;",
+  "- storage: deposito, scaffali di servizio, disordine, ripostiglio;",
+  "- ceiling: soffitto, faretti, inquadratura fortemente inclinata verso l'alto;",
+  "- unreadable_subject: non si capisce cosa sia;",
+  "- other: nessuna delle precedenti.",
+  "",
+  "Gli altri campi:",
   "- commercial_appeal 0-1: quanto regge come immagine di un'attivita che vende;",
   "- clutter 0-1: quanto e disordinata o affollata (alto = disordinata);",
   "- quality 0-1: luce e nitidezza insieme;",
@@ -277,10 +292,6 @@ const ISTRUZIONI = [
   "  su uno scaffale, un logo su un flacone o su un asciugamano);",
   "  possible_business_mark se potrebbe essere l'insegna di QUESTA attivita;",
   "  dominant_third_party_mark se un marchio altrui DOMINA l'inquadratura.",
-  "",
-  "Sii preciso su content_kind: un mucchio di asciugamani e `linen`",
-  "anche se sta dentro una sala, e una foto verso i faretti e `ceiling`",
-  "anche se si intravede l'ambiente. E la descrizione che conta di piu.",
   "",
   "NON descrivere a parole cosa mostra l'immagine, non trascrivere",
   "testo, non nominare marchi, non dedurre quale trattamento sia in",
@@ -584,9 +595,10 @@ function elencoDa(grezzo: unknown): unknown[] | null {
  */
 function ruoloDaGenere(g: GenereContenuto): RuoloLayout {
   switch (g) {
-    case "treatment": case "person_treatment": return "treatment";
-    case "interior": return "interior";
-    case "detail": case "product": return "detail";
+    case "clean_interior": case "welcoming_space": return "interior";
+    case "treatment_room": case "person_treatment": return "treatment";
+    case "treatment_detail": case "hands_at_work": case "equipment": case "product":
+      return "detail";
     default: return "closing";
   }
 }
@@ -666,9 +678,41 @@ export const SOGLIA_CONFIDENZA = 0.6;
  * possono stare in galleria — un macchinario e un dettaglio del
  * mestiere — ma non aprono. Vedi `GENERI_AMMESSI_HERO`.
  */
-const GENERI_ESCLUSI: readonly GenereContenuto[] = ["linen", "storage", "ceiling"];
+const GENERI_ESCLUSI: readonly GenereContenuto[] = [
+  "linen", "storage", "ceiling", "unreadable_subject",
+];
 
-/** Sotto questa qualita dichiarata la fotografia non si mostra. */
+/**
+ * CHI PUO APRIRE, per merito e in automatico.
+ *
+ * Elenco POSITIVO e corto. La fascia precedente ammetteva «treatment»,
+ * e su materiale reale quel nome copriva anche il primo piano di un
+ * guanto: la pagina si sarebbe aperta con un dettaglio ravvicinato di
+ * apparecchiatura. Un dettaglio e una fotografia editoriale, non
+ * l'immagine identitaria di un'attivita.
+ *
+ * L'apertura e la risposta a «dove sono capitato»: ci vuole uno SPAZIO.
+ */
+const GENERI_HERO: readonly GenereContenuto[] = [
+  "clean_interior", "treatment_room", "welcoming_space",
+];
+
+/**
+ * Puo aprire, ma SOLO dopo che una persona l'ha guardata e messa li.
+ * Mai per default: un volto riconoscibile in apertura e la decisione
+ * piu impegnativa della pagina, e non la prende un programma.
+ */
+const GENERI_HERO_DOPO_REVISIONE: readonly GenereContenuto[] = ["person_treatment"];
+
+/**
+ * SOLO GALLERIA. Non sono difetti: sono fotografie che funzionano in
+ * mezzo alle altre e non in cima. `other` sta qui perche un genere che
+ * il modello non ha saputo dire non si promuove.
+ */
+const GENERI_SOLO_GALLERIA: readonly GenereContenuto[] = [
+  "treatment_detail", "equipment", "hands_at_work", "product", "other",
+];
+
 const QUALITA_MINIMA = 0.35;
 
 /**
@@ -693,19 +737,26 @@ export const SOGLIE_HERO = {
   fuoco_max: 0.8,
 } as const;
 
-/** Solo questi generi possono aprire, ed e un elenco POSITIVO: cio che
- *  non e nominato non apre, compreso `other`. */
-const GENERI_AMMESSI_HERO: readonly GenereContenuto[] = [
-  "treatment", "person_treatment", "interior", "detail",
-];
-
 export type MotivoNoHero =
-  | "" | "genere_non_ammesso" | "disordine_alto" | "richiamo_basso"
+  | "" | "genere_non_ammesso" | "solo_galleria" | "serve_revisione"
+  | "marchio_in_apertura" | "disordine_alto" | "richiamo_basso"
   | "qualita_bassa" | "soggetto_illeggibile" | "ritaglio_insostenibile"
   | "non_dichiarato" | "unica_selezionata";
 
 function gateHero(o: Osservazione): MotivoNoHero {
-  if (GENERI_AMMESSI_HERO.indexOf(o.genere) === -1) return "genere_non_ammesso";
+  if (GENERI_ESCLUSI.indexOf(o.genere) !== -1) return "genere_non_ammesso";
+  if (GENERI_SOLO_GALLERIA.indexOf(o.genere) !== -1) return "solo_galleria";
+  // Una persona riconoscibile puo aprire soltanto se ce la mette una
+  // persona: qui, in automatico, no.
+  if (GENERI_HERO_DOPO_REVISIONE.indexOf(o.genere) !== -1) return "serve_revisione";
+  if (GENERI_HERO.indexOf(o.genere) === -1) return "genere_non_ammesso";
+
+  // L'APERTURA E L'IMMAGINE IDENTITARIA: nessun marchio irrisolto.
+  // Un logo altrui, anche incidentale, nella fotografia che apre una
+  // pagina che porta il nome del cliente e il posto peggiore in cui
+  // averlo. In galleria non e un problema; qui si.
+  if (o.marchio !== "none") return "marchio_in_apertura";
+
   if (o.soggetto_leggibile !== true) return "soggetto_illeggibile";
   // PROVE POSITIVE: `null` non passa. Non sapere non e un merito.
   if (o.richiamo === null || o.disordine === null || o.qualita === null) return "non_dichiarato";
@@ -765,8 +816,9 @@ const sceltaNeutra = (candidate_id: string, stato: SceltaFoto["stato"]): SceltaF
 
 /** L'ordine di preferenza in galleria, dopo l'apertura. */
 const RANGO_GENERE: readonly GenereContenuto[] = [
-  "treatment", "interior", "detail", "person_treatment",
-  "product", "equipment_detail", "unidentified_object", "other",
+  "clean_interior", "treatment_room", "welcoming_space",
+  "treatment_detail", "hands_at_work", "equipment", "product",
+  "person_treatment", "other",
 ];
 
 /**
@@ -808,15 +860,39 @@ function componi(
     ammesse.push({ id, o });
   }
 
-  // ----- La galleria: 3-5, per merito -----
-  const ordinate = ammesse.slice().sort((a, b) => {
+  // ----- La galleria: 3-5, per VARIETA di ruolo -----
+  //
+  // Non una classifica piatta. Su materiale reale gli ambienti sono
+  // quasi sempre i piu numerosi: ordinando solo per merito, cinque
+  // ambienti riempiono la pagina e il dettaglio di trattamento — che e
+  // il momento in cui si capisce cosa fa quell'attivita — resta fuori
+  // per un posto.
+  //
+  // Quindi prima si prende il migliore di OGNI ruolo, poi si riempie
+  // con gli avanzati. E la forma dichiarata: un'apertura, uno o due
+  // momenti di trattamento, uno o due ambienti, una chiusura.
+  const perMerito = ammesse.slice().sort((a, b) => {
     const ra = RANGO_GENERE.indexOf(a.o.genere);
     const rb = RANGO_GENERE.indexOf(b.o.genere);
     if (ra !== rb) return (ra === -1 ? 99 : ra) - (rb === -1 ? 99 : rb);
     return (b.o.richiamo ?? 0) - (a.o.richiamo ?? 0);
   });
-  const inPagina = ordinate.slice(0, MAX_IN_PAGINA);
-  for (const x of ordinate.slice(MAX_IN_PAGINA)) scelte.push(sceltaNeutra(x.id, "not_selected"));
+
+  const inPagina: { id: string; o: Osservazione }[] = [];
+  const presi = new Set<string>();
+  for (const ruolo of SEQUENZA_RUOLI) {
+    if (ruolo === "hero" || inPagina.length >= MAX_IN_PAGINA) continue;
+    const x = perMerito.find((y) => !presi.has(y.id) && ruoloDaGenere(y.o.genere) === ruolo);
+    if (x) { inPagina.push(x); presi.add(x.id); }
+  }
+  for (const x of perMerito) {
+    if (inPagina.length >= MAX_IN_PAGINA) break;
+    if (presi.has(x.id)) continue;
+    inPagina.push(x); presi.add(x.id);
+  }
+  for (const x of perMerito) {
+    if (!presi.has(x.id)) scelte.push(sceltaNeutra(x.id, "not_selected"));
+  }
 
   // ----- L'apertura -----
   //
@@ -826,8 +902,8 @@ function componi(
   const idonee = inPagina
     .filter((x) => gateHero(x.o) === "")
     .sort((a, b) => {
-      const ra = GENERI_AMMESSI_HERO.indexOf(a.o.genere);
-      const rb = GENERI_AMMESSI_HERO.indexOf(b.o.genere);
+      const ra = GENERI_HERO.indexOf(a.o.genere);
+      const rb = GENERI_HERO.indexOf(b.o.genere);
       if (ra !== rb) return ra - rb;
       return (b.o.richiamo ?? 0) - (a.o.richiamo ?? 0);
     });

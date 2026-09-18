@@ -15,14 +15,14 @@ import {
 import {
   approvaSeAncoraValida, ensureProposteSchema, leggiProposta, leggiPubblicata,
   nuovaRevisioneProposta, resetProposteSchemaCache, rifiutaProposta,
-  rilasciaAnalisi, rivendicaAnalisi, salvaPubblicata,
+  rilasciaAnalisi, rivendicaAnalisi, salvaProposta, salvaPubblicata,
 } from "../../lib/demo/proposte-db";
 import { analizzaProgetto } from "../../lib/demo/analisi-progetto";
 import {
   componiSpec, risolviSpec, statoPubblicazione,
 } from "../../lib/demo/pubblicazione";
 import {
-  selectionBasisRevision, validaProposta, type SceltaFoto,
+  revisioniNonEsplicite, selectionBasisRevision, validaProposta, type SceltaFoto,
 } from "../../lib/demo/curatela";
 import { fotoMostrabili } from "../../lib/demo/foto";
 import { messaggioValidazione } from "../../lib/demo/messaggi";
@@ -602,4 +602,50 @@ test("e2e: le versioni finiscono sulla proposta salvata", async () => {
   assert.equal(p?.versioni.analyzer_version, ANALYZER_VERSION);
   assert.equal(p?.versioni.prompt_version, PROMPT_VERSION);
   assert.equal(p?.versioni.composer_version, COMPOSER_VERSION);
+});
+
+// ----- 4. Una foto in revisione non entra con l'approvazione generale --
+
+test("e2e: una needs_visual_review non entra approvando l'insieme", async () => {
+  await scrivi([foto("r1"), foto("r2"), foto("r3"), foto("r4")]);
+  // Una proposta con tre scelte e una in revisione.
+  await salvaProposta({
+    project_id: projectId, lead_id: LEAD,
+    curatela: {
+      basis_revision: "", manifest_revision: "r1|r2|r3|r4", proposal_revision: "",
+      scelte: [
+        { candidate_id: "r1", order: 0, layout_role: "hero", object_position: "50% 50%", stato: "selected" },
+        { candidate_id: "r2", order: 1, layout_role: "interior", object_position: "50% 50%", stato: "selected" },
+        { candidate_id: "r3", order: 2, layout_role: "detail", object_position: "50% 50%", stato: "selected" },
+        { candidate_id: "r4", order: 999, layout_role: "detail", object_position: "50% 50%", stato: "needs_visual_review" },
+      ],
+      da_rivedere: [{ candidate_id: "r4", motivo: "possibile_persona_identificabile" }],
+      composta_il: "",
+    },
+    brand_status: "NOT_FOUND", brand_blocco: "",
+    costo: { immagini: 4, token: 0, durata_ms: 0, modello: "finto" },
+  });
+
+  const salvata = await leggiProposta(projectId);
+  const scelte = salvata!.curatela.scelte;
+
+  // L'invio che include la quarta SENZA averla guardata.
+  const senzaRevisione = ["r1", "r2", "r3", "r4"].map((id, i) => ({
+    candidate_id: id, order: i, layout_role: "detail" as const,
+    object_position: "50% 50%", rivisto: false,
+  }));
+  assert.deepEqual(
+    revisioniNonEsplicite(senzaRevisione, scelte), ["r4"],
+    "la fotografia in revisione va nominata, non trascinata dentro con le altre",
+  );
+
+  // Lo stesso invio, con l'atto esplicito.
+  const conRevisione = senzaRevisione.map((s) => (
+    s.candidate_id === "r4" ? { ...s, rivisto: true } : s
+  ));
+  assert.deepEqual(revisioniNonEsplicite(conRevisione, scelte), []);
+
+  // E le tre gia selezionate non chiedono niente: approvarle e
+  // approvare cio che la proposta aveva gia messo in pagina.
+  assert.deepEqual(revisioniNonEsplicite(senzaRevisione.slice(0, 3), scelte), []);
 });

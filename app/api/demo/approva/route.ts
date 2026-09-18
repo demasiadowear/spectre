@@ -9,8 +9,8 @@ import { getProject } from "@/lib/factory/db";
 import { rimedioBlocco, usoConsentito } from "@/lib/collector/brand";
 import { fotoMostrabili } from "@/lib/demo/foto";
 import {
-  MIN_IN_PAGINA, selectionBasisRevision, validaProposta, validaScelteInviate,
-  valutaProposta, type SceltaFoto,
+  MIN_IN_PAGINA, revisioniNonEsplicite, selectionBasisRevision, validaProposta,
+  validaScelteInviate, valutaProposta, type SceltaFoto,
 } from "@/lib/demo/curatela";
 import { messaggioValidazione } from "@/lib/demo/messaggi";
 import {
@@ -135,6 +135,21 @@ export async function POST(req: Request) {
   const foto = salvato?.dossier ? fotoMostrabili(salvato.dossier, progetto.slug) : [];
   const lette = validaScelteInviate(raw.scelte, foto);
   if (typeof lette === "string") return esci("input_non_valido", lette, progetto.lead_id, projectId);
+
+  // UNA FOTOGRAFIA IN REVISIONE NON ENTRA CON L'APPROVAZIONE
+  // DELL'INSIEME. Approvare la proposta non e approvare cio che la
+  // proposta aveva messo da parte: un volto riconoscibile, o un marchio
+  // altrui dominante, entra solo se qualcuno l'ha guardato e messo li.
+  const nonRiviste = revisioniNonEsplicite(lette, proposta.curatela.scelte);
+  if (nonRiviste.length > 0) {
+    return esci(
+      "input_non_valido",
+      nonRiviste.length === 1
+        ? "Una fotografia era in revisione: va aggiunta esplicitamente, non approvata insieme alle altre."
+        : `${nonRiviste.length} fotografie erano in revisione: vanno aggiunte esplicitamente, non approvate insieme alle altre.`,
+      progetto.lead_id, projectId,
+    );
+  }
 
   // Gli stati delle fotografie NON scelte si conservano: una foto
   // guardata e scartata resta scartata, e una che serve a una persona
