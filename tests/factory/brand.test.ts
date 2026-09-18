@@ -295,19 +295,40 @@ test("fonti: sito assente + social assenti + Places vuoto + ricerca in timeout -
   assert.ok(/nuova esecuzione, non una decisione/i.test(usoConsentito(b).nota));
 });
 
-test("fonti: chiave assente e risposta illeggibile sono transient, non risultati", () => {
-  // Tre modi diversi di non sapere, che si somigliano tutti a «zero
+test("fonti: un timeout e un blocco non sono la stessa cosa, e non sono risultati", () => {
+  // Due modi diversi di non sapere, che si somigliano entrambi a «zero
   // candidati» e non lo sono.
-  for (const guasto of ["transient_error", "permanent_error"] as const) {
-    const b = componiIdentita([], { ...ESAURITE, ricerca_grounded: guasto });
-    if (guasto === "transient_error") {
-      assert.equal(b.brand_status, "RETRY_REQUIRED");
-    } else {
-      // Un rifiuto definitivo chiude quella fonte: le altre hanno gia
-      // risposto, quindi la conclusione e legittima.
-      assert.equal(b.brand_status, "NOT_FOUND");
-    }
-  }
+  //
+  // `permanent_error` NON e piu NOT_FOUND. Prima lo era, e il
+  // ragionamento sembrava sensato — «quella fonte e chiusa, le altre
+  // hanno risposto, la conclusione e legittima». Non lo e: una chiave
+  // assente chiude la fonte senza averla mai interrogata, e concludere
+  // «questa attivita non ha un logo» perche non abbiamo potuto
+  // guardare e un NOT_FOUND che nessuno ha guadagnato. Adesso e
+  // BLOCKED, che ha un rimedio operativo invece di una conclusione.
+  const ritentabile = componiIdentita([], { ...ESAURITE, ricerca_grounded: "transient_error" });
+  assert.equal(ritentabile.brand_status, "RETRY_REQUIRED");
+
+  const bloccata = componiIdentita([], { ...ESAURITE, ricerca_grounded: "permanent_error" });
+  assert.equal(bloccata.brand_status, "BLOCKED");
+
+  // Nessuno dei due chiede una persona: il primo chiede una nuova
+  // esecuzione, il secondo un intervento sulla configurazione. Mandarli
+  // in revisione umana vuol dire dare a qualcuno una coda di cose su
+  // cui non puo fare niente.
+  assert.equal(ritentabile.requires_operator_approval, false);
+  assert.equal(bloccata.requires_operator_approval, false);
+});
+
+test("fonti: un'identita trovata vale anche se una fonte e bloccata", () => {
+  // L'ordine conta: se il logo e confermato dal sito ufficiale, che la
+  // ricerca grounded non sia configurata non toglie niente.
+  const confermato = cand({ source_type: "official_site", kind: "logo" });
+  const b = componiIdentita(
+    [{ ...confermato, status: "confirmed" } as BrandCandidate],
+    { ...ESAURITE, ricerca_grounded: "permanent_error" },
+  );
+  assert.equal(b.brand_status, "ORIGINAL_CONFIRMED");
 });
 
 test("fonti: success_candidates senza candidati vivi resta INCONCLUSIVE", () => {

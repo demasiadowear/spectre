@@ -243,6 +243,74 @@ export function applicaCuratela(
     .filter((f): f is FotoInPagina => f !== null);
 }
 
+// ----- Le scelte che arrivano da fuori -------------------------------
+
+export interface SceltaInviata {
+  candidate_id: string;
+  order: number;
+  layout_role: RuoloLayout;
+  object_position: string;
+}
+
+const RITAGLIO = /^\d{1,3}% \d{1,3}%$/;
+
+/**
+ * Legge le scelte inviate dall'operatore, o dice perche non vanno bene.
+ *
+ * Ogni rifiuto e specifico. «Input non valido» non dice a nessuno cosa
+ * sistemare, e chi lo legge ricarica la pagina e riprova uguale.
+ *
+ * L'identita si verifica sul manifest di ADESSO: un `candidate_id` che
+ * non c'e piu non e un ingresso da correggere, e una fotografia che non
+ * esiste — e la differenza fra «hai sbagliato a scrivere» e «mentre
+ * guardavi, Places l'ha tolta».
+ */
+export function validaScelteInviate(
+  grezzo: unknown,
+  foto: readonly FotoDemo[],
+): SceltaInviata[] | string {
+  if (!Array.isArray(grezzo)) return "serve l'elenco delle fotografie scelte";
+  if (grezzo.length === 0) return "nessuna fotografia selezionata: la pagina non avrebbe immagini";
+  if (grezzo.length > MAX_IN_PAGINA) return `al massimo ${MAX_IN_PAGINA} fotografie in pagina`;
+
+  const disponibili = new Set(foto.map((f) => f.id));
+  const viste = new Set<string>();
+  const out: SceltaInviata[] = [];
+
+  for (const x of grezzo) {
+    if (!x || typeof x !== "object") return "una scelta non è leggibile";
+    const o = x as Record<string, unknown>;
+    const id = typeof o.candidate_id === "string" ? o.candidate_id.trim() : "";
+    if (!id) return "una scelta non ha l'identificativo della fotografia";
+    if (!disponibili.has(id)) return "una fotografia scelta non è più disponibile: riesegui l'analisi";
+    if (viste.has(id)) return "la stessa fotografia compare due volte";
+    viste.add(id);
+
+    const ruolo = String(o.layout_role ?? "");
+    if ((SEQUENZA_RUOLI as readonly string[]).indexOf(ruolo) === -1) {
+      return "ruolo di impaginazione non riconosciuto";
+    }
+    const pos = typeof o.object_position === "string" ? o.object_position.trim() : "";
+    if (pos && !RITAGLIO.test(pos)) return "il ritaglio non è nella forma «50% 30%»";
+
+    const order = Number(o.order);
+    out.push({
+      candidate_id: id,
+      order: Number.isInteger(order) && order >= 0 ? order : out.length,
+      layout_role: ruolo as RuoloLayout,
+      object_position: pos || RITAGLIO_PREDEFINITO,
+    });
+  }
+
+  const aperture = out.filter((s) => s.layout_role === "hero").length;
+  if (aperture === 0) return "manca la fotografia di apertura: è la prima cosa che si vede";
+  if (aperture > 1) return "c'è più di una fotografia di apertura";
+
+  // Si rinumera: l'ordine che conta e quello relativo, e un client che
+  // manda 0, 5, 7 ha comunque espresso una sequenza.
+  return out.slice().sort((a, b) => a.order - b.order).map((s, i) => ({ ...s, order: i }));
+}
+
 /**
  * La generazione puo partire?
  *

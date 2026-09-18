@@ -6,6 +6,8 @@ import { leggiDossier } from "@/lib/collector/db";
 import { getProjectBySlug } from "@/lib/factory/db";
 import { briefDaDossier } from "@/lib/factory/brief";
 import { fotoMostrabili } from "@/lib/demo/foto";
+import { leggiPubblicata } from "@/lib/demo/proposte-db";
+import { risolviSpec } from "@/lib/demo/pubblicazione";
 import { statoApertura } from "@/lib/demo/orari";
 import { recensioniLive } from "@/lib/demo/recensioni";
 
@@ -72,9 +74,22 @@ export default async function DemoPage({ params }: { params: { slug: string } })
   const apertura = statoApertura(brief.orari);
   const recensioni = await recensioniLive(salvato.dossier.place_id);
 
+  // La revisione PUBBLICATA, quando c'e. Contiene identita e non
+  // indici: l'indice per l'URL della fotografia si risolve adesso, sul
+  // manifest di adesso, e cosi una raccolta che riordina le stesse dieci
+  // immagini non sposta niente in pagina.
+  //
+  // Se una fotografia approvata non c'e piu, viene SALTATA e non
+  // sostituita. Finche nessuno ha approvato niente, la pagina si compone
+  // come prima: una demo gia data a qualcuno non smette di funzionare
+  // perche e comparso un flusso di approvazione.
+  const spec = await leggiPubblicata(progetto.id);
+  const curata = risolviSpec(spec, foto);
+  const inPagina = spec && curata.foto.length > 0 ? curata.foto : foto;
+
   return (
     <div className={`${display.variable} ${ui.variable}`}>
-      <DiLato brief={brief} foto={foto} apertura={apertura} recensioni={recensioni} />
+      <DiLato brief={brief} foto={inPagina} apertura={apertura} recensioni={recensioni} />
     </div>
   );
 }

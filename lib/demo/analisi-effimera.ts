@@ -1,4 +1,5 @@
 import { gemini, COMPLEX_MODEL } from "@/lib/gemini";
+import { classificaGuasto, guastoDiConfigurazione, type Guasto } from "@/lib/collector/guasti";
 import { puoPersistereSemantica, senzaSemantica } from "./policy-media";
 import {
   MAX_IN_PAGINA, RITAGLIO_PREDEFINITO, SEQUENZA_RUOLI,
@@ -53,6 +54,15 @@ export interface Proposta {
   costo: { richieste: number; analizzate: number; fallite: number; token: number; ms: number };
   modello: string;
   esito: "ok" | "non_configurato" | "nessuna_immagine" | "modello_non_disponibile";
+  /**
+   * Com'e andata la chiamata, quando non e andata. Un enum e un enum:
+   * distingue «riprova fra un minuto» da «finche non aggiungi una
+   * credenziale non serve riprovare», che e la sola cosa che il
+   * chiamante deve sapere per non bruciare tentativi.
+   *
+   * `null` quando non c'e stato nessun guasto.
+   */
+  guasto: Guasto | null;
 }
 
 export interface FotoDaAnalizzare {
@@ -83,7 +93,12 @@ const ISTRUZIONI = [
 
 /** Al massimo dieci immagini per chiamata: oltre, il modello perde il
  *  filo e la spesa cresce senza che la scelta migliori. */
-const MAX_IMMAGINI = 10;
+export const MAX_IMMAGINI = 10;
+
+/** Tetto sull'uscita. La risposta e un array di otto numeri per
+ *  immagine: piu di questo significa che il modello sta scrivendo
+ *  prosa, e la prosa e proprio cio che non deve produrre. */
+export const MAX_TOKEN_USCITA = 4096;
 
 export async function proponiImpaginazione(
   foto: readonly FotoDaAnalizzare[],
@@ -94,11 +109,17 @@ export async function proponiImpaginazione(
   const vuota = (esito: Proposta["esito"]): Proposta => ({
     scelte: [], da_rivedere: [],
     costo: { richieste: foto.length, analizzate: 0, fallite: 0, token: 0, ms: Date.now() - t0 },
-    modello, esito,
+    modello, esito, guasto: null,
   });
 
   if (foto.length === 0) return vuota("nessuna_immagine");
-  if (!gemini) return { ...vuota("non_configurato"), da_rivedere: tutteDaRivedere(foto) };
+  if (!gemini) {
+    return {
+      ...vuota("non_configurato"),
+      da_rivedere: tutteDaRivedere(foto),
+      guasto: guastoDiConfigurazione(),
+    };
+  }
 
   const lotto = foto.slice(0, MAX_IMMAGINI);
   const parti: ({ text: string } | { inlineData: { data: string; mimeType: string } })[] = [];
@@ -125,18 +146,24 @@ export async function proponiImpaginazione(
     const m = gemini.getGenerativeModel({ model: modello, systemInstruction: ISTRUZIONI });
     const r = await m.generateContent({
       contents: [{ role: "user", parts: parti as never }],
-      generationConfig: { responseMimeType: "application/json", temperature: 0 },
+      generationConfig: {
+        responseMimeType: "application/json",
+        temperature: 0,
+        maxOutputTokens: MAX_TOKEN_USCITA,
+      },
     });
     const risposta = r.response as unknown as { usageMetadata?: { totalTokenCount?: number } };
     token = risposta.usageMetadata?.totalTokenCount ?? 0;
     osservazioni = leggiOsservazioni(r.response.text(), indici);
-  } catch {
-    // Nessun dettaglio: un messaggio d'errore di un modello multimodale
-    // puo contenere un frammento del contenuto inviato.
+  } catch (err) {
+    // Il guasto si CLASSIFICA e il testo si butta: un messaggio d'errore
+    // di un modello multimodale puo contenere un frammento del contenuto
+    // inviato, e l'URL chiamato porta la chiave in query.
     return {
       ...vuota("modello_non_disponibile"),
       da_rivedere: tutteDaRivedere(foto),
       costo: { richieste: foto.length, analizzate: 0, fallite, token: 0, ms: Date.now() - t0 },
+      guasto: classificaGuasto(err),
     };
   }
 
@@ -159,6 +186,7 @@ export async function proponiImpaginazione(
     costo: { richieste: foto.length, analizzate: indici.length, fallite, token, ms: Date.now() - t0 },
     modello,
     esito: "ok",
+    guasto: null,
   };
 }
 

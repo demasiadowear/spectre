@@ -187,6 +187,7 @@ export interface BrandCandidate {
 export type BrandOverall =
   | "PENDING"           // esistono fonti non ancora interrogate
   | "RETRY_REQUIRED"    // una fonte non ha risposto: si riesegue, non si decide
+  | "BLOCKED"           // manca configurazione, autorizzazione o capacita
   | "INCONCLUSIVE"      // interrogate, ma restano ambiguita concrete
   | "NOT_FOUND"         // interrogate tutte quelle disponibili: niente
   | "SIGNAGE_ONLY"      // si vede l'insegna, ma un logo non si estrae
@@ -217,13 +218,27 @@ export interface FontiBrand {
  * chiude la ricerca, il secondo la sospende. Confonderli produce un
  * NOT_FOUND che nessuno ha guadagnato.
  */
+/** Perche una fonte e BLOCCATA. Insieme chiuso, e ognuno ha un rimedio
+ *  operativo diverso: non e la stessa cosa mancare una chiave e usare
+ *  un modello che non esiste. Nessuno di questi codici contiene un
+ *  segreto, un nome di variabile o un valore. */
+export type MotivoBlocco =
+  | ""
+  | "configuration_missing"  // una credenziale non e configurata
+  | "provider_unsupported"   // il modello o la capacita non esiste qui
+  | "policy_restricted"      // la richiesta e vietata dalla policy
+  | "quota_exhausted";       // credito o quota finiti: non e un timeout
+
 export type EsitoFonte =
   | "not_applicable"     // non esiste niente da interrogare
   | "pending"            // esiste, non ancora interrogata
   | "success_no_results" // interrogata, nessun candidato
   | "success_candidates" // interrogata, candidati trovati
-  | "transient_error"    // timeout, quota, chiave assente: si riprova
-  | "permanent_error";   // rifiuto definitivo: non si riprova
+  | "transient_error"    // timeout, rete, 5xx, rate limit: si riprova
+  // Configurazione, autorizzazione, capacita o quota finita: riprovare
+  // non cambia niente finche non si tocca l'ambiente. Porta a BLOCKED,
+  // che NON entra nella revisione umana. Vedi lib/collector/guasti.ts.
+  | "permanent_error";
 
 export interface BrandIdentity {
   primary_logo: BrandCandidate | null;

@@ -6,6 +6,7 @@ import {
   HelpCircle, Loader2, RefreshCw, Search, ShieldCheck,
 } from "lucide-react";
 import GlassCard from "@/components/ui/spectre/GlassCard";
+import PannelloProposta from "./PannelloProposta";
 import NeonButton from "@/components/ui/spectre/NeonButton";
 import { cn } from "@/lib/utils";
 import { MAX_QUERY_PER_LEAD } from "@/types/dossier";
@@ -365,6 +366,16 @@ export default function CollectorPanel({ leadId, leadName }: { leadId: string; l
               </p>
             </>
           )}
+        </div>
+      )}
+
+      {/* La curatela fotografica. Compare quando l'anteprima esiste:
+          prima non c'e un progetto a cui agganciare una proposta, e un
+          pannello che chiede di analizzare fotografie per una pagina
+          che non esiste ancora e solo un modo di spendere. */}
+      {d && d.commercial_recommendation === "GO" && !inCorso && (
+        <div className="mt-4">
+          <PannelloProposta leadId={leadId} />
         </div>
       )}
 

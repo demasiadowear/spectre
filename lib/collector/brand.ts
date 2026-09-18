@@ -1,7 +1,7 @@
 import { SEGNALI_FORTI } from "@/types/dossier";
 import type {
   BrandCandidate, BrandIdentity, BrandOverall, BrandRejection,
-  FontiBrand, IdentitySignal,
+  FontiBrand, IdentitySignal, MotivoBlocco,
 } from "@/types/dossier";
 
 // ============================================================
@@ -204,6 +204,35 @@ export function fontiDaRiprovare(f: FontiBrand): (keyof FontiBrand)[] {
   return (Object.keys(f) as (keyof FontiBrand)[]).filter((k) => f[k] === "transient_error");
 }
 
+/** Fonti bloccate: non si riprovano da sole, perche riprovare non
+ *  cambierebbe niente finche qualcuno non tocca la configurazione. */
+export function fontiBloccate(f: FontiBrand): (keyof FontiBrand)[] {
+  return (Object.keys(f) as (keyof FontiBrand)[]).filter((k) => f[k] === "permanent_error");
+}
+
+/**
+ * Il rimedio operativo di un blocco, in una riga leggibile.
+ *
+ * Dice COSA FARE, non cosa manca: «la chiave Gemini non e configurata»
+ * nomina una variabile, e i nomi delle variabili sono meta di un
+ * segreto. Il codice resta nell'insieme chiuso, il testo resta senza
+ * valori.
+ */
+export function rimedioBlocco(m: MotivoBlocco): string {
+  switch (m) {
+    case "configuration_missing":
+      return "Una credenziale necessaria non e configurata nell'ambiente. Va aggiunta dal pannello Vercel del progetto.";
+    case "provider_unsupported":
+      return "Il modello richiesto non e disponibile per questo progetto. Va scelto un modello supportato.";
+    case "policy_restricted":
+      return "La richiesta e stata rifiutata dalla policy del fornitore. Non si riprova: va cambiata la richiesta.";
+    case "quota_exhausted":
+      return "Credito o quota esauriti. Riprovare non serve finche non vengono ripristinati.";
+    default:
+      return "";
+  }
+}
+
 /**
  * L'identita visiva complessiva.
  *
@@ -236,7 +265,12 @@ export function componiIdentita(
 
   const aperte = fontiAperte(fonti);
   const daRiprovare = fontiDaRiprovare(fonti);
+  const bloccate = fontiBloccate(fonti);
 
+  // L'ordine conta. Un'identita TROVATA vale comunque: se il logo e
+  // confermato dal sito ufficiale, che la ricerca grounded sia andata
+  // in timeout non toglie niente. Si guarda cosa manca solo quando non
+  // si e trovato.
   let brand_status: BrandOverall;
   if (logoConfermato) brand_status = "ORIGINAL_CONFIRMED";
   else if (logoProbabile) brand_status = "ORIGINAL_PROBABLE";
@@ -244,6 +278,8 @@ export function componiIdentita(
   else if (aperte.length > 0) brand_status = "PENDING";
   // Un timeout non e un «non c'e». Prima si riprova, poi si conclude.
   else if (daRiprovare.length > 0) brand_status = "RETRY_REQUIRED";
+  // Un blocco non si riprova: riprovare non cambia una configurazione.
+  else if (bloccate.length > 0) brand_status = "BLOCKED";
   else if (vivi.length > 0) brand_status = "INCONCLUSIVE";
   else brand_status = "NOT_FOUND";
 
@@ -292,6 +328,12 @@ export function usoConsentito(b: BrandIdentity): {
     case "PENDING":
       return { usa: "tipografia", puo_pubblicare: false,
         nota: "Identita visiva non ancora cercata: l'analisi non e stata eseguita." };
+    case "BLOCKED":
+      // Non entra nella revisione umana e non si ritenta all'infinito:
+      // serve un intervento sulla configurazione, e finche non arriva
+      // ogni tentativo e denaro e tempo buttati.
+      return { usa: "tipografia", puo_pubblicare: false,
+        nota: "Una capacita necessaria non e disponibile: serve un intervento sulla configurazione." };
     case "RETRY_REQUIRED":
       // NON entra nella revisione umana: non c'e niente da decidere,
       // c'e da rieseguire. Mandare qui una persona vuol dire darle una
