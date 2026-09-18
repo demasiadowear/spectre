@@ -84,8 +84,34 @@ export interface EsitoRisoluzione {
    *  piu. Non vengono sostituite: si contano. */
   mancanti: string[];
   /** true = l'apertura approvata non e piu disponibile. La pagina si
-   *  compone senza fotografia in apertura. */
+   *  compone con un'apertura TESTUALE, non con un'altra fotografia. */
   apertura_mancante: boolean;
+  /** Lo stato della pubblicazione: `degraded` quando la pagina non e
+   *  piu quella approvata. Vedi `statoPubblicazione`. */
+  stato: StatoPubblicazione;
+}
+
+/**
+ * `ok` = la pagina online e quella approvata.
+ * `degraded` = e online e si apre, ma manca qualcosa che era stato
+ *              approvato.
+ *
+ * NON e uno stato salvato, ed e una scelta. Una fotografia che sparisce
+ * da Places puo ricomparire alla raccolta dopo: una colonna scritta il
+ * giorno in cui e sparita resterebbe `degraded` per sempre, e un
+ * indicatore che non torna mai indietro smette di essere letto. Qui si
+ * calcola sul manifest di adesso, a ogni richiesta, e non puo mentire
+ * in nessuna delle due direzioni.
+ */
+export type StatoPubblicazione = "ok" | "degraded";
+
+export function statoPubblicazione(
+  spec: SpecPubblicata | null,
+  foto: readonly FotoDemo[],
+): StatoPubblicazione {
+  if (!spec || spec.foto.length === 0) return "ok";
+  const presenti = new Set(foto.map((f) => f.id));
+  return spec.foto.every((v) => presenti.has(v.candidate_id)) ? "ok" : "degraded";
 }
 
 /**
@@ -100,7 +126,7 @@ export function risolviSpec(
   foto: readonly FotoDemo[],
 ): EsitoRisoluzione {
   if (!spec || spec.foto.length === 0) {
-    return { foto: [], mancanti: [], apertura_mancante: false };
+    return { foto: [], mancanti: [], apertura_mancante: false, stato: "ok" };
   }
   const perId = new Map(foto.map((f) => [f.id, f]));
   const out: FotoInPagina[] = [];
@@ -118,7 +144,10 @@ export function risolviSpec(
     // niente: se manca l'apertura, manca l'apertura.
     out.push({ ...f, layout_role: v.layout_role, object_position: v.object_position });
   }
-  return { foto: out, mancanti, apertura_mancante };
+  return {
+    foto: out, mancanti, apertura_mancante,
+    stato: mancanti.length > 0 ? "degraded" : "ok",
+  };
 }
 
 /** Il marchio si puo mettere in pagina? `tipografia` non e un logo, e

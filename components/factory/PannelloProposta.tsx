@@ -63,7 +63,7 @@ interface Provino {
   costo: { immagini: number; token: number; durata_ms: number; modello: string };
   pubblicata: {
     proposal_revision: string; foto: number; mancanti: number;
-    apertura_mancante: boolean; avviso: string;
+    apertura_mancante: boolean; stato: "ok" | "degraded"; avviso: string;
   } | null;
   tetti: { immagini: number; in_pagina: number };
   ruoli: string[];
@@ -327,6 +327,15 @@ export default function PannelloProposta({ leadId }: { leadId: string }) {
           <p className="text-[11px] text-text2">
             Online: {p.pubblicata.foto} fotografie
             {p.pubblicata.mancanti > 0 && ` · ${p.pubblicata.mancanti} non più disponibili`}
+            {/* `degraded` non vuol dire rotta: la pagina si apre. Vuol
+                dire che non e piu quella approvata, ed e un fatto che
+                si vede solo aprendola — cioe di solito dopo averla
+                mandata a qualcuno. */}
+            {p.pubblicata.stato === "degraded" && (
+              <span className="ml-1.5 rounded-sm border border-ochre/40 px-1 text-[10px] uppercase tracking-wide text-ochre">
+                degradata
+              </span>
+            )}
           </p>
           {p.pubblicata.avviso && (
             <p className="mt-1 text-[11px] leading-snug text-ochre">{p.pubblicata.avviso}</p>

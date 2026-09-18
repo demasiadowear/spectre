@@ -1,6 +1,7 @@
 import { createHash } from "crypto";
 import type { BrandOverall, MotivoBlocco } from "@/types/dossier";
 import type { EsitoComando } from "./analisi-progetto";
+import type { StatoPubblicazione } from "./pubblicazione";
 
 // ============================================================
 // L'esito dell'analisi e dell'approvazione, leggibile dai log.
@@ -25,6 +26,19 @@ import type { EsitoComando } from "./analisi-progetto";
 
 export const EVENTO_ANALISI = "demo_analisi_finita";
 export const EVENTO_APPROVAZIONE = "demo_proposta_approvata";
+
+/**
+ * L'apertura approvata non e piu servibile, e la pagina si e composta
+ * con un'apertura testuale.
+ *
+ * Esiste perche questo guasto e invisibile: la demo si apre, risponde
+ * 200 e sembra a posto. Senza questa riga lo si scopre solo aprendola,
+ * e la si apre di solito dopo averla mandata a qualcuno.
+ *
+ * Non fa partire niente: e una constatazione, non un comando. La nuova
+ * analisi la chiede una persona.
+ */
+export const EVENTO_HERO_MANCANTE = "published_hero_unavailable";
 
 /** Dodici caratteri di sha256: bastano per dire «e cambiata» e non
  *  bastano per ricostruire niente. */
@@ -79,6 +93,12 @@ export interface RiepilogoProposta {
   /** La pubblicazione e avvenuta? Un'approvazione che non pubblica e il
    *  caso normale quando il marchio non e risolto, e va distinta. */
   pubblicata: boolean;
+  /** `ok` oppure `degraded`: la pagina online e ancora quella
+   *  approvata, oppure si apre ma le manca qualcosa. */
+  stato_pubblicazione: StatoPubblicazione | "";
+  /** true = la pagina si e composta con un'apertura TESTUALE perche
+   *  quella fotografica non era piu servibile. */
+  apertura_testuale: boolean;
 }
 
 export function riepilogoVuoto(
@@ -92,8 +112,36 @@ export function riepilogoVuoto(
     foto_scartate: 0, foto_non_viste: 0, foto_mancanti: 0,
     immagini_richieste: 0, immagini_analizzate: 0, immagini_fallite: 0,
     token: 0, pagine_lette: 0, query_ricerca: 0, duration_ms: 0,
-    pubblicata: false,
+    pubblicata: false, stato_pubblicazione: "", apertura_testuale: false,
   };
+}
+
+/**
+ * La riga per una demo che si e aperta senza la sua apertura.
+ *
+ * Esce da una pagina PUBBLICA, quindi contiene ancora meno del resto:
+ * identificativi tecnici, la revisione approvata, e tre conteggi.
+ * Niente slug — lo slug e la credenziale della demo, e un log e il
+ * posto piu facile in cui farla leggere a qualcuno che non dovrebbe.
+ */
+export function scriviHeroMancante(input: {
+  project_id: string;
+  lead_id: string;
+  proposal_revision: string;
+  foto_in_pagina: number;
+  foto_mancanti: number;
+}): void {
+  scriviRiepilogo({
+    ...riepilogoVuoto(EVENTO_HERO_MANCANTE, input.project_id, input.lead_id),
+    status: "completata",
+    http: 200,
+    proposal_revision: input.proposal_revision,
+    foto_selezionate: input.foto_in_pagina,
+    foto_mancanti: input.foto_mancanti,
+    pubblicata: true,
+    stato_pubblicazione: "degraded",
+    apertura_testuale: true,
+  });
 }
 
 /** Chiavi ammesse nella riga di log. Lista BIANCA e non nera: aggiungere
@@ -106,6 +154,7 @@ const CHIAVI_AMMESSE: readonly string[] = [
   "foto_non_viste", "foto_mancanti",
   "immagini_richieste", "immagini_analizzate", "immagini_fallite",
   "token", "pagine_lette", "query_ricerca", "duration_ms", "pubblicata",
+  "stato_pubblicazione", "apertura_testuale",
 ];
 
 export function soloCampiAmmessi(r: RiepilogoProposta): Record<string, unknown> {

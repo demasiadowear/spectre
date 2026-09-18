@@ -18,14 +18,18 @@ import {
   rilasciaAnalisi, rivendicaAnalisi, salvaPubblicata,
 } from "../../lib/demo/proposte-db";
 import { analizzaProgetto } from "../../lib/demo/analisi-progetto";
-import { componiSpec, risolviSpec } from "../../lib/demo/pubblicazione";
+import {
+  componiSpec, risolviSpec, statoPubblicazione,
+} from "../../lib/demo/pubblicazione";
 import {
   selectionBasisRevision, validaProposta, type SceltaFoto,
 } from "../../lib/demo/curatela";
 import { fotoMostrabili } from "../../lib/demo/foto";
 import { messaggioValidazione } from "../../lib/demo/messaggi";
 import { componiIdentita } from "../../lib/collector/brand";
-import { httpAnalisi, httpApprovazione } from "../../lib/demo/telemetria-proposta";
+import {
+  httpAnalisi, httpApprovazione, scriviHeroMancante,
+} from "../../lib/demo/telemetria-proposta";
 import { CAMPI_SEMANTICI } from "../../lib/demo/policy-media";
 import type {
   BusinessDossier, FontiBrand, MediaCandidate,
@@ -451,4 +455,105 @@ test("e2e: il rifiuto registra la decisione e lascia online cio che c'e", async 
   const online = await leggiPubblicata(projectId);
   assert.equal(online?.proposal_revision, prima?.proposal_revision,
     "il rifiuto non tocca la pagina online");
+});
+
+// ----- La pubblicazione degradata --------------------------------------
+//
+// Cosa fa la pagina quando una fotografia PUBBLICATA non c'e piu. Sta
+// qui e non fra i test di resa perche le due cose che contano — che la
+// demo resti raggiungibile e che NON parta nessuna analisi — si vedono
+// solo sul database.
+
+test("e2e: una demo degradata resta disponibile e non fa partire nessuna analisi", async () => {
+  // Stato dichiarato, non ereditato dai test precedenti.
+  await scrivi([foto("g1"), foto("g2"), foto("g3")]);
+  const revisione = nuovaRevisioneProposta();
+  await salvaPubblicata(projectId, LEAD, {
+    proposal_revision: revisione,
+    basis_revision: "base-nota",
+    foto: [
+      { candidate_id: "g1", order: 0, layout_role: "hero", object_position: "50% 30%" },
+      { candidate_id: "g2", order: 1, layout_role: "treatment", object_position: "50% 50%" },
+      { candidate_id: "g3", order: 2, layout_role: "interior", object_position: "50% 50%" },
+    ],
+    brand_status: "NOT_FOUND",
+    uso_marchio: "tipografia",
+    pubblicata_il: new Date().toISOString(),
+  });
+
+  const primaDellaVisita = await leggiProposta(projectId);
+
+  // Places non serve piu l'apertura.
+  await scrivi([foto("g2"), foto("g3")]);
+  const attuali = await fotoAttuali();
+  const spec = await leggiPubblicata(projectId);
+
+  // Questo e esattamente cio che fa la pagina: legge, risolve, e basta.
+  const r = risolviSpec(spec, attuali);
+  assert.equal(r.apertura_mancante, true);
+  assert.equal(r.stato, "degraded");
+  assert.equal(statoPubblicazione(spec, attuali), "degraded");
+  // Raggiungibile: la pagina ha ancora due fotografie e tutti i fatti.
+  assert.equal(r.foto.length, 2);
+  assert.ok(r.foto.every((f) => f.layout_role !== "hero"));
+
+  // E NIENTE e partito. Una pagina pubblica che innesca una fase a
+  // pagamento e un modo di far spendere a chiunque abbia lo slug.
+  const dopoLaVisita = await leggiProposta(projectId);
+  assert.equal(dopoLaVisita?.in_corso_da, "", "nessun lucchetto preso");
+  assert.deepEqual(dopoLaVisita?.costo, primaDellaVisita?.costo, "nessun costo nuovo");
+  assert.equal(
+    dopoLaVisita?.curatela.manifest_revision,
+    primaDellaVisita?.curatela.manifest_revision,
+    "la proposta non e stata ricalcolata da sola",
+  );
+});
+
+test("e2e: la revisione pubblicata sopravvive alla visita degradata", async () => {
+  // Nessuno l'ha riscritta, nessuno l'ha cancellata: cio che e stato
+  // approvato resta cio che e stato approvato, anche mentre una delle
+  // sue fotografie non e servibile.
+  const spec = await leggiPubblicata(projectId);
+  assert.ok(spec);
+  assert.equal(spec.foto.length, 3, "la spec conserva anche la foto sparita");
+  assert.equal(spec.foto[0].candidate_id, "g1");
+
+  // Se la fotografia ricompare, la pagina torna intera da sola.
+  await scrivi([foto("g1"), foto("g2"), foto("g3")]);
+  const r = risolviSpec(spec, await fotoAttuali());
+  assert.equal(r.stato, "ok");
+  assert.equal(r.apertura_mancante, false);
+  assert.equal(r.foto[0].layout_role, "hero");
+});
+
+test("e2e: la riga di telemetria della hero mancante non contiene dati personali", async () => {
+  const righe: string[] = [];
+  const vero = console.log;
+  // eslint-disable-next-line no-console
+  console.log = (...a: unknown[]) => { righe.push(String(a[0])); };
+  try {
+    scriviHeroMancante({
+      project_id: projectId, lead_id: LEAD,
+      proposal_revision: "rev-abc", foto_in_pagina: 2, foto_mancanti: 1,
+    });
+  } finally {
+    // eslint-disable-next-line no-console
+    console.log = vero;
+  }
+
+  assert.equal(righe.length, 1, "una riga sola, JSON");
+  const riga = righe[0];
+  const j = JSON.parse(riga) as Record<string, unknown>;
+  assert.equal(j.event, "published_hero_unavailable");
+  assert.equal(j.stato_pubblicazione, "degraded");
+  assert.equal(j.apertura_testuale, true);
+  assert.equal(j.foto_mancanti, 1);
+
+  // Cio che NON ci deve essere: il nome di chi ha scattato, il
+  // riferimento del provider, lo slug — che e la credenziale della demo
+  // — e qualunque URL.
+  // `http` da solo no: e il nome del campo con il codice di stato.
+  for (const proibito of ["Rosita", "Buonsante", "places/", "photos/", slug, "http://", "https://"]) {
+    assert.ok(!riga.includes(proibito), `la riga contiene «${proibito}»: ${riga}`);
+  }
 });

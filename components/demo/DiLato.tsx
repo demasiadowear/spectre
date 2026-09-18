@@ -87,18 +87,35 @@ export interface DatiDemo {
    *  quando non e disponibile: allora il blocco sparisce del tutto,
    *  invece di lasciare un vuoto o un numero vecchio. */
   recensioni: { punteggio: number; totale: number } | null;
+  /**
+   * L'apertura approvata non e piu servibile.
+   *
+   * La pagina si apre con il NOME e non con un'altra fotografia:
+   * promuovere la seconda sarebbe una decisione presa da un programma
+   * sulla prima cosa che il prospect vede. Tutto il resto della pagina
+   * resta com'e — una demo degradata e comunque una demo raggiungibile.
+   */
+  aperturaTestuale?: boolean;
 }
 
-export default function DiLato({ brief, foto, apertura, recensioni }: DatiDemo) {
+export default function DiLato({
+  brief, foto, apertura, recensioni, aperturaTestuale = false,
+}: DatiDemo) {
   const { hero, resto } = disponi(foto);
+  // Senza apertura fotografica le lastre non si rendono affatto: una
+  // lastra vuota lascerebbe un rettangolo di intonaco che sembra
+  // un'immagine che non si e caricata.
+  const lastre = aperturaTestuale ? [] : hero;
+  const galleria = aperturaTestuale ? foto : resto;
   const tel = brief.contatti.telefono.replace(/[^\d+]/g, "");
   const maps = brief.luogo.maps_url;
   const firme = autori(foto);
 
   return (
     <div className={stile.pagina}>
-      <main className={stile.hero}>
-        {hero.map((f, i) => (
+      <main className={aperturaTestuale ? `${stile.hero} ${stile.soloTesto}` : stile.hero}>
+        {aperturaTestuale && <div className={stile.filo} aria-hidden="true" />}
+        {lastre.map((f, i) => (
           <figure key={f.indice} className={`${stile.lastra} ${stile[`l${i + 1}`]}`}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -194,10 +211,10 @@ export default function DiLato({ brief, foto, apertura, recensioni }: DatiDemo) 
         </div>
       </section>
 
-      {resto.length > 0 && (
+      {galleria.length > 0 && (
         <section className={stile.sezione}>
           <div className={stile.galleria}>
-            {resto.map((f, i) => (
+            {galleria.map((f, i) => (
               // Un ritmo di quattro, non un'alternanza: sfalsare una
               // fotografia su due produce una zigzag meccanica, che e
               // solo un altro modo di essere uniformi.

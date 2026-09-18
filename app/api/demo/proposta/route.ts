@@ -12,7 +12,7 @@ import {
 } from "@/lib/demo/curatela";
 import { messaggioPubblicazione, messaggioValidazione } from "@/lib/demo/messaggi";
 import { leggiProposta, leggiPubblicata } from "@/lib/demo/proposte-db";
-import { risolviSpec } from "@/lib/demo/pubblicazione";
+import { risolviSpec, type StatoPubblicazione } from "@/lib/demo/pubblicazione";
 import { TETTI } from "@/lib/demo/analisi-progetto";
 import type { BrandOverall } from "@/types/dossier";
 import type { ApiResponse } from "@/types";
@@ -70,6 +70,8 @@ export interface Provino {
     foto: number;
     mancanti: number;
     apertura_mancante: boolean;
+    /** `degraded` = la pagina si apre ma non e piu quella approvata. */
+    stato: StatoPubblicazione;
     avviso: string;
   } | null;
   /** I tetti, cosi la schermata puo dire quanto costera prima di
@@ -172,6 +174,7 @@ export async function GET(req: Request) {
         foto: risolta.foto.length,
         mancanti: risolta.mancanti.length,
         apertura_mancante: risolta.apertura_mancante,
+        stato: risolta.stato,
         avviso: messaggioPubblicazione(risolta.mancanti.length, risolta.apertura_mancante),
       } : null,
       tetti: { immagini: TETTI.immagini, in_pagina: MAX_IN_PAGINA },
