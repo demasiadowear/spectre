@@ -277,6 +277,19 @@ export type ContentReadiness = "READY" | "PARTIAL" | "BLOCKED";
 /** Che cosa si puo far vedere, e a quali condizioni. */
 export type MediaReadiness = "DISPLAYABLE" | "APPROVAL_REQUIRED" | "NONE" | "BLOCKED";
 
+/** Che cosa abbiamo dei social, come risposta a se' stante.
+ *
+ *  Sta separata dalla decisione commerciale di proposito: un profilo che
+ *  non si e potuto leggere e una pagina non letta, non un dubbio su CHI
+ *  sia l'attivita. Finche solo `confirmed` puo entrare nel sito, nessuno
+ *  stato di un profilo puo far male — quindi nessuno deve poter
+ *  declassare un lead sano. */
+export type SocialReadiness =
+  | "CONFIRMED"         // almeno un profilo verificato: utilizzabile
+  | "CANDIDATES"        // profili letti, nessuno verificato
+  | "BROWSER_REQUIRED"  // profili trovati, non leggibili senza un browser
+  | "NONE";             // nessun profilo
+
 /** Alias storico: il vecchio campo unico valeva quello commerciale. */
 export type DossierRecommendation = CommercialRecommendation;
 
@@ -307,6 +320,7 @@ export interface BusinessDossier {
 
   /** Vale la pena proporre un sito a questa attivita? */
   commercial_recommendation: CommercialRecommendation;
+  social_readiness: SocialReadiness;
   /** C'e abbastanza materiale per costruire la demo? */
   content_readiness: ContentReadiness;
   /** Che cosa si puo mostrare, e a quali condizioni? */
@@ -316,6 +330,7 @@ export interface BusinessDossier {
     commercial: string[];
     content: string[];
     media: string[];
+    social: string[];
   };
 
   /** Punteggio del sito esistente, quando un sito c'e. Serve alla

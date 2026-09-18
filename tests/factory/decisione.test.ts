@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { conDecisioniColmate, decidi, SOGLIA_OPPORTUNITA } from "../../lib/collector/decisione";
+import {
+  conDecisioniColmate, decidi, profiliUtilizzabili, SOGLIA_OPPORTUNITA,
+} from "../../lib/collector/decisione";
 import { queryPerLead, MAX_QUERY_PER_LEAD } from "../../lib/collector/ricerca";
 import type {
   BusinessDossier, DossierConflict, DossierFact, IdentityCandidate,
@@ -88,7 +90,8 @@ function dossier(over: Partial<BusinessDossier> = {}): BusinessDossier {
     commercial_recommendation: "REVIEW",
     content_readiness: "BLOCKED",
     media_readiness: "NONE",
-    decision_reasons: { commercial: [], content: [], media: [] },
+    social_readiness: "NONE",
+    decision_reasons: { commercial: [], content: [], media: [], social: [] },
     recommendation: "REVIEW",
     recommendation_reasons: [],
     cost: { external_calls: 0, total_ms: 0 },
@@ -135,25 +138,69 @@ test("decisione: un conflitto bloccante e REVIEW", () => {
   assert.equal(d.commercial_recommendation, "REVIEW");
 });
 
-test("decisione: un profilo che potrebbe essere di un altro e REVIEW", () => {
-  const d = decidi(dossier({ identities: [profilo("unverified_candidate")] }));
-  assert.equal(d.commercial_recommendation, "REVIEW",
-    "attribuire l'Instagram sbagliato e l'errore che si paga davvero");
+test("decisione: NESSUNO stato di un profilo social tocca la decisione commerciale", () => {
+  // Il difetto che questo test esiste per impedire, e che avevo
+  // introdotto io.
+  //
+  // Avevo messo `browser_required` da ricerca fra i motivi di REVIEW,
+  // ragionando che un profilo non dichiarato e non leggibile potrebbe
+  // essere di un altro. Vero, ma irrilevante: non sarebbe mai finito
+  // nel sito, perche solo `confirmed` ci arriva. L'effetto pratico e
+  // stato che accendere la ricerca social ha peggiorato la valutazione
+  // commerciale della stessa identica attivita — 16 fatti verificati,
+  // zero conflitti, nessun sito — solo perche avevamo guardato di piu.
+  //
+  // Cercare di piu non puo rendere un lead peggiore.
+  const stati: IdentityStatus[] = [
+    "likely", "unverified_candidate", "browser_required", "rejected", "confirmed",
+  ];
+  for (const st of stati) {
+    for (const via of ["official_site", "grounded_search"] as SourceType[]) {
+      const d = decidi(dossier({ identities: [profilo(st, via)] }));
+      assert.equal(d.commercial_recommendation, "GO",
+        `${st} trovato via ${via} ha declassato un lead sano: ${d.reasons.commercial.join(" | ")}`);
+    }
+  }
+  // E nemmeno il non aver trovato niente.
+  assert.equal(decidi(dossier({ identities: [] })).commercial_recommendation, "GO");
 });
 
-test("decisione: un profilo non letto ma DICHIARATO dal sito non manda in REVIEW", () => {
-  // Instagram pretende un login: la pagina non si e potuta leggere. Ma
-  // a dichiararlo suo e stato il sito ufficiale dell'attivita. Non e un
-  // dubbio di identita, e una pagina non letta.
-  const d = decidi(dossier({ identities: [profilo("browser_required", "official_site")] }));
-  assert.equal(d.commercial_recommendation, "GO");
+test("decisione: solo `confirmed` puo entrare nel sito", () => {
+  const tutti = [
+    profilo("confirmed"), profilo("likely"), profilo("unverified_candidate"),
+    profilo("browser_required"), profilo("rejected"),
+  ];
+  const usabili = profiliUtilizzabili(tutti);
+  assert.equal(usabili.length, 1);
+  assert.equal(usabili[0].status, "confirmed");
 });
 
-test("decisione: un profilo non letto e TROVATO da una ricerca manda in REVIEW", () => {
-  // Qui non lo dichiara nessuno: se non si riesce nemmeno ad aprirlo,
-  // metterlo sul sito vorrebbe dire pubblicare il profilo di un altro.
+test("decisione: social_readiness dice cosa abbiamo, senza toccare il resto", () => {
+  const casi: [IdentityStatus[], string][] = [
+    [[], "NONE"],
+    [["confirmed"], "CONFIRMED"],
+    [["confirmed", "browser_required"], "CONFIRMED"],
+    [["browser_required", "browser_required"], "BROWSER_REQUIRED"],
+    [["likely"], "CANDIDATES"],
+    [["unverified_candidate"], "CANDIDATES"],
+    [["unverified_candidate", "browser_required"], "CANDIDATES"],
+    // Solo scartati: non c'e niente da usare e niente da guardare.
+    [["rejected"], "NONE"],
+  ];
+  for (const [stati, atteso] of casi) {
+    const d = decidi(dossier({ identities: stati.map((st) => profilo(st)) }));
+    assert.equal(d.social_readiness, atteso, `${stati.join(",") || "(nessuno)"}`);
+    assert.equal(d.commercial_recommendation, "GO", "e la commerciale resta intatta");
+  }
+});
+
+test("decisione: un profilo non letto e una pagina non letta, non «non esiste»", () => {
   const d = decidi(dossier({ identities: [profilo("browser_required", "grounded_search")] }));
-  assert.equal(d.commercial_recommendation, "REVIEW");
+  assert.equal(d.social_readiness, "BROWSER_REQUIRED");
+  assert.ok(
+    d.reasons.social.some((r) => /non li abbiamo potuti guardare/i.test(r)),
+    "la ragione deve distinguere «non leggibile» da «inesistente»",
+  );
 });
 
 // ----- Quando REJECT e giusto ------------------------------------
@@ -245,27 +292,39 @@ test("decisione: solo foto di provenienza ignota e BLOCKED", () => {
 
 // ----- Dossier vecchi ---------------------------------------------
 
-test("decisione: un dossier salvato prima della separazione non mostra «undefined»", () => {
-  const vecchio = dossier();
-  delete (vecchio as Partial<BusinessDossier>).commercial_recommendation;
-  delete (vecchio as Partial<BusinessDossier>).content_readiness;
-  vecchio.recommendation = "REVIEW";
-  vecchio.recommendation_reasons = ["conflitto su phone"];
+test("decisione: un dossier in archivio si RICALCOLA, senza ripagare niente", () => {
+  // Il dossier e il registro completo: identita, conflitti, place_id,
+  // stato operativo, punteggio del sito, media. Applicare la regola
+  // corrente a dati completi non e tirare a indovinare — ed e cio che
+  // permette a una correzione della regola di raggiungere quello che e
+  // gia in archivio senza una sola chiamata esterna.
+  const archiviato = dossier({
+    commercial_recommendation: "REVIEW",          // la risposta SBAGLIATA di prima
+    recommendation: "REVIEW",
+    decision_reasons: {
+      commercial: ["3 profili social potrebbero essere di un'altra attivita"],
+      content: [], media: [], social: [],
+    },
+    identities: [
+      profilo("browser_required", "grounded_search"),
+      profilo("browser_required", "grounded_search"),
+      profilo("browser_required", "grounded_search"),
+    ],
+  });
 
-  const colmato = conDecisioniColmate(vecchio);
-  assert.equal(colmato.commercial_recommendation, "REVIEW", "si riporta la risposta di allora");
-  assert.ok(colmato.content_readiness, "nessun campo deve restare indefinito");
-  assert.ok(colmato.media_readiness);
-  assert.deepEqual(colmato.decision_reasons.commercial, ["conflitto su phone"]);
+  const ora = conDecisioniColmate(archiviato);
+  assert.equal(ora.commercial_recommendation, "GO",
+    "la regola corretta deve raggiungere anche cio che e gia salvato");
+  assert.equal(ora.social_readiness, "BROWSER_REQUIRED");
+  assert.equal(ora.recommendation, "GO", "il campo storico resta allineato");
   assert.ok(
-    colmato.decision_reasons.content.some((r) => /prima della separazione/i.test(r)),
-    "va detto che e una risposta vecchia, non ricalcolata",
+    !ora.decision_reasons.commercial.some((r) => /profili social/i.test(r)),
+    "la vecchia ragione non deve sopravvivere alla nuova decisione",
   );
-});
 
-test("decisione: un dossier gia nuovo non viene toccato", () => {
-  const nuovo = dossier({ commercial_recommendation: "GO" });
-  assert.equal(conDecisioniColmate(nuovo), nuovo);
+  // I FATTI invece non si ricalcolano: restano quelli osservati allora.
+  assert.equal(ora.verified.length, archiviato.verified.length);
+  assert.equal(ora.identities.length, 3);
 });
 
 // ----- Le interrogazioni della ricerca ----------------------------

@@ -19,7 +19,8 @@
 
 import type {
   BusinessDossier, CommercialRecommendation, ContentReadiness, ContiMedia,
-  MediaCandidate, MediaReadiness,
+  IdentityCandidate, IdentityStatus, MediaCandidate, MediaReadiness,
+  SocialReadiness,
 } from "@/types/dossier";
 import { CONSERVAZIONE_PER_DIRITTO, VISUALIZZAZIONE_PER_DIRITTO } from "./media";
 
@@ -27,7 +28,10 @@ export interface Decisioni {
   commercial_recommendation: CommercialRecommendation;
   content_readiness: ContentReadiness;
   media_readiness: MediaReadiness;
-  reasons: { commercial: string[]; content: string[]; media: string[] };
+  social_readiness: SocialReadiness;
+  reasons: {
+    commercial: string[]; content: string[]; media: string[]; social: string[];
+  };
 }
 
 /** Sotto questo punteggio un sito esistente e gia abbastanza buono: non
@@ -62,57 +66,77 @@ function identitaSicura(d: BusinessDossier): boolean {
 }
 
 /**
- * Profili che potrebbero essere di un'ALTRA attivita.
+ * Quali profili possono finire NEL SITO.
  *
- * Sono il rischio concreto di attribuzione sbagliata, e sono l'unico
- * motivo social per cui una persona deve guardare prima.
+ * Uno solo: `confirmed`. Tutti gli altri restano nel dossier, dove
+ * servono a una persona che guarda, e non escono da li.
  *
- * La distinzione che conta e COME e stato trovato il profilo, non se lo
- * si e riusciti a leggere:
+ * Questa e la regola da cui discende tutto il resto. Finche e questa a
+ * decidere cosa si pubblica, nessuno stato di un profilo puo fare
+ * danno — e quindi nessuno deve poter declassare un lead sano.
  *
- *  - un profilo LINKATO dal sito ufficiale e dichiarato dall'attivita
- *    stessa. Se poi il collector non riesce ad aprirlo perche la
- *    piattaforma pretende un login, il profilo resta suo: non e un
- *    dubbio di identita, e una pagina non letta.
- *  - un profilo TROVATO da una ricerca non e dichiarato da nessuno. Se
- *    resta anche non verificato, metterlo sul sito significherebbe
- *    pubblicare l'Instagram di qualcun altro.
+ * L'errore che ho commesso e che questa funzione esiste per impedire:
+ * avevo messo `browser_required` fra i motivi di REVIEW commerciale,
+ * ragionando che un profilo trovato da una ricerca e non leggibile
+ * potrebbe essere di un altro. Vero, ma irrilevante: non sarebbe mai
+ * finito nel sito comunque. L'effetto pratico e stato che accendere la
+ * ricerca social ha peggiorato la valutazione commerciale della stessa
+ * identica attivita — 16 fatti verificati, zero conflitti, nessun sito
+ * — solo perche avevamo guardato di piu. Cercare di piu non puo
+ * rendere un lead peggiore.
  */
-function profiliAmbigui(d: BusinessDossier): number {
-  return d.identities.filter((i) => {
-    if (i.status === "unverified_candidate") return true;
-    return i.status === "browser_required" && i.discovered_via === "grounded_search";
-  }).length;
+export function profiliUtilizzabili(
+  identities: readonly IdentityCandidate[],
+): IdentityCandidate[] {
+  return identities.filter((i) => i.status === "confirmed").slice();
+}
+
+/** I conteggi per stato, che finiscono in telemetria e nel pannello. */
+export function contiSocial(identities: readonly IdentityCandidate[]) {
+  const per = (st: IdentityStatus) => identities.filter((i) => i.status === st).length;
+  return {
+    confirmed: per("confirmed"),
+    likely: per("likely"),
+    unverified_candidate: per("unverified_candidate"),
+    browser_required: per("browser_required"),
+    rejected: per("rejected"),
+  };
 }
 
 /**
- * Un dossier salvato PRIMA della separazione delle tre decisioni non ha
- * i tre campi nuovi: ha solo `recommendation`.
+ * Rimette in forma un dossier letto dall'archivio, e RICALCOLA le
+ * decisioni dai fatti che porta con se.
  *
- * Non si ricalcola la decisione — i dati su cui era stata presa non ci
- * sono piu tutti, e una decisione ricalcolata a mesi di distanza non e
- * la stessa decisione. Si riporta quello che c'era, dichiarandolo: il
- * pannello mostra una risposta vera e vecchia invece di `undefined`.
+ * Avevo scritto il contrario — «una decisione ricalcolata a distanza non
+ * e la stessa decisione» — e per i dossier precedenti alla separazione
+ * era vero, perche i dati su cui erano state prese non c'erano piu
+ * tutti. Ma il dossier E il registro completo: identita, conflitti,
+ * place_id, stato operativo, punteggio del sito, media. Applicare la
+ * regola corrente a dati completi non e tirare a indovinare, e
+ * esattamente quello che la regola serve a fare.
+ *
+ * E ha una conseguenza pratica che vale il cambio: quando la regola si
+ * corregge, la correzione raggiunge cio che e gia in archivio senza
+ * ripagare una sola chiamata esterna. Nessuna rete, nessun modello:
+ * `decidi` e una funzione pura.
+ *
+ * Quello che invece NON si ricalcola sono i fatti: verificati,
+ * conflitti, profili e fotografie restano quelli osservati allora.
  */
 export function conDecisioniColmate(d: BusinessDossier): BusinessDossier {
-  if (d.commercial_recommendation) return d;
-  const vecchia = d.recommendation ?? "REVIEW";
-  // I conti dei media, invece, si RICALCOLANO: non sono un giudizio, sono
-  // il numero di fotografie che stanno gia nel manifest. Lasciarli vuoti
-  // farebbe scrivere al pannello «0 utilizzabili» su un dossier che ne ha
-  // dieci — cioe esattamente la confusione fra possedere un'immagine e
-  // poterla mostrare che questa versione doveva togliere di mezzo.
-  // Un candidato vecchio non ha nemmeno `display_status`: quei due campi
-  // si derivano dai diritti, che invece ci sono sempre. Senza, ogni
+  if (!d || !d.media) return d;
+
+  // Un candidato vecchio non ha `display_status`: quei due campi si
+  // derivano dai diritti, che invece ci sono sempre. Senza, ogni
   // fotografia gia in archivio risulterebbe non mostrabile.
-  const candidati = (d.media?.candidates ?? []).map((m) => m.display_status ? m : {
+  const candidati = (d.media.candidates ?? []).map((m) => m.display_status ? m : {
     ...m,
     display_status: VISUALIZZAZIONE_PER_DIRITTO[m.rights_status] ?? "display_forbidden",
     storage_status: CONSERVAZIONE_PER_DIRITTO[m.rights_status] ?? "do_not_store",
   });
-  const approvate = d.media?.approved_ids ?? [];
+  const approvate = d.media.approved_ids ?? [];
   const conta = (f: (m: MediaCandidate) => boolean) => candidati.filter(f).length;
-  const counts: ContiMedia = d.media?.counts ?? {
+  const counts: ContiMedia = {
     totali: candidati.length,
     tramite_provider: conta((m) => m.rights_status === "provider_rendered"),
     proprietarie: conta((m) => m.rights_status === "customer_owned"),
@@ -124,21 +148,31 @@ export function conDecisioniColmate(d: BusinessDossier): BusinessDossier {
     da_approvare: conta((m) =>
       m.display_status === "display_after_approval" && approvate.indexOf(m.id) === -1),
   };
-  return {
+
+  const normalizzato: BusinessDossier = {
     ...d,
+    verified: d.verified ?? [],
+    probable: d.probable ?? [],
+    conflicts: d.conflicts ?? [],
+    missing: d.missing ?? [],
+    identities: d.identities ?? [],
     media: { ...d.media, candidates: candidati, counts },
-    commercial_recommendation: vecchia,
-    content_readiness: "PARTIAL",
-    media_readiness: counts.totali === 0 ? "NONE"
-      : counts.utilizzabili_in_demo > 0 ? "DISPLAYABLE"
-      : counts.da_approvare > 0 ? "APPROVAL_REQUIRED"
-      : "BLOCKED",
+    // `null` significa «non misurato», e non deve poter valere zero.
     website_opportunity_score: d.website_opportunity_score ?? null,
-    decision_reasons: {
-      commercial: (d.recommendation_reasons ?? []).slice(),
-      content: ["Dossier raccolto prima della separazione delle tre decisioni: rilancia la raccolta per una risposta aggiornata."],
-      media: [],
-    },
+  };
+
+  const nuove = decidi(normalizzato);
+  return {
+    ...normalizzato,
+    commercial_recommendation: nuove.commercial_recommendation,
+    content_readiness: nuove.content_readiness,
+    media_readiness: nuove.media_readiness,
+    social_readiness: nuove.social_readiness,
+    decision_reasons: nuove.reasons,
+    // Il campo storico resta allineato alla decisione commerciale.
+    recommendation: nuove.commercial_recommendation,
+    recommendation_reasons: nuove.reasons.commercial
+      .concat(nuove.reasons.content, nuove.reasons.media, nuove.reasons.social),
   };
 }
 
@@ -146,6 +180,7 @@ export function decidi(d: BusinessDossier): Decisioni {
   const commercial: string[] = [];
   const content: string[] = [];
   const media: string[] = [];
+  const social: string[] = [];
 
   // ----- 1. Decisione commerciale ---------------------------------
 
@@ -153,7 +188,6 @@ export function decidi(d: BusinessDossier): Decisioni {
   const chiusa = /CLOSED/i.test(stato);
   const bloccanti = d.conflicts.filter((c) => c.blocking);
   const ancorata = identitaSicura(d);
-  const ambigui = profiliAmbigui(d);
   const punteggio = d.website_opportunity_score;
   const haSito = Boolean(d.official_site);
 
@@ -168,9 +202,10 @@ export function decidi(d: BusinessDossier): Decisioni {
   } else if (bloccanti.length > 0) {
     commerciale = "REVIEW";
     commercial.push(`${bloccanti.length} conflitti su informazioni indispensabili (${bloccanti.map((c) => c.field).join(", ")}): li decide una persona.`);
-  } else if (ambigui > 0) {
+  } else if (!stato) {
+    // Stato operativo non determinabile: non si sa se sia ancora aperta.
     commerciale = "REVIEW";
-    commercial.push(`${ambigui} profili social potrebbero essere di un'altra attivita: rischio concreto di attribuzione sbagliata.`);
+    commercial.push("Stato operativo non determinabile: Places non dichiara se l'attivita sia ancora aperta.");
   } else if (haSito && punteggio !== null && punteggio < SOGLIA_OPPORTUNITA) {
     commerciale = "REJECT";
     commercial.push(`Il sito attuale funziona (opportunita ${punteggio}/100, sotto ${SOGLIA_OPPORTUNITA}): non c'e un problema da risolvere.`);
@@ -186,6 +221,11 @@ export function decidi(d: BusinessDossier): Decisioni {
     }
     commercial.push("Identita ancorata su Places, attivita operativa, nessun conflitto bloccante.");
   }
+
+  // I social NON compaiono qui, di proposito. La decisione commerciale
+  // risponde a «e la stessa attivita, ed e un'opportunita»: un profilo
+  // Instagram che non si apre non tocca nessuna delle due cose.
+  // Risponde `social_readiness`, piu sotto.
 
   // ----- 2. Contenuto ---------------------------------------------
 
@@ -242,10 +282,37 @@ export function decidi(d: BusinessDossier): Decisioni {
     media.push(`${vietate.length} immagini candidate, nessuna utilizzabile: provenienza non riconducibile a un canale ufficiale.`);
   }
 
+  // ----- 4. Social --------------------------------------------------
+  //
+  // Una risposta a se', che non tocca nessuna delle altre tre. Dice
+  // quanto materiale social e UTILIZZABILE, sapendo che utilizzabile
+  // vuol dire una cosa sola: `confirmed`.
+
+  const c = contiSocial(d.identities ?? []);
+  const nonUsabili = c.likely + c.unverified_candidate + c.browser_required;
+
+  let socialStato: SocialReadiness;
+  if (c.confirmed > 0) {
+    socialStato = "CONFIRMED";
+    social.push(`${c.confirmed} profili verificati: sono gli unici che possono entrare nel sito.`);
+  } else if (c.browser_required > 0 && c.likely + c.unverified_candidate === 0) {
+    socialStato = "BROWSER_REQUIRED";
+    social.push(`${c.browser_required} profili trovati ma non leggibili: la piattaforma pretende un accesso. Non e «non esistono», e «non li abbiamo potuti guardare».`);
+  } else if (nonUsabili > 0) {
+    socialStato = "CANDIDATES";
+    social.push(`${nonUsabili} profili candidati, nessuno verificato: restano nel dossier e non entrano nel sito.`);
+    if (c.browser_required > 0) social.push(`${c.browser_required} di questi non si sono potuti leggere.`);
+  } else {
+    socialStato = "NONE";
+    social.push("Nessun profilo social trovato.");
+  }
+  if (c.rejected > 0) social.push(`${c.rejected} scartati: i segnali dicevano di un'altra attivita.`);
+
   return {
     commercial_recommendation: commerciale,
     content_readiness: contenuto,
     media_readiness: mediaStato,
-    reasons: { commercial, content, media },
+    social_readiness: socialStato,
+    reasons: { commercial, content, media, social },
   };
 }

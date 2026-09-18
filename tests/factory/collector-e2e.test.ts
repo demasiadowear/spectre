@@ -843,3 +843,63 @@ test("e2e: senza forzatura, su un dossier fresco la ricerca NON si ripaga", asyn
   assert.equal(dopo.dossier.search?.force_refresh, false);
   assert.equal(dopo.dossier.identities.length, 1, "i candidati già scoperti si riusano");
 });
+
+// ----- Correggere l'archivio senza ripagare niente ----------------
+
+test("e2e: un dossier salvato con la decisione sbagliata si corregge in lettura", async () => {
+  // Il caso reale: sul lead vero la scoperta social ha trovato 3 profili
+  // non leggibili, e la regola di allora li contava come dubbio di
+  // identità — quindi REVIEW su un'attività con 16 fatti verificati,
+  // zero conflitti e nessun sito. Cercare di più l'aveva peggiorata.
+  //
+  // La correzione deve raggiungere ciò che è già in archivio senza
+  // rifare le quattro ricerche: `decidi` è una funzione pura, e il
+  // dossier porta con sé tutto ciò che le serve.
+  const pieno = await raccogli(LEAD_SENZA_SITO, {
+    places: placesSenzaSito, provider: new ProviderFinto(),
+    ricerca: async () => ({
+      esito: "ok" as const,
+      candidati: [{ url: "https://instagram.com/trattoriadiprova", platform: "instagram" as const, query_index: 0 }],
+      queries_used: 4, tokens: 2368, ms: 30, detail: "",
+      conteggi: { citazioni: 13, risolti: 13, profili: 4, unici: 1 },
+    }),
+  });
+
+  // Si riscrive a mano la decisione com'era prima della correzione, per
+  // avere in archivio esattamente il dossier che il lead reale aveva.
+  const archiviato: typeof pieno.dossier = {
+    ...pieno.dossier,
+    commercial_recommendation: "REVIEW",
+    recommendation: "REVIEW",
+    decision_reasons: {
+      commercial: ["3 profili social potrebbero essere di un'altra attività"],
+      content: [], media: [], social: [],
+    },
+  };
+  await salvaDossier({ dossier: archiviato, phases: pieno.phases, job_id: "job-correzione" });
+
+  // Nessuna ricerca, nessuna rete: solo una rilettura.
+  const riletto = await leggiDossier(LEAD);
+  assert.ok(riletto);
+  assert.equal(riletto?.dossier.commercial_recommendation, "GO",
+    `la regola corretta deve raggiungere il dossier già salvato — motivi: ${
+      (riletto?.dossier.decision_reasons.commercial ?? []).join(" | ")
+    } · conflitti bloccanti: ${
+      (riletto?.dossier.conflicts ?? []).filter((c) => c.blocking).map((c) => c.field).join(",") || "nessuno"
+    } · place_id: ${riletto?.dossier.place_id || "(vuoto)"}`);
+  assert.equal(riletto?.recommendation, "GO");
+  assert.ok(
+    !(riletto?.dossier.decision_reasons.commercial ?? []).some((r) => /profili social/i.test(r)),
+    "la ragione vecchia non sopravvive alla decisione nuova",
+  );
+
+  // Le altre risposte restano quelle che i fatti dicono.
+  assert.equal(riletto?.dossier.media_readiness, "DISPLAYABLE");
+  assert.notEqual(riletto?.dossier.content_readiness, "BLOCKED");
+  assert.ok(riletto?.dossier.social_readiness, "social_readiness deve esserci");
+
+  // E i FATTI non si toccano: si ricalcolano le decisioni, non le prove.
+  assert.equal(riletto?.dossier.verified.length, archiviato.verified.length);
+  assert.equal(riletto?.dossier.identities.length, archiviato.identities.length);
+  assert.equal(riletto?.dossier.media.candidates.length, archiviato.media.candidates.length);
+});

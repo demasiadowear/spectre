@@ -12,6 +12,7 @@ import { MAX_QUERY_PER_LEAD } from "@/types/dossier";
 import type {
   BusinessDossier, CollectPhase, CommercialRecommendation, ContentReadiness,
   IdentityCandidate, MediaCandidate, MediaReadiness, PhaseState, RightsStatus,
+  SocialReadiness,
 } from "@/types/dossier";
 import type { StatoRuntime } from "./PannelloStato";
 
@@ -65,6 +66,9 @@ const TONO_CONTENUTO: Record<ContentReadiness, Tono> = {
 };
 const TONO_MEDIA: Record<MediaReadiness, Tono> = {
   DISPLAYABLE: "bene", APPROVAL_REQUIRED: "attesa", BLOCKED: "male", NONE: "neutro",
+};
+const TONO_SOCIAL: Record<SocialReadiness, Tono> = {
+  CONFIRMED: "bene", CANDIDATES: "attesa", BROWSER_REQUIRED: "attesa", NONE: "neutro",
 };
 
 const BORDO: Record<Tono, string> = {
@@ -353,7 +357,10 @@ export default function CollectorPanel({ leadId, leadName }: { leadId: string; l
                 </>
               }
             />
-            <div className="grid gap-2 sm:grid-cols-2">
+            {/* Le tre risposte di SERVIZIO. Nessuna di queste puo
+                cambiare quella commerciale qui sopra: dicono che cosa
+                abbiamo, non se valga la pena. */}
+            <div className="grid gap-2 sm:grid-cols-3">
               <Decisione
                 etichetta="Materiale per la demo"
                 valore={d.content_readiness}
@@ -365,6 +372,12 @@ export default function CollectorPanel({ leadId, leadName }: { leadId: string; l
                 valore={d.media_readiness}
                 tono={TONO_MEDIA[d.media_readiness]}
                 motivi={d.decision_reasons?.media ?? []}
+              />
+              <Decisione
+                etichetta="Social"
+                valore={d.social_readiness}
+                tono={TONO_SOCIAL[d.social_readiness] ?? "neutro"}
+                motivi={d.decision_reasons?.social ?? []}
               />
             </div>
           </div>

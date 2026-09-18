@@ -122,9 +122,10 @@ const DOSSIER: BusinessDossier = {
   commercial_recommendation: "REVIEW",
   content_readiness: "PARTIAL",
   media_readiness: "APPROVAL_REQUIRED",
+  social_readiness: "BROWSER_REQUIRED",
   decision_reasons: {
     commercial: ["conflitto su phone"], content: ["mancano i servizi"],
-    media: ["1 immagine in attesa di approvazione"],
+    media: ["1 immagine in attesa di approvazione"], social: ["1 profilo non letto"],
   },
   recommendation: "REVIEW",
   recommendation_reasons: ["conflitto su phone", "1 profilo non letto"],

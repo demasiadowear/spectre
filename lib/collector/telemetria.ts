@@ -19,8 +19,9 @@
 
 import type {
   BusinessDossier, CollectPhase, CommercialRecommendation, ContentReadiness,
-  DossierRecommendation, MediaReadiness, PhaseState,
+  DossierRecommendation, MediaReadiness, PhaseState, SocialReadiness,
 } from "@/types/dossier";
+import { contiSocial } from "./decisione";
 
 export const EVENTO_RACCOLTA = "collector_run_finished";
 export const EVENTO_LETTURA = "collector_dossier_read";
@@ -92,6 +93,7 @@ export interface RiepilogoRaccolta {
   commercial_recommendation: CommercialRecommendation | "";
   content_readiness: ContentReadiness | "";
   media_readiness: MediaReadiness | "";
+  social_readiness: SocialReadiness | "";
   website_opportunity_score: number | null;
   duration_ms: number;
   phase_statuses: Record<string, string>;
@@ -100,8 +102,15 @@ export interface RiepilogoRaccolta {
   blocking_conflicts_count: number;
   media_candidates_count: number;
   media_approved_count: number;
+  /** I profili per stato. Uno solo — `confirmed` — puo entrare nel
+   *  sito; gli altri servono a una persona che guarda. Contarli tutti
+   *  e cio che permette di distinguere «non abbiamo cercato» da «non
+   *  siamo riusciti a leggere» da «abbiamo letto e non erano suoi». */
   social_confirmed_count: number;
+  social_likely_count: number;
+  social_unverified_count: number;
   social_browser_required_count: number;
+  social_rejected_count: number;
   /** Immagini che si possono davvero mostrare, non solo possedere. */
   media_displayable_count: number;
   /** Costo della scoperta social: se sale senza che salgano i profili
@@ -184,7 +193,8 @@ export function riepilogo(
 
   const identita = dossier?.identities ?? [];
   const media = dossier?.media;
-  const confermati = identita.filter((i) => i.status === "confirmed").length;
+  const social = contiSocial(identita);
+  const confermati = social.confirmed;
 
   // Le fasi CHIESTE vengono dal dossier quando ci sono; altrimenti si
   // deducono da quelle non saltate. La deduzione e un ripiego per i
@@ -203,6 +213,7 @@ export function riepilogo(
     commercial_recommendation: dossier?.commercial_recommendation ?? "",
     content_readiness: dossier?.content_readiness ?? "",
     media_readiness: dossier?.media_readiness ?? "",
+    social_readiness: dossier?.social_readiness ?? "",
     website_opportunity_score: dossier?.website_opportunity_score ?? null,
     duration_ms: Math.max(0, Math.round(ctx.duration_ms)),
     phase_statuses: stati,
@@ -228,8 +239,11 @@ export function riepilogo(
     requested_phases: chieste.join("+") || "-",
     executed_phases: phases.filter((p) => p.status !== "skipped")
       .map((p) => p.phase).join("+") || "-",
-    social_confirmed_count: identita.filter((i) => i.status === "confirmed").length,
-    social_browser_required_count: identita.filter((i) => i.status === "browser_required").length,
+    social_confirmed_count: social.confirmed,
+    social_likely_count: social.likely,
+    social_unverified_count: social.unverified_candidate,
+    social_browser_required_count: social.browser_required,
+    social_rejected_count: social.rejected,
     error_code: codice,
     error_phase: fallita?.phase ?? "",
   };

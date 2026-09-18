@@ -858,7 +858,8 @@ export async function raccogli(
     commercial_recommendation: "REVIEW",
     content_readiness: "BLOCKED",
     media_readiness: "NONE",
-    decision_reasons: { commercial: [], content: [], media: [] },
+    social_readiness: "NONE",
+    decision_reasons: { commercial: [], content: [], media: [], social: [] },
     recommendation: "REVIEW",
     recommendation_reasons: [],
     cost: { external_calls: s.chiamate, total_ms: Date.now() - t0 },
@@ -876,13 +877,14 @@ export async function raccogli(
   dossier.commercial_recommendation = d.commercial_recommendation;
   dossier.content_readiness = d.content_readiness;
   dossier.media_readiness = d.media_readiness;
+  dossier.social_readiness = d.social_readiness;
   dossier.decision_reasons = d.reasons;
   // Campi storici: restano allineati alla decisione COMMERCIALE, che e
   // quella che il vecchio campo cercava di esprimere. Cosi un dossier
   // gia salvato e uno nuovo si leggono con lo stesso codice.
   dossier.recommendation = d.commercial_recommendation;
   dossier.recommendation_reasons =
-    d.reasons.commercial.concat(d.reasons.content, d.reasons.media);
+    d.reasons.commercial.concat(d.reasons.content, d.reasons.media, d.reasons.social);
 
   phases.push({ phase: "reconcile", status: "ok",
     detail: `${verified.length} verificati, ${probable.length} probabili, ${conflicts.length} conflitti`, ms: 0 });

@@ -132,14 +132,24 @@ export async function leggiDossier(leadId: string): Promise<DossierSalvato | nul
   });
   const r = rs.rows[0] as Record<string, unknown> | undefined;
   if (!r) return null;
+
+  // Le decisioni si ricalcolano dai fatti archiviati: cosi una regola
+  // corretta raggiunge anche cio che e gia salvato, senza ripagare una
+  // sola chiamata esterna.
+  const dossier = conDecisioniColmate(parse<BusinessDossier>(r.dossier, {} as BusinessDossier));
+
   return {
     id: String(r.id),
     lead_id: String(r.lead_id),
-    recommendation: String(r.recommendation ?? "REVIEW"),
-    // Un dossier salvato prima della separazione delle tre decisioni
-    // arriva senza: si colmano in lettura, cosi il pannello non deve
-    // sapere che e esistita una versione precedente.
-    dossier: conDecisioniColmate(parse<BusinessDossier>(r.dossier, {} as BusinessDossier)),
+    // La colonna `recommendation` e una copia denormalizzata, e resta
+    // quella del salvataggio finche non se ne fa un altro. Leggerla
+    // invece di ricalcolarla farebbe arrivare la correzione al JSON ma
+    // non a chi guarda la colonna — cioe la mezza correzione peggiore
+    // di tutte, perche le due fonti direbbero cose diverse sullo stesso
+    // dossier. Vince il dossier.
+    recommendation: dossier.commercial_recommendation
+      || String(r.recommendation ?? "REVIEW"),
+    dossier,
     phases: parse<PhaseState[]>(r.phases, []),
     job_id: String(r.job_id ?? ""),
     external_calls: Number(r.external_calls ?? 0),
