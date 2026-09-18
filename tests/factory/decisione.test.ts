@@ -292,3 +292,36 @@ test("ricerca: senza un luogo non si formulano interrogazioni a caso", () => {
   const q = queryPerLead({ nome: "Bar Centrale", citta: "", indirizzo: "", telefono: "", categoria: "" });
   assert.equal(q.length, 0, "una ricerca senza luogo restituirebbe attivita di un'altra citta");
 });
+
+test("decisione: un dossier vecchio non dichiara 0 foto utilizzabili se ne ha dieci", () => {
+  // Il caso reale: dieci fotografie di Places gia in archivio, salvate
+  // prima che esistessero `display_status` e i conti. Senza derivarli,
+  // il pannello direbbe «0 utilizzabili» — la stessa confusione fra
+  // possedere un'immagine e poterla mostrare che questa versione doveva
+  // togliere di mezzo.
+  const vecchio = dossier();
+  delete (vecchio as Partial<BusinessDossier>).commercial_recommendation;
+  vecchio.media = {
+    ...vecchio.media,
+    candidates: Array.from({ length: 10 }, (_, i) => {
+      const m = foto(`p${i}`, "display_allowed_with_attribution");
+      delete (m as Partial<MediaCandidate>).display_status;
+      delete (m as Partial<MediaCandidate>).storage_status;
+      m.rights_status = "provider_rendered";
+      return m;
+    }),
+  };
+  delete (vecchio.media as Partial<BusinessDossier["media"]>).counts;
+
+  const c = conDecisioniColmate(vecchio);
+  assert.equal(c.media.counts.totali, 10);
+  assert.equal(c.media.counts.tramite_provider, 10);
+  assert.equal(c.media.counts.proprietarie, 0);
+  assert.equal(c.media.counts.copiabili, 0, "le foto del provider non si copiano");
+  assert.equal(c.media.counts.utilizzabili_in_demo, 10, "si mostrano, citando la fonte");
+  assert.equal(c.media_readiness, "DISPLAYABLE");
+  // E i due campi derivati arrivano fino al candidato, o l'anteprima nel
+  // pannello si rifiuterebbe di disegnarla.
+  assert.equal(c.media.candidates[0].display_status, "display_allowed_with_attribution");
+  assert.equal(c.media.candidates[0].storage_status, "do_not_store");
+});

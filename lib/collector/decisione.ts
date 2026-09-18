@@ -18,9 +18,10 @@
 // ============================================================
 
 import type {
-  BusinessDossier, CommercialRecommendation, ContentReadiness,
-  MediaReadiness,
+  BusinessDossier, CommercialRecommendation, ContentReadiness, ContiMedia,
+  MediaCandidate, MediaReadiness,
 } from "@/types/dossier";
+import { CONSERVAZIONE_PER_DIRITTO, VISUALIZZAZIONE_PER_DIRITTO } from "./media";
 
 export interface Decisioni {
   commercial_recommendation: CommercialRecommendation;
@@ -96,11 +97,42 @@ function profiliAmbigui(d: BusinessDossier): number {
 export function conDecisioniColmate(d: BusinessDossier): BusinessDossier {
   if (d.commercial_recommendation) return d;
   const vecchia = d.recommendation ?? "REVIEW";
+  // I conti dei media, invece, si RICALCOLANO: non sono un giudizio, sono
+  // il numero di fotografie che stanno gia nel manifest. Lasciarli vuoti
+  // farebbe scrivere al pannello «0 utilizzabili» su un dossier che ne ha
+  // dieci — cioe esattamente la confusione fra possedere un'immagine e
+  // poterla mostrare che questa versione doveva togliere di mezzo.
+  // Un candidato vecchio non ha nemmeno `display_status`: quei due campi
+  // si derivano dai diritti, che invece ci sono sempre. Senza, ogni
+  // fotografia gia in archivio risulterebbe non mostrabile.
+  const candidati = (d.media?.candidates ?? []).map((m) => m.display_status ? m : {
+    ...m,
+    display_status: VISUALIZZAZIONE_PER_DIRITTO[m.rights_status] ?? "display_forbidden",
+    storage_status: CONSERVAZIONE_PER_DIRITTO[m.rights_status] ?? "do_not_store",
+  });
+  const approvate = d.media?.approved_ids ?? [];
+  const conta = (f: (m: MediaCandidate) => boolean) => candidati.filter(f).length;
+  const counts: ContiMedia = d.media?.counts ?? {
+    totali: candidati.length,
+    tramite_provider: conta((m) => m.rights_status === "provider_rendered"),
+    proprietarie: conta((m) => m.rights_status === "customer_owned"),
+    copiabili: conta((m) => m.storage_status === "store_allowed"),
+    utilizzabili_in_demo: conta((m) =>
+      m.display_status === "display_allowed"
+      || m.display_status === "display_allowed_with_attribution"
+      || approvate.indexOf(m.id) !== -1),
+    da_approvare: conta((m) =>
+      m.display_status === "display_after_approval" && approvate.indexOf(m.id) === -1),
+  };
   return {
     ...d,
+    media: { ...d.media, candidates: candidati, counts },
     commercial_recommendation: vecchia,
     content_readiness: "PARTIAL",
-    media_readiness: (d.media?.candidates?.length ?? 0) > 0 ? "APPROVAL_REQUIRED" : "NONE",
+    media_readiness: counts.totali === 0 ? "NONE"
+      : counts.utilizzabili_in_demo > 0 ? "DISPLAYABLE"
+      : counts.da_approvare > 0 ? "APPROVAL_REQUIRED"
+      : "BLOCKED",
     website_opportunity_score: d.website_opportunity_score ?? null,
     decision_reasons: {
       commercial: (d.recommendation_reasons ?? []).slice(),
