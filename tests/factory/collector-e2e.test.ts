@@ -253,10 +253,28 @@ test("e2e: dossier e manifest completi, salvati e riletti dal database", async (
   for (const m of delSito) assert.equal(m.allowed_scope, "preview_only");
   assert.deepEqual(dossier.media.approved_ids, [], "nessuna immagine nasce approvata");
 
-  // La raccomandazione non e GO: ci sono profili non letti e media da
-  // approvare, e il sistema lo dice invece di tirare a indovinare.
-  assert.equal(dossier.recommendation, "REVIEW");
-  assert.ok(dossier.recommendation_reasons.length > 0);
+  // Le tre decisioni sono separate, ed e qui che si vede perche.
+  //
+  // Commercialmente e una GO: l'identita e ancorata su Places, non ci
+  // sono conflitti bloccanti, e i profili non letti erano DICHIARATI dal
+  // sito — non c'e nessun rischio di attribuire a questa attivita i
+  // social di un'altra. Che quei profili non si siano potuti aprire e un
+  // limite della raccolta, non un dubbio sull'identita.
+  //
+  // Sui MEDIA invece serve un'approvazione, perche le fotografie del
+  // sito non sono nostre. Le due cose convivono: prima questa seconda
+  // risposta trascinava anche la prima, e ogni lead finiva in REVIEW.
+  assert.equal(dossier.commercial_recommendation, "GO",
+    `commerciale: ${dossier.decision_reasons.commercial.join(" | ")}`);
+  assert.ok(dossier.decision_reasons.commercial.length > 0);
+  assert.notEqual(dossier.content_readiness, "BLOCKED",
+    "con nome, indirizzo e telefono si puo costruire qualcosa");
+  assert.ok(dossier.website_opportunity_score !== null,
+    "il punteggio del sito va misurato, non lasciato indefinito");
+
+  // Il campo storico resta allineato alla decisione commerciale, cosi
+  // un dossier vecchio e uno nuovo si leggono con lo stesso codice.
+  assert.equal(dossier.recommendation, dossier.commercial_recommendation);
 
   // Salvataggio e rilettura: il giro completo sul database vero.
   await salvaDossier({ dossier, phases, job_id: "job-e2e" });
@@ -264,7 +282,10 @@ test("e2e: dossier e manifest completi, salvati e riletti dal database", async (
   assert.ok(riletto, "il dossier deve essere rileggibile");
   assert.equal(riletto?.dossier.place_id, "PLACE-PROVA-1");
   assert.equal(riletto?.dossier.media.candidates.length, dossier.media.candidates.length);
-  assert.equal(riletto?.recommendation, "REVIEW");
+  assert.equal(riletto?.recommendation, "GO");
+  assert.equal(riletto?.dossier.commercial_recommendation, "GO",
+    "le tre decisioni devono sopravvivere al giro sul database");
+  assert.equal(riletto?.dossier.media_readiness, dossier.media_readiness);
   assert.equal(riletto?.phases.length, phases.length);
 });
 
@@ -501,4 +522,219 @@ test("e2e: rilanciare una sola fase non rifa le altre", async () => {
   assert.equal(perFase.official_site, "skipped", "non richiesta, quindi saltata");
   assert.equal(perFase.social_discovery, "skipped");
   assert.equal(perFase.media, "skipped");
+});
+
+// ----- Il rilancio parziale non deve DISTRUGGERE il dossier -------
+
+test("e2e: un rilancio parziale riparte dal dossier precedente, non da zero", async () => {
+  const lead = {
+    lead_id: LEAD,
+    name: "Trattoria di Prova", city: "Bari", address: "Via Sparano 10",
+    phone: "080 555 0101", email: "", website: "", place_id: "PLACE-PROVA-1",
+    manual: {}, linked_pages: [], media_forniti: [],
+  };
+
+  // Prima una raccolta intera: e questo il dossier su cui si ritorna.
+  const pieno = await raccogli(lead, { places: placesFinto, provider: new ProviderFinto() });
+  assert.ok(pieno.dossier.place_id, "la raccolta piena deve avere ancorato l'identita");
+  assert.ok(pieno.dossier.verified.length >= 3);
+
+  // Poi il rilancio di sole tre fasi, come si fa quando si vuole
+  // ricontrollare i social e le immagini senza ripagare Places.
+  const parziale = await raccogli(lead, {
+    places: placesFinto,
+    provider: new ProviderFinto(),
+    solo: ["social_discovery", "media", "reconcile"],
+    precedente: pieno.dossier,
+  });
+
+  // Il difetto che questo test impedisce: senza reidratazione le fasi
+  // saltate non lasciano niente nello stato, e il rilancio produce un
+  // dossier VUOTO — cioe peggiore di quello che doveva integrare. Il
+  // pannello mostrerebbe un'attivita senza nome e senza identita, e
+  // sembrerebbe che la raccolta abbia perso i dati.
+  assert.equal(parziale.dossier.place_id, pieno.dossier.place_id,
+    "l'ancora di Places non si perde solo perche la fase non e stata rieseguita");
+  assert.equal(parziale.dossier.official_site, pieno.dossier.official_site);
+  assert.equal(parziale.dossier.official_host, pieno.dossier.official_host);
+  assert.ok(parziale.dossier.verified.some((f) => f.field === "name"),
+    "il nome viene da Places: senza reidratazione sparirebbe");
+  assert.equal(parziale.dossier.website_opportunity_score, pieno.dossier.website_opportunity_score,
+    "il punteggio del sito si conserva: la fase che lo misura non e stata rieseguita");
+
+  // E la decisione regge: un dossier reidratato deve decidere come
+  // quello pieno, altrimenti il rilancio cambierebbe l'esito senza che
+  // sia cambiato niente della realta.
+  assert.equal(parziale.dossier.commercial_recommendation, pieno.dossier.commercial_recommendation);
+
+  // I fatti non si duplicano: reidratare e sommare due volte lo stesso
+  // fatto produrrebbe un conflitto inventato dal rilancio stesso.
+  const nomi = parziale.dossier.verified.concat(parziale.dossier.probable)
+    .filter((f) => f.field === "name").map((f) => f.value);
+  assert.equal(new Set(nomi).size, nomi.length > 0 ? new Set(nomi).size : 0);
+  assert.ok(
+    parziale.dossier.conflicts.length <= pieno.dossier.conflicts.length,
+    `il rilancio ha inventato conflitti: ${parziale.dossier.conflicts.length} contro ${pieno.dossier.conflicts.length}`,
+  );
+});
+
+// ----- La scoperta social quando un sito non c'e -----------------
+
+/** Places senza sito dichiarato: e il caso che ha motivato tutto. */
+const SCHEDA_SENZA_SITO: PlacesScheda = { ...SCHEDA, website: "" };
+const placesSenzaSito: ClientPlaces = {
+  async dettaglio(): Promise<EsitoPlaces> {
+    return { ok: true, scheda: SCHEDA_SENZA_SITO, candidati: [], error: "", calls: 1, ms: 5 };
+  },
+  async cerca(): Promise<EsitoPlaces> {
+    return { ok: true, scheda: null, candidati: [SCHEDA_SENZA_SITO], error: "", calls: 1, ms: 5 };
+  },
+};
+
+const LEAD_SENZA_SITO = {
+  lead_id: LEAD,
+  name: "Trattoria di Prova", city: "Bari", address: "Via Sparano 10",
+  phone: "080 555 0101", email: "", website: "", place_id: "PLACE-PROVA-1",
+  manual: {}, linked_pages: [], media_forniti: [],
+};
+
+test("e2e: senza sito la scoperta social parte, e i suoi candidati NON sono verita", async () => {
+  const { dossier, phases } = await raccogli(LEAD_SENZA_SITO, {
+    places: placesSenzaSito,
+    provider: new ProviderFinto(),
+    // La ricerca ha trovato un profilo. Gemini SCOPRE: non verifica.
+    ricerca: async () => ({
+      esito: "ok" as const,
+      candidati: [{
+        url: "https://instagram.com/trattoriadiprova",
+        platform: "instagram" as const,
+        query_index: 0,
+      }],
+      queries_used: 1, tokens: 420, ms: 12, detail: "",
+    }),
+  });
+
+  const social = phases.find((p) => p.phase === "social_discovery");
+  assert.equal(social?.status, "ok", `la scoperta non deve fallire: ${social?.detail}`);
+  assert.equal(dossier.identities.length, 1, "il candidato trovato va valutato, non ignorato");
+
+  const c = dossier.identities[0];
+  assert.equal(c.discovered_via, "grounded_search",
+    "la provenienza non deve poter fingere di essere una dichiarazione del sito");
+  assert.notEqual(c.status, "confirmed",
+    "una citazione di ricerca non e una prova di identita: servono due segnali forti");
+
+  // E la cosa che il candidato NON deve fare: entrare nei link del sito.
+  // Solo `confirmed` ci arriva, e questo non lo e.
+  assert.equal(
+    dossier.identities.filter((i) => i.status === "confirmed").length, 0,
+    "un profilo scoperto e non verificato non puo diventare un link del cliente",
+  );
+
+  // Il costo e visibile, o non lo si puo tenere sotto controllo.
+  assert.equal(dossier.search?.queries, 1);
+  assert.equal(dossier.search?.tokens, 420);
+  assert.equal(dossier.search?.status, "ok");
+});
+
+test("e2e: se il grounding non e disponibile la raccolta prosegue e lo dichiara", async () => {
+  const { dossier, phases } = await raccogli(LEAD_SENZA_SITO, {
+    places: placesSenzaSito,
+    provider: new ProviderFinto(),
+    ricerca: async () => ({
+      esito: "search_unavailable" as const,
+      candidati: [], queries_used: 0, tokens: 0, ms: 4,
+      detail: "Google Search grounding non disponibile con il modello o il progetto corrente",
+    }),
+  });
+
+  // Il punto: una capacita mancante e una lacuna dichiarata, non un
+  // guasto. Se facesse fallire la raccolta, nessuna attivita senza sito
+  // produrrebbe mai un dossier — cioe proprio quelle che servono.
+  assert.equal(phases.find((p) => p.phase === "social_discovery")?.status, "ok");
+  assert.equal(dossier.search?.status, "search_unavailable");
+  assert.equal(dossier.search?.queries, 0, "niente da pagare per una capacita che non c'e");
+  assert.equal(dossier.commercial_recommendation, "GO",
+    "senza social e senza sito resta il cliente ideale, non un dubbio");
+  assert.ok(
+    dossier.sources.some((s) => s.source_type === "grounded_search"),
+    "il tentativo va registrato fra le fonti, anche quando non e riuscito",
+  );
+});
+
+test("e2e: un rilancio su un dossier fresco NON ripaga la ricerca", async () => {
+  const primo = await raccogli(LEAD_SENZA_SITO, {
+    places: placesSenzaSito,
+    provider: new ProviderFinto(),
+    ricerca: async () => ({
+      esito: "ok" as const,
+      candidati: [{ url: "https://instagram.com/trattoriadiprova", platform: "instagram" as const, query_index: 0 }],
+      queries_used: 4, tokens: 1200, ms: 30, detail: "",
+    }),
+  });
+  assert.equal(primo.dossier.search?.queries, 4);
+
+  let richiamata = 0;
+  const secondo = await raccogli(LEAD_SENZA_SITO, {
+    places: placesSenzaSito,
+    provider: new ProviderFinto(),
+    solo: ["social_discovery", "media", "reconcile"],
+    precedente: primo.dossier,
+    ricerca: async () => {
+      richiamata++;
+      return { esito: "ok" as const, candidati: [], queries_used: 4, tokens: 1200, ms: 30, detail: "" };
+    },
+  });
+
+  // Le pagine social si rileggono — la VERIFICA e cio che decide, e si
+  // rifa sempre. Ma la SCOPERTA no: i profili di un'attivita non
+  // cambiano in due settimane, e ogni interrogazione in piu e denaro
+  // speso per riconfermare la stessa cosa.
+  assert.equal(richiamata, 0, "la ricerca e ripartita su un dossier ancora fresco");
+  assert.equal(secondo.dossier.identities.length, 1,
+    "i candidati gia scoperti si riusano, invece di sparire");
+  assert.equal(secondo.dossier.identities[0].discovered_via, "grounded_search",
+    "e restano marcati per come sono stati trovati");
+});
+
+test("e2e: il rilancio della fase media non perde le fotografie di Places", async () => {
+  // Il caso peggiore di tutti, perché non sembra un guasto.
+  //
+  // Rilanciando `media` senza `places`, le immagini grezze — che le
+  // produce Places — non ci sono più, e la fase ricostruisce un
+  // manifest di zero fotografie. Il pannello direbbe «nessuna immagine
+  // candidata» su un'attività che ne aveva dieci, e sembrerebbe una
+  // risposta vera invece che un dato perso.
+  const pieno = await raccogli(LEAD_SENZA_SITO, {
+    places: placesSenzaSito, provider: new ProviderFinto(),
+    ricerca: async () => ({
+      esito: "not_configured" as const, candidati: [], queries_used: 0,
+      tokens: 0, ms: 0, detail: "",
+    }),
+  });
+  assert.ok(pieno.dossier.media.candidates.length >= 1,
+    "la raccolta piena deve avere la fotografia di Places");
+  assert.equal(pieno.dossier.media_readiness, "DISPLAYABLE");
+
+  const dopo = await raccogli(LEAD_SENZA_SITO, {
+    places: placesSenzaSito, provider: new ProviderFinto(),
+    solo: ["social_discovery", "media", "reconcile"],
+    precedente: pieno.dossier,
+    ricerca: async () => ({
+      esito: "not_configured" as const, candidati: [], queries_used: 0,
+      tokens: 0, ms: 0, detail: "",
+    }),
+  });
+
+  assert.equal(dopo.dossier.media.candidates.length, pieno.dossier.media.candidates.length,
+    "nessuna fotografia deve sparire per il solo fatto di aver rilanciato");
+  assert.equal(dopo.dossier.media_readiness, "DISPLAYABLE");
+  assert.equal(
+    dopo.dossier.media.counts.tramite_provider,
+    pieno.dossier.media.counts.tramite_provider,
+  );
+  // E l'attribuzione sopravvive: senza, le fotografie resterebbero
+  // mostrabili ma non si saprebbe più a chi vanno attribuite.
+  assert.ok(dopo.dossier.media.candidates.every((m) => m.attribution || !m.provider_reference),
+    "l'attribuzione delle fotografie del provider non si perde nel rilancio");
 });

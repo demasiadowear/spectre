@@ -29,7 +29,8 @@ export type SourceType =
   | "site_meta"       // Open Graph / meta tag
   | "site_text"       // pattern nel testo visibile
   | "social_profile"  // profilo verificato come ufficiale
-  | "linked_page";    // pagina collegata a mano al lead
+  | "linked_page"     // pagina collegata a mano al lead
+  | "grounded_search";// citato da una ricerca Google: e un INDIZIO, non una prova
 
 /** Come e stato ottenuto. Piu fine di `SourceType`: serve all'audit. */
 export type ExtractionMethod =
@@ -41,7 +42,8 @@ export type ExtractionMethod =
   | "link_href"
   | "text_pattern"
   | "manual_entry"
-  | "cross_reference";
+  | "cross_reference"
+  | "search_citation";
 
 /** Dove puo finire un dato. Un dato raccolto non e un dato pubblicabile. */
 export type UsageScope =
@@ -89,11 +91,11 @@ export type Platform =
 
 /** Esito della verifica di appartenenza di un profilo all'attivita. */
 export type IdentityStatus =
-  | "verified"        // due o piu segnali forti
-  | "probable"        // un segnale forte, o piu deboli concordi
-  | "ambiguous"       // indizi contrastanti: decide una persona
-  | "rejected"        // segnali contrari
-  | "browser_required"; // serve un browser vero per stabilirlo
+  | "confirmed"             // due o piu segnali forti: e suo
+  | "likely"                // un segnale forte: probabile, non provato
+  | "unverified_candidate"  // trovato ma non verificato: resta nel dossier
+  | "rejected"              // segnali contrari
+  | "browser_required";     // non si e potuto guardare: NON e «non esiste»
 
 /** Segnali forti: due di questi bastano per `verified`. Un nome simile
  *  e la stessa citta NON sono in questo elenco, ed e il punto. */
@@ -133,6 +135,21 @@ export interface IdentityCandidate {
 
 /** Che diritto abbiamo su un file. «E pubblica» non e in questo elenco:
  *  pubblicazione e diritto di riutilizzo non sono la stessa cosa. */
+/** Si puo MOSTRARE, e a quali condizioni. Indipendente dal possesso:
+ *  una foto di Google Places non e nostra e non si puo copiare, ma si
+ *  puo mostrare tramite il provider con la sua attribuzione. Confondere
+ *  le due cose fa scartare materiale perfettamente utilizzabile. */
+export type DisplayStatus =
+  | "display_allowed"                  // nostra o autorizzata: si mostra e basta
+  | "display_allowed_with_attribution" // si mostra citando la fonte
+  | "display_after_approval"           // solo demo privata finche non e approvata
+  | "display_forbidden";
+
+/** Si puo CONSERVARE una copia? */
+export type StorageStatus =
+  | "store_allowed"
+  | "do_not_store";   // si rende on demand tramite il provider, mai copiata
+
 export type RightsStatus =
   | "customer_owned"                    // fornito o autorizzato dal cliente
   | "official_public_pending_approval"  // sui canali ufficiali, in attesa
@@ -179,6 +196,8 @@ export interface MediaCandidate {
   people_present: boolean;
 
   rights_status: RightsStatus;
+  display_status: DisplayStatus;
+  storage_status: StorageStatus;
   allowed_scope: UsageScope;
   /** Scadenza imposta dal provider, quando c'e. */
   expires_at: string;
@@ -186,6 +205,18 @@ export interface MediaCandidate {
   provider_reference: string;
   /** Perche e stato scartato, quando lo e stato. */
   rejected_reason: string;
+}
+
+/** I quattro numeri che servono davvero nel pannello. «0 approvate»
+ *  da solo faceva credere che non ci fosse niente da mostrare, mentre
+ *  c'erano dieci fotografie perfettamente visualizzabili. */
+export interface ContiMedia {
+  totali: number;
+  tramite_provider: number;
+  proprietarie: number;
+  copiabili: number;
+  utilizzabili_in_demo: number;
+  da_approvare: number;
 }
 
 export interface MediaManifest {
@@ -197,6 +228,8 @@ export interface MediaManifest {
   rejected: { source_url: string; reason: string }[];
   /** Conteggi per stato dei diritti, per il pannello. */
   by_rights: Record<RightsStatus, number>;
+  /** Conteggi per cio che si puo FARE, che e la domanda vera. */
+  counts: ContiMedia;
 }
 
 // ----- Dossier ----------------------------------------------------
@@ -213,7 +246,31 @@ export interface SourceAttempt {
   ms: number;
 }
 
-export type DossierRecommendation = "GO" | "REVIEW" | "REJECT";
+/**
+ * TRE decisioni, non una.
+ *
+ * Una decisione sola costringeva a mescolare domande che non hanno
+ * niente a che vedere fra loro, e produceva il difetto che si e visto
+ * sul primo lead reale: un'attivita identificata con sicurezza,
+ * operativa, con sedici fatti verificati e zero conflitti finiva in
+ * REVIEW perche non aveva un sito. Ma l'assenza del sito e il MOTIVO
+ * per cui la Factory esiste, non un dubbio sull'attivita.
+ *
+ * Quindi: «vale la pena lavorarci» e una domanda commerciale, «ho
+ * abbastanza materiale» e una domanda di contenuto, «posso mostrare
+ * delle fotografie» e una domanda di diritti. Rispondono in modo
+ * indipendente.
+ */
+export type CommercialRecommendation = "GO" | "REVIEW" | "REJECT";
+
+/** Quanto materiale c'e per costruire una demo. */
+export type ContentReadiness = "READY" | "PARTIAL" | "BLOCKED";
+
+/** Che cosa si puo far vedere, e a quali condizioni. */
+export type MediaReadiness = "DISPLAYABLE" | "APPROVAL_REQUIRED" | "NONE" | "BLOCKED";
+
+/** Alias storico: il vecchio campo unico valeva quello commerciale. */
+export type DossierRecommendation = CommercialRecommendation;
 
 export interface BusinessDossier {
   dossier_version: number;
@@ -239,12 +296,38 @@ export interface BusinessDossier {
   media: MediaManifest;
 
   sources: SourceAttempt[];
+
+  /** Vale la pena proporre un sito a questa attivita? */
+  commercial_recommendation: CommercialRecommendation;
+  /** C'e abbastanza materiale per costruire la demo? */
+  content_readiness: ContentReadiness;
+  /** Che cosa si puo mostrare, e a quali condizioni? */
+  media_readiness: MediaReadiness;
+  /** Le ragioni, per decisione. */
+  decision_reasons: {
+    commercial: string[];
+    content: string[];
+    media: string[];
+  };
+
+  /** Punteggio del sito esistente, quando un sito c'e. Serve alla
+   *  decisione commerciale: un sito gia buono e l'unico motivo per cui
+   *  un'attivita sana non e un'opportunita. */
+  website_opportunity_score: number | null;
+
+  /** @deprecated Campo unico storico. Vale `commercial_recommendation`:
+   *  resta per i dossier salvati prima della separazione. */
   recommendation: DossierRecommendation;
-  /** Le ragioni della raccomandazione, in chiaro. */
+  /** @deprecated Vale `decision_reasons.commercial`. */
   recommendation_reasons: string[];
 
   /** Quanto e costato: chiamate esterne e tempo. */
   cost: { external_calls: number; total_ms: number };
+
+  /** Costo ed esito della scoperta social con ricerca. Sta nel dossier e
+   *  non solo nei log perche e cio che si guarda per sapere se la
+   *  ricerca sta producendo qualcosa o solo consumando interrogazioni. */
+  search?: { status: string; queries: number; tokens: number };
 }
 
 // ----- Fasi del job ----------------------------------------------

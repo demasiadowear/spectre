@@ -24,8 +24,8 @@
 import { createHash } from "node:crypto";
 import { checkImageUrl, BLOCKED_IMAGE_HOSTS } from "@/lib/factory/images";
 import type {
-  MediaCandidate, MediaManifest, MediaRole, Platform,
-  RightsStatus, UsageScope,
+  ContiMedia, DisplayStatus, MediaCandidate, MediaManifest, MediaRole,
+  Platform, RightsStatus, StorageStatus, UsageScope,
 } from "@/types/dossier";
 
 /** Un'immagine sotto queste misure non e utilizzabile in una pagina:
@@ -36,6 +36,34 @@ export const MIN_AREA = 400 * 300;
 /** Tetto di candidati per non trasformare il collector in uno scraper
  *  di massa su un sito altrui. */
 export const MAX_CANDIDATI = 40;
+
+/**
+ * Mostrare e possedere sono due cose diverse.
+ *
+ * Una fotografia di Google Places non e nostra, non si puo copiare e
+ * non si puo conservare — ma si PUO mostrare, rendendola tramite
+ * l'endpoint del provider e citando chi l'ha scattata. Trattarla come
+ * «non approvata» la escludeva da tutto, che e come buttare via un
+ * libro preso in prestito perche non e nostro.
+ */
+export const VISUALIZZAZIONE_PER_DIRITTO: Record<RightsStatus, DisplayStatus> = {
+  customer_owned: "display_allowed",
+  official_public_pending_approval: "display_after_approval",
+  provider_rendered: "display_allowed_with_attribution",
+  unknown: "display_forbidden",
+  forbidden: "display_forbidden",
+};
+
+/** Che cosa si puo CONSERVARE. `provider_rendered` si rende ogni volta
+ *  dal provider: una copia sul nostro storage sarebbe proprio la cosa
+ *  che le condizioni non consentono. */
+export const CONSERVAZIONE_PER_DIRITTO: Record<RightsStatus, StorageStatus> = {
+  customer_owned: "store_allowed",
+  official_public_pending_approval: "store_allowed",
+  provider_rendered: "do_not_store",
+  unknown: "do_not_store",
+  forbidden: "do_not_store",
+};
 
 export const AMBITO_PER_DIRITTO: Record<RightsStatus, UsageScope> = {
   customer_owned: "public",
@@ -285,6 +313,8 @@ export function costruisciCandidati(
       // falso negativo qui costa: si preferisce segnalare in eccesso.
       people_present: /\b(team|staff|titolar|owner|persona|ritratt|equipe|chef|parrucchier|barbier)\b/.test(testo),
       rights_status: rights,
+      display_status: VISUALIZZAZIONE_PER_DIRITTO[rights],
+      storage_status: CONSERVAZIONE_PER_DIRITTO[rights],
       allowed_scope: scope,
       expires_at: "",
       provider_reference: g.provider_reference ?? "",
@@ -365,6 +395,30 @@ export function selezionaMigliori(candidati: MediaCandidate[]): Record<MediaRole
   return out;
 }
 
+/**
+ * I conteggi che il pannello deve mostrare.
+ *
+ * «0 approvate» da solo faceva credere che non ci fosse niente, mentre
+ * c'erano dieci fotografie perfettamente visualizzabili tramite Google.
+ * Sono domande diverse: quante ne ho, quante sono mie, quante posso
+ * copiare, quante posso mostrare adesso.
+ */
+export function contiMedia(candidati: MediaCandidate[], approvate: string[] = []): ContiMedia {
+  const app = approvate.slice();
+  return {
+    totali: candidati.length,
+    tramite_provider: candidati.filter((m) => m.rights_status === "provider_rendered").length,
+    proprietarie: candidati.filter((m) => m.rights_status === "customer_owned").length,
+    copiabili: candidati.filter((m) => m.storage_status === "store_allowed").length,
+    utilizzabili_in_demo: candidati.filter((m) =>
+      m.display_status === "display_allowed"
+      || m.display_status === "display_allowed_with_attribution"
+      || app.indexOf(m.id) !== -1).length,
+    da_approvare: candidati.filter((m) =>
+      m.display_status === "display_after_approval" && app.indexOf(m.id) === -1).length,
+  };
+}
+
 export function manifestDa(
   leadId: string,
   esito: EsitoMedia,
@@ -384,6 +438,7 @@ export function manifestDa(
     approved_ids: [],
     rejected: esito.scartati,
     by_rights,
+    counts: contiMedia(esito.candidati, []),
   };
 }
 

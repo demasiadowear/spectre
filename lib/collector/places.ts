@@ -336,10 +336,33 @@ export function risolviCorrispondenza(lead: LeadNoto, candidati: PlacesScheda[])
   return { scelta: prima, tutte: valutate, ambigua: false, motivo: "" };
 }
 
-/** URL di rendering di una foto Places. Si usa COSI, col riferimento
- *  del provider: non si scarica il file e non lo si copia altrove. */
+/**
+ * La forma di un riferimento fotografico Places: `places/<id>/photos/<id>`.
+ *
+ * Stretta di proposito. La rotta che rende le fotografie accetta SOLO
+ * questo: se accettasse un URL diventerebbe un proxy aperto, e chiunque
+ * avesse una sessione potrebbe farsi scaricare qualunque cosa dal
+ * nostro server.
+ */
+export const RIFERIMENTO_FOTO = /^places\/[A-Za-z0-9_-]{1,128}\/photos\/[A-Za-z0-9_-]{1,512}$/;
+
+/** L'URL interno della nostra rotta: e questo che finisce nel dossier e
+ *  nelle pagine. Non contiene la chiave, e non e un URL di Google. */
 export function urlFotoProvider(riferimento: string, maxPx = 1200): string {
-  return `${BASE.replace("/v1/places", "")}/v1/${riferimento}/media?maxWidthPx=${maxPx}`;
+  return `/api/collector/foto?ref=${encodeURIComponent(riferimento)}&w=${maxPx}`;
+}
+
+/** L'URL del provider, con la chiave. Si costruisce SOLO sul server,
+ *  dentro la rotta che rende l'immagine. */
+export function urlMediaProvider(riferimento: string, maxPx: number, chiave: string): string {
+  return `https://places.googleapis.com/v1/${riferimento}/media`
+    + `?maxWidthPx=${maxPx}&key=${encodeURIComponent(chiave)}`;
+}
+
+/** Il link alla scheda dell'attivita su Google Maps: l'attribuzione
+ *  deve poter essere cliccata, non solo letta. */
+export function urlSchedaMaps(placeId: string): string {
+  return `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(placeId)}`;
 }
 
 export const PIATTAFORMA_PLACES: Platform = "google_maps";

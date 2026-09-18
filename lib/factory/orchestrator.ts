@@ -1,6 +1,6 @@
 import { getPipelineLead } from "@/lib/autopilot/db";
 import { raccogli } from "@/lib/collector/collect";
-import { salvaDossier } from "@/lib/collector/db";
+import { leggiDossier, salvaDossier } from "@/lib/collector/db";
 import { getLeadById } from "@/lib/data";
 import { turso } from "@/lib/turso";
 import {
@@ -285,6 +285,18 @@ async function handleCollectBusinessIntelligence(job: AgentJob): Promise<string>
     : undefined;
 
   const pipeline = await getPipelineLead(job.lead_id).catch(() => null);
+
+  // Il dossier di prima, quando si rilanciano solo alcune fasi.
+  //
+  // Senza, un rilancio di sole `social_discovery` e `media` scriverebbe
+  // sopra il dossier buono uno ricostruito dal nulla: Places non gira,
+  // quindi non c'e ne il place_id ne il nome, e il risultato sarebbe la
+  // CANCELLAZIONE di quello che il rilancio doveva integrare. Il
+  // salvataggio piu sotto sostituisce la riga, non la fonde.
+  const precedente = solo && solo.length
+    ? (await leggiDossier(job.lead_id).catch(() => null))?.dossier ?? null
+    : null;
+
   const { dossier, phases } = await raccogli({
     lead_id: job.lead_id,
     name: ctx.name,
@@ -303,6 +315,7 @@ async function handleCollectBusinessIntelligence(job: AgentJob): Promise<string>
       : [],
   }, {
     solo: solo && solo.length ? solo : undefined,
+    precedente,
     // Il budget del job e il tetto di pagine: una raccolta non puo
     // allargarsi a piacere dentro un sito grande.
     maxPagine: Math.max(1, Math.min(job.budget || 6, 10)),
@@ -314,16 +327,23 @@ async function handleCollectBusinessIntelligence(job: AgentJob): Promise<string>
   await logActivity({
     lead_id: job.lead_id,
     type: "research",
-    subject: `Raccolta dati e fotografie — ${dossier.recommendation}`,
+    subject: `Raccolta dati e fotografie — ${dossier.commercial_recommendation}`
+      + ` / contenuto ${dossier.content_readiness} / media ${dossier.media_readiness}`,
     body: [
       `${dossier.verified.length} fatti verificati, ${dossier.probable.length} probabili, ${dossier.conflicts.length} conflitti.`,
-      `${dossier.identities.length} profili valutati, ${dossier.media.candidates.length} immagini candidate.`,
+      `${dossier.identities.length} profili valutati, ${dossier.media.candidates.length} immagini candidate `
+        + `(${dossier.media.counts.utilizzabili_in_demo} utilizzabili in demo).`,
+      dossier.decision_reasons.commercial[0] ?? "",
       dossier.missing.length ? `Mancano: ${dossier.missing.join(", ")}.` : "",
       fallite.length ? `Fasi fallite: ${fallite.map((p) => `${p.phase} (${p.detail})`).join("; ")}.` : "",
       `${dossier.cost.external_calls} chiamate esterne in ${Math.round(dossier.cost.total_ms / 100) / 10}s.`,
     ].filter(Boolean).join(" "),
     metadata: {
-      recommendation: dossier.recommendation,
+      recommendation: dossier.commercial_recommendation,
+      commercial_recommendation: dossier.commercial_recommendation,
+      content_readiness: dossier.content_readiness,
+      media_readiness: dossier.media_readiness,
+      website_opportunity_score: dossier.website_opportunity_score,
       place_id: dossier.place_id,
       official_site: dossier.official_site,
       phases: phases.map((p) => ({ phase: p.phase, status: p.status })),

@@ -224,17 +224,17 @@ export function valutaProfilo(
     status = "rejected";
     rationale = `segnali contrari e nessun segnale forte: ${contrari.join("; ")}`;
   } else if (forti.length >= 2) {
-    status = "verified";
+    status = "confirmed";
     rationale = `due segnali forti concordi: ${forti.join(", ")}`;
   } else if (forti.length === 1) {
-    status = "probable";
+    status = "likely";
     rationale = `un solo segnale forte (${forti[0]}): serve una seconda conferma per dirlo ufficiale`;
   } else if (positivi.length > 0) {
     // Solo deboli. Qui sta la regola: non basta.
-    status = "ambiguous";
+    status = "unverified_candidate";
     rationale = `solo segnali deboli (${positivi.join(", ")}): nome simile e stessa citta non bastano a dire che il profilo e suo`;
   } else {
-    status = "ambiguous";
+    status = "unverified_candidate";
     rationale = "nessun segnale, in nessuna direzione";
   }
 
@@ -295,15 +295,15 @@ export function unisciCandidati(candidati: IdentityCandidate[]): IdentityCandida
     let rationale = esistente.rationale;
     if (esistente.status !== "browser_required" && c.status !== "browser_required") {
       if (forti.length >= 2) {
-        status = "verified";
+        status = "confirmed";
         rationale = `due segnali forti concordi da piu fonti: ${forti.join(", ")}`;
       } else if (forti.length === 1) {
-        status = "probable";
+        status = "likely";
         rationale = `un solo segnale forte (${forti[0]}) anche unendo le fonti`;
       }
     } else if (esistente.status === "browser_required" || c.status === "browser_required") {
-      status = forti.length >= 2 ? "verified" : "browser_required";
-      if (status === "verified") rationale = `verificato dai link senza bisogno di aprire il profilo: ${forti.join(", ")}`;
+      status = forti.length >= 2 ? "confirmed" : "browser_required";
+      if (status === "confirmed") rationale = `verificato dai link senza bisogno di aprire il profilo: ${forti.join(", ")}`;
     }
     per.set(chiave, {
       ...esistente,
