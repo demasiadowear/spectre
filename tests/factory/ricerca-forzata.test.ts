@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { ricercaForzataAmmessa } from "../../lib/factory/orchestrator";
-import { esitoRicerca, riepilogo } from "../../lib/collector/telemetria";
+import { esitoRicerca, riepilogo, soloCampiAmmessi } from "../../lib/collector/telemetria";
 import { MAX_QUERY_PER_LEAD } from "../../types/dossier";
 import type { BusinessDossier, PhaseState } from "../../types/dossier";
 
@@ -139,4 +139,30 @@ test("telemetria: su un dossier vecchio le fasi chieste si deducono, non si inve
   assert.equal(r.requested_phases, "social_discovery+reconcile");
   assert.equal(r.search_outcome, "");
   assert.equal(r.search_force_refresh, false);
+});
+
+// ----- La lista bianca non deve inghiottire in silenzio -------------
+
+test("telemetria: ogni campo del riepilogo esce davvero nella riga di log", () => {
+  // La lista bianca serve a impedire che un campo nuovo del dossier
+  // finisca nei log per distrazione. Ma taglia anche i campi che si
+  // VOLEVANO nei log e che ci si e dimenticati di aggiungere — e
+  // quello non si vede: i numeri si calcolano, la riga esce, e
+  // semplicemente non li contiene.
+  //
+  // E successo con i cinque conteggi social: calcolati, filtrati via,
+  // e me ne sono accorto rileggendo la lista a mano.
+  const d = dossierCon(
+    { status: "ok", queries: 4, tokens: 2368, citations: 13, resolved: 13, profiles: 4,
+      cache_hit: false, force_refresh: true },
+    [confermato],
+  );
+  const r = riepilogo(d, FASI_PARZIALI, {
+    job_id: "j", lead_id: "l", status: "completed", duration_ms: 1,
+  });
+  const riga = JSON.parse(JSON.stringify(soloCampiAmmessi(r))) as Record<string, unknown>;
+
+  for (const k of Object.keys(r)) {
+    assert.ok(k in riga, `«${k}» si calcola ma non esce: manca dalla lista bianca`);
+  }
 });
