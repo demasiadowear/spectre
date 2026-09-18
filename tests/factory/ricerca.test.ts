@@ -140,3 +140,21 @@ test("ricerca: la risoluzione non e un varco per la rete interna", async () => {
     assert.equal(await risolvi(u), "", `indirizzo interno non fermato: ${u}`);
   }
 });
+
+// ----- Dove si e fermata --------------------------------------------
+
+test("ricerca: i conteggi dicono DOVE si e fermata, non solo che si e fermata", async () => {
+  // Il primo rilancio reale ha risposto `no_results` con quattro query e
+  // 3206 token spesi. Da quell'esito solo non si poteva dire se la
+  // ricerca non avesse citato niente, se le citazioni non fossero
+  // profili, o se i reindirizzamenti non si fossero risolti — tre guasti
+  // con tre rimedi diversi, appiattiti su una parola sola.
+  const r = await scopriProfili({
+    nome: "Trattoria di Prova", citta: "Bari", indirizzo: "", telefono: "", categoria: "",
+  });
+  assert.ok(r.conteggi, "i conteggi ci devono essere anche quando non si cerca");
+  assert.equal(r.conteggi.citazioni, 0);
+  assert.equal(r.conteggi.risolti, 0);
+  assert.equal(r.conteggi.profili, 0);
+  assert.equal(r.conteggi.unici, 0);
+});

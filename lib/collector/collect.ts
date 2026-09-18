@@ -280,7 +280,8 @@ interface Stato {
    *  ha girato: «non misurato» e diverso da «zero opportunita». */
   punteggioSito: number | null;
   /** Esito della scoperta social con ricerca, per la telemetria. */
-  ricerca: { esito: EsitoRicerca; queries: number; tokens: number };
+  ricerca: { esito: EsitoRicerca; queries: number; tokens: number;
+    citazioni: number; risolti: number; profili: number };
   /** Candidati gia scoperti da una ricerca precedente ancora recente. */
   candidatiRicerca: string[];
   /** La ricerca non si rifa: il dossier precedente e abbastanza fresco. */
@@ -559,7 +560,11 @@ async function faseSocial(s: Stato): Promise<string> {
         telefono: s.scheda?.phone || s.lead.phone,
         categoria: s.scheda?.category || "",
       });
-      s.ricerca = { esito: r.esito, queries: r.queries_used, tokens: r.tokens };
+      s.ricerca = {
+        esito: r.esito, queries: r.queries_used, tokens: r.tokens,
+        citazioni: r.conteggi.citazioni, risolti: r.conteggi.risolti,
+        profili: r.conteggi.profili,
+      };
       for (const c of r.candidati) {
         if (unici.indexOf(c.url) !== -1) continue;
         unici.push(c.url);
@@ -789,7 +794,7 @@ export async function raccogli(
     chiamate: 0,
     maxPagine: opts.maxPagine ?? MAX_PAGINE_SITO,
     punteggioSito: null,
-    ricerca: { esito: "ok", queries: 0, tokens: 0 },
+    ricerca: { esito: "ok", queries: 0, tokens: 0, citazioni: 0, risolti: 0, profili: 0 },
     candidatiRicerca: [],
     saltaRicerca: false,
   };
@@ -848,7 +853,11 @@ export async function raccogli(
     recommendation: "REVIEW",
     recommendation_reasons: [],
     cost: { external_calls: s.chiamate, total_ms: Date.now() - t0 },
-    search: { status: s.ricerca.esito, queries: s.ricerca.queries, tokens: s.ricerca.tokens },
+    search: {
+      status: s.ricerca.esito, queries: s.ricerca.queries, tokens: s.ricerca.tokens,
+      citations: s.ricerca.citazioni, resolved: s.ricerca.risolti,
+      profiles: s.ricerca.profili,
+    },
   };
 
   const d = decidi(dossier);

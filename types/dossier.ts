@@ -327,7 +327,18 @@ export interface BusinessDossier {
   /** Costo ed esito della scoperta social con ricerca. Sta nel dossier e
    *  non solo nei log perche e cio che si guarda per sapere se la
    *  ricerca sta producendo qualcosa o solo consumando interrogazioni. */
-  search?: { status: string; queries: number; tokens: number };
+  search?: {
+    status: string;
+    queries: number;
+    tokens: number;
+    /** Dove si e fermata la scoperta. Senza questi, `no_results` mette
+     *  insieme «non ha citato niente», «le citazioni non erano profili» e
+     *  «i reindirizzamenti non si sono risolti»: tre guasti con tre
+     *  rimedi diversi, appiattiti su una parola sola. */
+    citations?: number;
+    resolved?: number;
+    profiles?: number;
+  };
 }
 
 // ----- Fasi del job ----------------------------------------------

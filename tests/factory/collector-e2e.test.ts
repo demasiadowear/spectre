@@ -611,6 +611,7 @@ test("e2e: senza sito la scoperta social parte, e i suoi candidati NON sono veri
         query_index: 0,
       }],
       queries_used: 1, tokens: 420, ms: 12, detail: "",
+      conteggi: { citazioni: 3, risolti: 3, profili: 1, unici: 1 },
     }),
   });
 
@@ -644,6 +645,7 @@ test("e2e: se il grounding non e disponibile la raccolta prosegue e lo dichiara"
     ricerca: async () => ({
       esito: "search_unavailable" as const,
       candidati: [], queries_used: 0, tokens: 0, ms: 4,
+      conteggi: { citazioni: 0, risolti: 0, profili: 0, unici: 0 },
       detail: "Google Search grounding non disponibile con il modello o il progetto corrente",
     }),
   });
@@ -670,6 +672,7 @@ test("e2e: un rilancio su un dossier fresco NON ripaga la ricerca", async () => 
       esito: "ok" as const,
       candidati: [{ url: "https://instagram.com/trattoriadiprova", platform: "instagram" as const, query_index: 0 }],
       queries_used: 4, tokens: 1200, ms: 30, detail: "",
+      conteggi: { citazioni: 6, risolti: 6, profili: 1, unici: 1 },
     }),
   });
   assert.equal(primo.dossier.search?.queries, 4);
@@ -682,7 +685,10 @@ test("e2e: un rilancio su un dossier fresco NON ripaga la ricerca", async () => 
     precedente: primo.dossier,
     ricerca: async () => {
       richiamata++;
-      return { esito: "ok" as const, candidati: [], queries_used: 4, tokens: 1200, ms: 30, detail: "" };
+      return {
+        esito: "ok" as const, candidati: [], queries_used: 4, tokens: 1200, ms: 30,
+        detail: "", conteggi: { citazioni: 0, risolti: 0, profili: 0, unici: 0 },
+      };
     },
   });
 
@@ -710,6 +716,7 @@ test("e2e: il rilancio della fase media non perde le fotografie di Places", asyn
     ricerca: async () => ({
       esito: "not_configured" as const, candidati: [], queries_used: 0,
       tokens: 0, ms: 0, detail: "",
+      conteggi: { citazioni: 0, risolti: 0, profili: 0, unici: 0 },
     }),
   });
   assert.ok(pieno.dossier.media.candidates.length >= 1,
@@ -723,6 +730,7 @@ test("e2e: il rilancio della fase media non perde le fotografie di Places", asyn
     ricerca: async () => ({
       esito: "not_configured" as const, candidati: [], queries_used: 0,
       tokens: 0, ms: 0, detail: "",
+      conteggi: { citazioni: 0, risolti: 0, profili: 0, unici: 0 },
     }),
   });
 

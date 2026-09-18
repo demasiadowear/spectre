@@ -54,6 +54,29 @@ export interface RisultatoRicerca {
   ms: number;
   /** Perche non ha funzionato, in una riga. Mai l'URL di nessuno. */
   detail: string;
+
+  /**
+   * Dove si e fermata la scoperta, in quattro numeri.
+   *
+   * Il primo rilancio reale ha risposto `no_results` con quattro query e
+   * tremiladuecento token spesi, e da quel solo esito non si poteva dire
+   * se la ricerca non avesse citato niente, se avesse citato pagine che
+   * non erano profili, o se i reindirizzamenti non si fossero risolti.
+   * Tre guasti diversi con tre rimedi diversi, appiattiti su una parola
+   * sola: cosi la funzione non e verificabile in produzione.
+   *
+   * Sono conteggi, non indirizzi: nei log non finisce nessun URL.
+   */
+  conteggi: {
+    /** URL citati dalla risposta grounded, prima di qualunque filtro. */
+    citazioni: number;
+    /** Di quelli, quanti reindirizzamenti si sono risolti. */
+    risolti: number;
+    /** Di quelli risolti, quanti erano davvero profili social. */
+    profili: number;
+    /** Profili distinti rimasti dopo la deduplica. */
+    unici: number;
+  };
 }
 
 export interface ContestoRicerca {
@@ -146,8 +169,10 @@ export async function scopriProfili(
   opts: { maxQuery?: number } = {},
 ): Promise<RisultatoRicerca> {
   const t0 = Date.now();
+  const conteggi = { citazioni: 0, risolti: 0, profili: 0, unici: 0 };
   const vuoto: RisultatoRicerca = {
-    esito: "not_configured", candidati: [], queries_used: 0, tokens: 0, ms: 0, detail: "",
+    esito: "not_configured", candidati: [], queries_used: 0, tokens: 0, ms: 0,
+    detail: "", conteggi,
   };
 
   if (!gemini) {
@@ -200,7 +225,7 @@ export async function scopriProfili(
       if (/tool|search|grounding|not supported|invalid/i.test(m)) {
         return {
           esito: "search_unavailable", candidati: [], queries_used: usate, tokens,
-          ms: Date.now() - t0,
+          ms: Date.now() - t0, conteggi,
           detail: "Google Search grounding non disponibile con il modello o il progetto corrente",
         };
       }
@@ -212,14 +237,27 @@ export async function scopriProfili(
   // profilo, deduplicato.
   const visti: string[] = [];
   const candidati: CandidatoScoperto[] = [];
+  conteggi.citazioni = grezzi.length;
   for (const g of grezzi) {
     const finale = await risolvi(g.url);
-    if (!finale || !eUrlDiProfilo(finale)) continue;
+    if (!finale) continue;
+    conteggi.risolti++;
+    if (!eUrlDiProfilo(finale)) continue;
+    conteggi.profili++;
     const norm = normalizzaUrlProfilo(finale);
     if (visti.indexOf(norm) !== -1) continue;
     visti.push(norm);
     candidati.push({ url: norm, platform: piattaformaDi(norm), query_index: g.query_index });
   }
+
+  conteggi.unici = candidati.length;
+
+  // Il dettaglio dice DOVE si e fermata, non solo che si e fermata.
+  const perche =
+    conteggi.citazioni === 0 ? "la ricerca non ha citato nessuna pagina"
+    : conteggi.risolti === 0 ? `${conteggi.citazioni} citazioni, nessun reindirizzamento risolto`
+    : conteggi.profili === 0 ? `${conteggi.risolti} pagine citate, nessuna era un profilo social`
+    : "";
 
   return {
     esito: candidati.length ? "ok" : "no_results",
@@ -227,6 +265,7 @@ export async function scopriProfili(
     queries_used: usate,
     tokens,
     ms: Date.now() - t0,
-    detail: candidati.length ? "" : "nessun profilo nelle citazioni",
+    conteggi,
+    detail: candidati.length ? "" : perche,
   };
 }

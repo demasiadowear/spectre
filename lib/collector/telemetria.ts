@@ -71,6 +71,10 @@ export interface RiepilogoRaccolta {
   search_status: string;
   search_queries: number;
   search_tokens: number;
+  /** Dove si e fermata la scoperta: citate -> risolte -> profili. */
+  search_citations: number;
+  search_resolved: number;
+  search_profiles: number;
   error_code: ErrorCode;
   error_phase: CollectPhase | "";
 }
@@ -154,6 +158,9 @@ export function riepilogo(
     search_status: dossier?.search?.status ?? "",
     search_queries: dossier?.search?.queries ?? 0,
     search_tokens: dossier?.search?.tokens ?? 0,
+    search_citations: dossier?.search?.citations ?? 0,
+    search_resolved: dossier?.search?.resolved ?? 0,
+    search_profiles: dossier?.search?.profiles ?? 0,
     social_confirmed_count: identita.filter((i) => i.status === "confirmed").length,
     social_browser_required_count: identita.filter((i) => i.status === "browser_required").length,
     error_code: codice,
@@ -192,7 +199,8 @@ const CHIAVI_AMMESSE: readonly string[] = [
   "blocking_conflicts_count", "media_candidates_count", "media_approved_count",
   "media_displayable_count", "social_confirmed_count",
   "social_browser_required_count", "search_status", "search_queries",
-  "search_tokens", "error_code", "error_phase",
+  "search_tokens", "search_citations", "search_resolved", "search_profiles",
+  "error_code", "error_phase",
 ];
 
 /** Filtra sulla lista bianca prima di serializzare. */
