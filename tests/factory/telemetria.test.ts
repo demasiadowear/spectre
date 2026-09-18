@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 import {
   EVENTO_LETTURA, EVENTO_RACCOLTA, classificaErrore, riepilogo,
-  soloCampiAmmessi, statoHttp, type RiepilogoRaccolta,
+  soloCampiAmmessi, statoDaFasi, statoHttp, type RiepilogoRaccolta,
 } from "../../lib/collector/telemetria";
 import type {
   BusinessDossier, DossierFact, IdentityCandidate, MediaCandidate, PhaseState,
@@ -226,6 +226,57 @@ test("telemetria: ogni causa ha un codice chiuso", () => {
   assert.equal(classificaErrore("official_site", "serve un browser vero"), "browser_required");
   assert.equal(classificaErrore("official_site", "ECONNREFUSED"), "site_unreachable");
   assert.equal(classificaErrore("media", "qualcosa di inatteso"), "internal_error");
+});
+
+// ----- Esito del job contro esito delle fasi ---------------------
+
+test("stato: una fase fallita su cinque resta un job COMPLETATO", () => {
+  // E il caso reale visto in produzione: un'attivita senza sito web.
+  // Places riesce, il sito no, e il dossier c'e lo stesso. Segnarlo
+  // «failed» farebbe suonare l'allarme per il caso piu comune del
+  // mestiere.
+  const fasi: PhaseState[] = [
+    { phase: "places", status: "ok", detail: "", ms: 270 },
+    { phase: "official_site", status: "failed", detail: "nessun sito ufficiale dichiarato", ms: 0 },
+    { phase: "social_discovery", status: "ok", detail: "", ms: 1 },
+    { phase: "media", status: "ok", detail: "", ms: 2 },
+    { phase: "reconcile", status: "ok", detail: "", ms: 0 },
+  ];
+  assert.equal(statoDaFasi(fasi), "completed");
+
+  // E la parzialita resta leggibile dove deve stare.
+  const r = riepilogo(null, fasi, {
+    job_id: "j", lead_id: "l", status: statoDaFasi(fasi), duration_ms: 274,
+  }, EVENTO_LETTURA);
+  assert.equal(r.status, "completed");
+  assert.equal(r.error_code, "site_not_declared");
+  assert.equal(r.error_phase, "official_site");
+  assert.equal(r.phase_statuses.official_site, "failed");
+});
+
+test("stato: se NESSUNA fase riesce, il job e fallito davvero", () => {
+  assert.equal(statoDaFasi([
+    { phase: "places", status: "failed", detail: "x", ms: 1 },
+    { phase: "official_site", status: "failed", detail: "y", ms: 1 },
+  ]), "failed");
+});
+
+test("stato: le fasi saltate non contano in nessuna direzione", () => {
+  // Un rilancio parziale esegue una fase sola: se quella riesce, il
+  // job e riuscito, anche se le altre quattro sono `skipped`.
+  assert.equal(statoDaFasi([
+    { phase: "places", status: "ok", detail: "", ms: 1 },
+    { phase: "official_site", status: "skipped", detail: "", ms: 0 },
+    { phase: "media", status: "skipped", detail: "", ms: 0 },
+  ]), "completed");
+  // E se l'unica eseguita fallisce, fallisce il job.
+  assert.equal(statoDaFasi([
+    { phase: "places", status: "failed", detail: "x", ms: 1 },
+    { phase: "official_site", status: "skipped", detail: "", ms: 0 },
+  ]), "failed");
+  // Nessuna fase eseguita: non c'e niente da dichiarare riuscito.
+  assert.equal(statoDaFasi([{ phase: "places", status: "skipped", detail: "", ms: 0 }]), "failed");
+  assert.equal(statoDaFasi([]), "failed");
 });
 
 // ----- Semantica HTTP --------------------------------------------

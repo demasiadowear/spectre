@@ -136,6 +136,26 @@ export function riepilogo(
   };
 }
 
+/**
+ * L'esito del JOB, ricavato dalle fasi di un dossier gia salvato.
+ *
+ * Una fase fallita non e un job fallito: se il dossier esiste ed e
+ * stato salvato, il lavoro e arrivato in fondo e ha prodotto un
+ * risultato parziale — che per un'attivita senza sito web e il caso
+ * NORMALE, non un guasto. Solo quando nessuna fase e riuscita non c'e
+ * niente di utilizzabile, e allora il job e fallito davvero.
+ *
+ * La differenza conta perche `status` e il campo su cui si contano gli
+ * errori: segnare `failed` un job riuscito a meta fa suonare l'allarme
+ * per ogni lead senza sito, e un allarme che suona sempre viene
+ * ignorato anche quando serve.
+ */
+export function statoDaFasi(phases: PhaseState[]): "completed" | "failed" {
+  const eseguite = phases.filter((p) => p.status !== "skipped");
+  if (eseguite.length === 0) return "failed";
+  return eseguite.every((p) => p.status === "failed") ? "failed" : "completed";
+}
+
 /** Chiavi ammesse nella riga di log. Qualunque altra cosa non esce.
  *  E una lista bianca e non nera di proposito: aggiungere un campo al
  *  dossier non deve poterlo far comparire nei log per distrazione. */
