@@ -116,6 +116,8 @@ export default function CollectorPanel({ leadId, leadName }: { leadId: string; l
   const [faseCorrente, setFaseCorrente] = useState<CollectPhase | null>(null);
   const [errore, setErrore] = useState("");
   const [espandi, setEspandi] = useState<"fatti" | "media" | "profili" | "fonti" | null>(null);
+  const [demo, setDemo] = useState<{ url: string; creata: boolean } | null>(null);
+  const [creando, setCreando] = useState(false);
 
   const carica = useCallback(async () => {
     try {
@@ -131,6 +133,24 @@ export default function CollectorPanel({ leadId, leadName }: { leadId: string; l
   }, [leadId]);
 
   useEffect(() => { void carica(); }, [carica]);
+
+  /** Crea (o recupera) l'anteprima privata di questo lead. Idempotente:
+   *  premere due volte non produce due URL. */
+  const creaDemo = useCallback(async () => {
+    setCreando(true);
+    setErrore("");
+    try {
+      const r = await api<{ slug: string; url: string; creata: boolean }>("/api/demo/crea", {
+        method: "POST",
+        body: JSON.stringify({ lead_id: leadId }),
+      });
+      setDemo({ url: r.url, creata: r.creata });
+    } catch (e) {
+      setErrore((e as Error).message);
+    } finally {
+      setCreando(false);
+    }
+  }, [leadId]);
 
   const avvia = useCallback(async (solo?: CollectPhase[], forzaRicerca = false) => {
     setInCorso(true);
@@ -308,6 +328,43 @@ export default function CollectorPanel({ leadId, leadName }: { leadId: string; l
             Non riesegue Google Places, il sito ufficiale o le fotografie:
             quelli restano come sono.
           </p>
+        </div>
+      )}
+
+      {/* L'anteprima privata: e la decisione di rendere un dossier una
+          pagina apribile da fuori, e la prende una persona. */}
+      {d && d.commercial_recommendation === "GO" && !inCorso && (
+        <div className="mt-3 rounded-sm border border-border p-3">
+          {demo ? (
+            <>
+              <p className="text-[11px] text-text2">
+                {demo.creata ? "Anteprima creata." : "Anteprima già esistente."} Apribile senza login:
+              </p>
+              <a
+                href={demo.url}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="mt-1 block break-all font-mono text-[11px] text-accent underline underline-offset-2"
+              >{demo.url}</a>
+            </>
+          ) : (
+            <>
+              <NeonButton
+                variant="magenta" size="sm"
+                className="min-h-[40px] w-full sm:w-auto"
+                disabled={bloccato || creando}
+                onClick={() => void creaDemo()}
+              >
+                <Eye className="h-3.5 w-3.5" />
+                {creando ? "Creo…" : "Crea anteprima privata"}
+              </NeonButton>
+              <p className="mt-2 text-[11px] leading-snug text-text2">
+                Genera un indirizzo non indovinabile, apribile senza login e
+                non indicizzabile. I dati e le fotografie si leggono dal
+                dossier a ogni visita.
+              </p>
+            </>
+          )}
         </div>
       )}
 

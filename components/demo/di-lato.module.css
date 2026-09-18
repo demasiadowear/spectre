@@ -1,0 +1,260 @@
+/* ============================================================
+   «Di lato» — foglio unico della demo.
+   Non eredita niente dal tema di Specter: questa pagina la guarda un
+   prospect, non un operatore, e non deve somigliare a un gestionale.
+   ============================================================ */
+
+.pagina {
+  /* L'intonaco barese: rosa cipria grigiato. Non il crema #F4F1EA,
+     che e il fondo che compare su qualunque pagina generata. */
+  --intonaco: #DED3CE;
+  --intonaco-scuro: #C9BCB7;
+  --inchiostro: #2A2422;
+  --inchiostro-tenue: #6B5F5A;
+  --prugna: #6B4E71;
+  --gutter: clamp(20px, 5vw, 72px);
+
+  /* La lastra di sinistra e il testo non devono MAI sovrapporsi: con
+     una fotografia scura sotto, il titolo diventa illeggibile — visto
+     su desktop dopo aver spostato il contenuto, e su mobile prima.
+     Quindi la colonna del testo non ha un margine scelto a occhio: si
+     CALCOLA dal bordo destro della lastra, e resta libera a qualunque
+     larghezza invece di esserlo solo a 1440. */
+  --lastra-w: min(28vw, 280px);
+  --lastra-x: -13vw;
+  --colonna: max(0px, calc(var(--lastra-w) + var(--lastra-x) - var(--gutter) + 28px));
+
+  background: var(--intonaco);
+  color: var(--inchiostro);
+  font-family: var(--font-ui, system-ui), sans-serif;
+  font-size: clamp(15px, 1.05vw, 17px);
+  line-height: 1.6;
+  min-height: 100svh;
+}
+.pagina :global(h1),
+.pagina :global(h2) {
+  font-family: var(--font-display, Georgia), serif;
+  font-weight: 300;
+  margin: 0;
+}
+
+/* ---- Hero -----------------------------------------------------------
+   `overflow: clip` e obbligatorio, non estetico: le lastre escono dal
+   viewport di proposito, e senza il taglio allargano il documento —
+   misurati 58px di scorrimento orizzontale su desktop prima di
+   metterlo. */
+.hero {
+  position: relative;
+  min-height: 100svh;
+  overflow: clip;
+  /* Colonna, non griglia centrata: con `align-content: center` il
+     contenuto si stringeva a meta e lasciava sotto un vuoto che non
+     faceva niente. Qui il blocco principale sta al centro ottico e lo
+     stato di apertura scende in fondo, dove chi arriva lo cerca. */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(80px, 13vh, 150px) var(--gutter) clamp(44px, 7vh, 88px);
+}
+.hero > * { position: relative; z-index: 2; }
+/* Il contenuto della hero vive nella colonna che le lastre lasciano
+   libera: e la regola della direzione, non un margine scelto a caso. */
+.titolo, .sotto, .azioni, .prova {
+  width: min(100%, 62ch);
+  margin-left: var(--colonna);
+}
+
+.lastra {
+  position: absolute;
+  margin: 0;
+  overflow: hidden;
+  background: var(--intonaco-scuro);
+  border-radius: 2px;
+}
+.lastra img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  /* Le fotografie sono ritratti verticali di un centro estetico: il
+     soggetto sta in alto (viso, mani, postazione), quasi mai al
+     centro geometrico. Un `center` taglierebbe le teste. */
+  object-fit: cover;
+  object-position: 50% 32%;
+}
+
+.l1 { width: var(--lastra-w); aspect-ratio: 3 / 4; left: var(--lastra-x); top: 12vh; }
+.l2 { width: min(26vw, 260px); aspect-ratio: 9 / 16; right: -4vw; top: 6vh; }
+.l3 { width: min(22vw, 215px); aspect-ratio: 3 / 4;  right: 8vw;  bottom: -7vh; }
+
+.titolo { margin-bottom: 0; }
+.titolo :global(h1) {
+  font-size: clamp(2.5rem, 8vw, 6.2rem);
+  line-height: .92;
+  letter-spacing: -.022em;
+  max-width: 13ch;
+}
+/* «Di lato» detto dalla POSIZIONE. Il rientro e l'idea; il corsivo
+   distingue la persona dal nome dell'insegna. Nessun colore diverso:
+   accentare una frase del titolo in un altro colore e uno dei tell
+   piu riconoscibili di una pagina generata. */
+.titolo :global(h1) em {
+  display: block;
+  font-style: italic;
+  margin-left: clamp(24px, 11vw, 180px);
+}
+
+.sotto {
+  margin-top: clamp(20px, 3.2vh, 38px);
+  max-width: 42ch; color: var(--inchiostro-tenue);
+}
+
+.azioni {
+  display: flex; flex-wrap: wrap; gap: 12px;
+  margin-top: clamp(24px, 3.8vh, 42px);
+}
+.bottone {
+  display: inline-flex; align-items: center;
+  min-height: 52px; padding: 0 26px;
+  background: var(--inchiostro); color: var(--intonaco);
+  border: 1px solid var(--inchiostro); border-radius: 2px;
+  text-decoration: none; font-size: .95rem;
+}
+.vuoto { background: transparent; color: var(--inchiostro); }
+.pagina :global(a):focus-visible {
+  outline: 2px solid var(--prugna); outline-offset: 3px;
+}
+
+.prova {
+  margin-top: clamp(18px, 2.8vh, 30px);
+  font-size: .9rem; color: var(--inchiostro-tenue);
+}
+.prova :global(a) { color: inherit; }
+
+.adesso {
+  margin: auto 0 0 var(--colonna);
+  padding-top: clamp(28px, 5vh, 60px);
+  max-width: 46ch; font-size: clamp(1rem, 1.5vw, 1.18rem); line-height: 1.45;
+}
+.adesso span { color: var(--prugna); }
+
+/* ---- Sotto la piega -------------------------------------------------
+   L'alternanza non e decorazione: e la stessa regola della hero che
+   continua, cosi l'idea diventa struttura. */
+.sezione {
+  padding: clamp(52px, 8vh, 108px) var(--gutter);
+  display: grid; grid-template-columns: repeat(12, 1fr);
+  gap: var(--gutter); align-items: start;
+  border-top: 1px solid rgba(42, 36, 34, .14);
+}
+.sx :global(h2) { grid-column: 2 / 7; }
+.sx .corpo { grid-column: 7 / 12; }
+.dx :global(h2) { grid-column: 7 / 12; order: 2; }
+.dx .corpo { grid-column: 2 / 7; }
+.sezione :global(h2) {
+  font-size: clamp(1.5rem, 3.2vw, 2.4rem);
+  line-height: 1.05; letter-spacing: -.015em;
+}
+
+.orari { list-style: none; margin: 0; padding: 0; }
+.orari li {
+  display: flex; justify-content: space-between; gap: 24px;
+  padding: 9px 0; border-bottom: 1px solid rgba(42, 36, 34, .12);
+  max-width: 34rem;
+}
+.chiuso { color: var(--inchiostro-tenue); }
+.indirizzo { margin: 0; }
+.nota {
+  font-size: .85rem; color: var(--inchiostro-tenue);
+  margin-top: 18px; max-width: 46ch;
+}
+
+/* La galleria non e una griglia uniforme: una foto su tre sale di una
+   riga, cosi il ritmo resta quello della hero — verticale e sfalsato —
+   invece di diventare un contact sheet. */
+.galleria {
+  grid-column: 2 / 12;
+  display: grid; gap: clamp(12px, 1.4vw, 20px);
+  /* Quattro colonne, non «quante ce ne stanno»: le fotografie restano
+     sette dopo le tre della hero, e con l'auto-fill l'ultima riga
+     restava mezza vuota a ogni larghezza diversa. */
+  grid-template-columns: repeat(4, 1fr);
+  align-items: start;
+}
+.galleria figure {
+  margin: 0; aspect-ratio: 3 / 4; overflow: hidden;
+  background: var(--intonaco-scuro); border-radius: 2px;
+}
+.galleria img {
+  width: 100%; height: 100%; display: block;
+  object-fit: cover; object-position: 50% 32%;
+}
+/* Lo sfalsamento e la stessa grammatica della hero — verticale e di
+   lato — portata nella galleria, cosi non diventa un contact sheet.
+   La specificita deve PAREGGIARE `.galleria figure`, altrimenti il
+   `margin: 0` di quella regola vince e l'offset non si vede: era
+   scritto `.alta` da solo, e infatti la griglia veniva piatta. */
+.galleria figure.alta { margin-top: clamp(24px, 4vw, 64px); }
+.galleria figure.bassa { margin-top: clamp(-40px, -3vw, -16px); }
+
+.credito {
+  grid-column: 2 / 12; margin-top: 16px;
+  font-size: .78rem; color: var(--inchiostro-tenue);
+}
+
+.piede {
+  padding: clamp(36px, 6vh, 68px) var(--gutter);
+  border-top: 1px solid rgba(42, 36, 34, .14);
+  font-size: .85rem; color: var(--inchiostro-tenue);
+}
+.piede p { margin: 0 0 6px; }
+.piede :global(a) { color: inherit; }
+.avviso { font-size: .78rem; opacity: .8; }
+
+@media (max-width: 760px) {
+  .hero { grid-template-columns: 1fr; padding-top: clamp(64px, 11vh, 104px); }
+  .titolo, .sotto, .azioni, .prova, .adesso { grid-column: 1; }
+  /* Sul telefono non c'e una colonna libera accanto al testo: la
+     larghezza e una sola. Quindi le lastre NON stanno dietro il testo,
+     stanno sopra e sotto di esso. Con una fotografia scura una lastra
+     dietro una riga la rende illeggibile — verificato guardando, non
+     dedotto. */
+  /* La lastra e larga 54vw con rapporto 3:4, quindi e ALTA 72vw. Il
+     primo tentativo riservava 54vw — la larghezza — e la lastra
+     risaliva di diciotto punti di viewport dentro il testo. Il calcolo
+     si fa sull'altezza, o il difetto torna al primo cambio di
+     proporzione. */
+  .hero { padding-bottom: calc(72vw + clamp(32px, 6vh, 64px)); }
+  .titolo, .sotto, .azioni, .prova { width: 100%; margin-left: 0; }
+  /* Su una colonna sola `margin-top: auto` apre un vuoto fra i bottoni
+     e lo stato di apertura: il posto di quella riga e subito sotto le
+     azioni, dove chi arriva la legge insieme al numero. */
+  .adesso { margin: clamp(20px, 3vh, 30px) 0 0; padding-top: 0; }
+  .l1 { width: 54vw; left: -14vw; top: auto; bottom: 0; opacity: .92; }
+  .l2 { width: 34vw; right: -8vw; top: 2vh; opacity: .92; }
+  .l3 { display: none; }
+  .titolo :global(h1) { max-width: 11ch; }
+  .titolo :global(h1) em { margin-left: 12vw; }
+  .sezione { grid-template-columns: 1fr; }
+  .sx :global(h2), .sx .corpo, .dx :global(h2), .dx .corpo,
+  .galleria, .credito { grid-column: 1; }
+  .dx :global(h2) { order: 0; }
+  .bottone { flex: 1 1 100%; justify-content: center; }
+  /* Su una colonna sola lo sfalsamento non ha senso: due fotografie
+     affiancate diventano due fotografie in fila, e il rientro
+     sembrerebbe un errore di allineamento. */
+  .galleria { grid-template-columns: repeat(2, 1fr); }
+  .galleria figure.alta, .galleria figure.bassa { margin-top: 0; }
+}
+
+/* Un solo gesto orchestrato, e racconta la direzione: le fotografie
+   entrano dai lati. Niente fade-and-slide su ogni sezione. */
+@media (prefers-reduced-motion: no-preference) {
+  .lastra { animation: entra 1.05s cubic-bezier(.2, .7, .3, 1) both; }
+  .l1 { animation-delay: .05s; }
+  .l2 { animation-delay: .17s; --da: 14%; }
+  .l3 { animation-delay: .29s; --da: 14%; }
+  @keyframes entra {
+    from { transform: translateX(var(--da, -14%)); opacity: 0; }
+    to   { transform: none; opacity: 1; }
+  }
+}

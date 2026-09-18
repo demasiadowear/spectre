@@ -72,10 +72,15 @@ export const config = {
   // api/telegram resta fuori: Telegram non ha una sessione, il webhook
   // si difende da solo (secret token + whitelist chat_id nella route).
   //
-  // preview/ e api/factory/demo-view: demo aperte dal prospect, che non
-  // ha sessione. Lo slug a 22 caratteri da crypto.randomBytes E la
+  // preview/, demo/ e api/factory/demo-view: aperte dal prospect, che
+  // non ha sessione. Lo slug a 22 caratteri da crypto.randomBytes E la
   // credenziale, e il ping risponde identico a slug validi e non validi
   // cosi non diventa un oracolo di enumerazione.
+  //
+  // `demo/` serve SOLO le fotografie di quella demo, e per indice: il
+  // client non puo nominare una fotografia fuori dal manifest di quel
+  // progetto (vedi lib/demo/foto.ts). Non e un proxy aperto, e ogni
+  // rifiuto e lo stesso 404 per non diventare un oracolo.
   //
   // `login` e `api/auth` restano fuori anche quando l'autenticazione
   // non e configurata: la pagina di login si spiega da sola (mostra il
@@ -83,6 +88,6 @@ export const config = {
   // comunque ogni credenziale in quella modalita, quindi da li non si
   // entra.
   matcher: [
-    "/((?!login|api/auth|api/telegram|api/factory/demo-view|detective/|preview/|_next/static|_next/image|favicon.ico|fonts).*)",
+    "/((?!login|api/auth|api/telegram|api/factory/demo-view|detective/|preview/|demo/|_next/static|_next/image|favicon.ico|fonts).*)",
   ],
 };
