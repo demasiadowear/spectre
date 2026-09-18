@@ -738,6 +738,29 @@ function reidrata(s: Stato, p: BusinessDossier, esegui: CollectPhase[]): void {
 
   if (salta("media")) {
     s.media = { candidati: p.media.candidates, scartati: p.media.rejected };
+  } else {
+    // La fase media si RIFA, ma le immagini grezze le producono Places
+    // e il sito: se quelle fasi sono saltate, `mediaGrezzi` resta vuoto
+    // e la fase ricostruisce un manifest di zero fotografie.
+    //
+    // E il caso peggiore di tutti, perche non sembra un guasto: il
+    // pannello direbbe «nessuna immagine candidata» su un'attivita che
+    // ne aveva dieci, e sembrerebbe una risposta vera. Si ricostruisce
+    // il grezzo dai candidati precedenti, che portano gia il
+    // riferimento del provider e l'attribuzione.
+    for (const m of p.media.candidates) {
+      const daPlaces = Boolean(m.provider_reference);
+      if (daPlaces ? !salta("places") : !salta("official_site")) continue;
+      s.mediaGrezzi.push({
+        url: m.source_url,
+        source_page: m.source_page,
+        platform: m.platform,
+        provider_reference: m.provider_reference || undefined,
+        attribution: m.attribution,
+        width: m.width,
+        height: m.height,
+      });
+    }
   }
   for (const src of p.sources) {
     if (src.source_type === "google_places" && salta("places")) s.sources.push(src);

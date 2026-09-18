@@ -278,6 +278,25 @@ export default function CollectorPanel({ leadId, leadName }: { leadId: string; l
         </div>
       )}
 
+      {/* Rilancio mirato di social e fotografie.
+          Serve quando la raccolta e andata ma si vuole ricontrollare
+          solo quelle due cose: ripartire da Places costerebbe chiamate
+          per riconfermare dati che non sono cambiati. Le fasi saltate
+          si reidratano dal dossier precedente, quindi il rilancio
+          integra invece di sovrascrivere. */}
+      {d && !inCorso && (
+        <div className="mt-3">
+          <NeonButton
+            variant="cyan" size="sm"
+            className="min-h-[40px] w-full sm:w-auto"
+            disabled={bloccato}
+            onClick={() => void avvia(["social_discovery", "media", "reconcile"])}
+          >
+            <Search className="h-3.5 w-3.5" /> Riprendi social e fotografie
+          </NeonButton>
+        </div>
+      )}
+
       {d && (() => {
         // Il link alla scheda Google: è dove l'attribuzione delle
         // fotografie del provider deve poter portare.

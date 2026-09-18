@@ -696,3 +696,45 @@ test("e2e: un rilancio su un dossier fresco NON ripaga la ricerca", async () => 
   assert.equal(secondo.dossier.identities[0].discovered_via, "grounded_search",
     "e restano marcati per come sono stati trovati");
 });
+
+test("e2e: il rilancio della fase media non perde le fotografie di Places", async () => {
+  // Il caso peggiore di tutti, perché non sembra un guasto.
+  //
+  // Rilanciando `media` senza `places`, le immagini grezze — che le
+  // produce Places — non ci sono più, e la fase ricostruisce un
+  // manifest di zero fotografie. Il pannello direbbe «nessuna immagine
+  // candidata» su un'attività che ne aveva dieci, e sembrerebbe una
+  // risposta vera invece che un dato perso.
+  const pieno = await raccogli(LEAD_SENZA_SITO, {
+    places: placesSenzaSito, provider: new ProviderFinto(),
+    ricerca: async () => ({
+      esito: "not_configured" as const, candidati: [], queries_used: 0,
+      tokens: 0, ms: 0, detail: "",
+    }),
+  });
+  assert.ok(pieno.dossier.media.candidates.length >= 1,
+    "la raccolta piena deve avere la fotografia di Places");
+  assert.equal(pieno.dossier.media_readiness, "DISPLAYABLE");
+
+  const dopo = await raccogli(LEAD_SENZA_SITO, {
+    places: placesSenzaSito, provider: new ProviderFinto(),
+    solo: ["social_discovery", "media", "reconcile"],
+    precedente: pieno.dossier,
+    ricerca: async () => ({
+      esito: "not_configured" as const, candidati: [], queries_used: 0,
+      tokens: 0, ms: 0, detail: "",
+    }),
+  });
+
+  assert.equal(dopo.dossier.media.candidates.length, pieno.dossier.media.candidates.length,
+    "nessuna fotografia deve sparire per il solo fatto di aver rilanciato");
+  assert.equal(dopo.dossier.media_readiness, "DISPLAYABLE");
+  assert.equal(
+    dopo.dossier.media.counts.tramite_provider,
+    pieno.dossier.media.counts.tramite_provider,
+  );
+  // E l'attribuzione sopravvive: senza, le fotografie resterebbero
+  // mostrabili ma non si saprebbe più a chi vanno attribuite.
+  assert.ok(dopo.dossier.media.candidates.every((m) => m.attribution || !m.provider_reference),
+    "l'attribuzione delle fotografie del provider non si perde nel rilancio");
+});
