@@ -9,8 +9,8 @@ import GlassCard from "@/components/ui/spectre/GlassCard";
 import NeonButton from "@/components/ui/spectre/NeonButton";
 import { cn } from "@/lib/utils";
 import type {
-  BusinessDossier, CollectPhase, IdentityCandidate,
-  MediaCandidate, PhaseState, RightsStatus,
+  BusinessDossier, CollectPhase, CommercialRecommendation, ContentReadiness,
+  IdentityCandidate, MediaCandidate, MediaReadiness, PhaseState, RightsStatus,
 } from "@/types/dossier";
 import type { StatoRuntime } from "./PannelloStato";
 
@@ -49,6 +49,31 @@ const COLORE_DIRITTI: Record<RightsStatus, string> = {
   provider_rendered: "text-accent border-accent/40",
   unknown: "text-text2 border-border",
   forbidden: "text-danger border-danger/40",
+};
+
+/** Verde = si va avanti, ambra = serve una persona, rosso = ci si ferma,
+ *  grigio = non c'è niente da decidere. Quattro toni, non cinque
+ *  sfumature: questa schermata si legge in piedi davanti a un locale. */
+type Tono = "bene" | "attesa" | "male" | "neutro";
+
+const TONO_COMMERCIALE: Record<CommercialRecommendation, Tono> = {
+  GO: "bene", REVIEW: "attesa", REJECT: "male",
+};
+const TONO_CONTENUTO: Record<ContentReadiness, Tono> = {
+  READY: "bene", PARTIAL: "attesa", BLOCKED: "male",
+};
+const TONO_MEDIA: Record<MediaReadiness, Tono> = {
+  DISPLAYABLE: "bene", APPROVAL_REQUIRED: "attesa", BLOCKED: "male", NONE: "neutro",
+};
+
+const BORDO: Record<Tono, string> = {
+  bene: "border-success/40 bg-success/5",
+  attesa: "border-ochre/40 bg-ochre/5",
+  male: "border-danger/40 bg-danger/5",
+  neutro: "border-border",
+};
+const TESTO: Record<Tono, string> = {
+  bene: "text-success", attesa: "text-ochre", male: "text-danger", neutro: "text-text2",
 };
 
 const ETICHETTA_IDENTITA: Record<IdentityCandidate["status"], string> = {
@@ -253,31 +278,66 @@ export default function CollectorPanel({ leadId, leadName }: { leadId: string; l
         </div>
       )}
 
-      {d && (
+      {d && (() => {
+        // Il link alla scheda Google: è dove l'attribuzione delle
+        // fotografie del provider deve poter portare.
+        const urlMaps = d.verified.concat(d.probable).find((f) => f.field === "maps_url")?.value
+          || (d.place_id ? `https://www.google.com/maps/place/?q=place_id:${d.place_id}` : "");
+
+        // I conti salvati nel dossier sono quelli del momento della
+        // raccolta, quando nulla era ancora approvato. Le approvazioni
+        // arrivano dopo e vivono altrove: si riportano qui, o i numeri
+        // resterebbero fermi mentre l'operatore decide.
+        const decisioni = dati?.decisioni ?? {};
+        const conti = {
+          ...d.media.counts,
+          utilizzabili_in_demo: d.media.candidates.filter((m) =>
+            decisioni[m.id] !== "blocked"
+            && (m.display_status === "display_allowed"
+              || m.display_status === "display_allowed_with_attribution"
+              || decisioni[m.id] === "approved")).length,
+          da_approvare: d.media.candidates.filter((m) =>
+            m.display_status === "display_after_approval" && !decisioni[m.id]).length,
+        };
+        return (
         <div className="mt-4 space-y-4">
-          {/* Raccomandazione: la prima cosa che si legge. */}
-          <div className={cn(
-            "rounded-sm border p-3",
-            d.recommendation === "GO" && "border-success/40 bg-success/5",
-            d.recommendation === "REVIEW" && "border-ochre/40 bg-ochre/5",
-            d.recommendation === "REJECT" && "border-danger/40 bg-danger/5",
-          )}>
-            <div className="flex items-center gap-2">
-              <span className={cn(
-                "font-ui text-sm font-semibold uppercase tracking-[0.12em]",
-                d.recommendation === "GO" && "text-success",
-                d.recommendation === "REVIEW" && "text-ochre",
-                d.recommendation === "REJECT" && "text-danger",
-              )}>{d.recommendation}</span>
-              <span className="text-[11px] text-text2">
-                {d.cost.external_calls} chiamate · {(d.cost.total_ms / 1000).toFixed(1)}s
-              </span>
+          {/* Le tre decisioni.
+              Prima ce n'era una sola, e un'attività identificata con
+              certezza ma senza sito finiva in REVIEW: il materiale
+              mancante trascinava con sé il giudizio commerciale. Sono
+              tre domande diverse e adesso hanno tre risposte. */}
+          <div className="space-y-2">
+            <Decisione
+              etichetta="Opportunità commerciale"
+              valore={d.commercial_recommendation}
+              tono={TONO_COMMERCIALE[d.commercial_recommendation]}
+              motivi={d.decision_reasons?.commercial ?? []}
+              coda={
+                <>
+                  {d.cost.external_calls} chiamate · {(d.cost.total_ms / 1000).toFixed(1)}s
+                  {d.website_opportunity_score !== null && (
+                    <> · sito {d.website_opportunity_score}/100</>
+                  )}
+                  {d.search && d.search.queries > 0 && (
+                    <> · {d.search.queries} ricerche</>
+                  )}
+                </>
+              }
+            />
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Decisione
+                etichetta="Materiale per la demo"
+                valore={d.content_readiness}
+                tono={TONO_CONTENUTO[d.content_readiness]}
+                motivi={d.decision_reasons?.content ?? []}
+              />
+              <Decisione
+                etichetta="Fotografie"
+                valore={d.media_readiness}
+                tono={TONO_MEDIA[d.media_readiness]}
+                motivi={d.decision_reasons?.media ?? []}
+              />
             </div>
-            <ul className="mt-2 space-y-1">
-              {d.recommendation_reasons.map((m) => (
-                <li key={m} className="text-[11px] leading-snug text-text2">— {m}</li>
-              ))}
-            </ul>
           </div>
 
           <div className="grid gap-2 sm:grid-cols-4">
@@ -361,9 +421,26 @@ export default function CollectorPanel({ leadId, leadName }: { leadId: string; l
             aperta={espandi === "media"}
             onToggle={() => setEspandi(espandi === "media" ? null : "media")}
           >
+            {/* Quattro numeri, non uno.
+                «0 approvate» faceva sembrare che non ci fosse niente da
+                mostrare, mentre le dieci fotografie di Google si possono
+                rendere benissimo citando la fonte. Possedere
+                un'immagine e poterla mostrare non sono la stessa cosa,
+                e questi numeri tengono separate le due domande. */}
+            <div className="mb-2 grid gap-2 grid-cols-2 sm:grid-cols-4">
+              <Numero titolo="Via Google" valore={conti.tramite_provider ?? 0} />
+              <Numero titolo="Proprietarie" valore={conti.proprietarie ?? 0} />
+              <Numero titolo="Copiabili" valore={conti.copiabili ?? 0} />
+              <Numero titolo="Usabili in demo" valore={conti.utilizzabili_in_demo} />
+            </div>
             <p className="mb-2 text-[11px] leading-snug text-text2">
-              Nessuna di queste è un asset autorizzato. Quelle trovate sui canali ufficiali
-              entrano solo nella demo privata noindex finché non le approvi tu.
+              Le fotografie di Google non sono nostre e non si conservano: si mostrano dal
+              provider, con l&apos;attribuzione, e spariscono quando il riferimento scade.
+              Quelle dei canali ufficiali entrano solo nella demo privata noindex finché non
+              le approvi tu.
+              {conti.da_approvare > 0 && (
+                <> {conti.da_approvare} aspettano una tua decisione.</>
+              )}
             </p>
             {d.media.candidates.length === 0
               ? <p className="text-[11px] text-text2">Nessuna immagine candidata.</p>
@@ -373,11 +450,11 @@ export default function CollectorPanel({ leadId, leadName }: { leadId: string; l
                     const decisa = dati?.decisioni?.[m.id];
                     return (
                       <li key={m.id} className="rounded-sm border border-border p-2.5">
-                        <div className="flex items-start gap-2">
+                        <Anteprima m={m} />
+                        <div className="mt-2 flex items-start gap-2">
                           <Camera className="mt-0.5 h-3.5 w-3.5 shrink-0 text-text2" />
                           <div className="min-w-0 flex-1">
-                            <p className="break-all text-[11px] text-text">{m.source_url.slice(0, 90)}</p>
-                            <p className="mt-1 text-[10px] text-text2">
+                            <p className="text-[10px] text-text2">
                               {m.probable_role} · {m.width && m.height ? `${m.width}×${m.height}` : "misure ignote"}
                               {" · q"}{m.quality_score}{m.people_present ? " · persone" : ""}
                             </p>
@@ -385,13 +462,41 @@ export default function CollectorPanel({ leadId, leadName }: { leadId: string; l
                               "mt-1 inline-block rounded-sm border px-1.5 py-0.5 text-[10px]",
                               COLORE_DIRITTI[m.rights_status],
                             )}>{ETICHETTA_DIRITTI[m.rights_status]}</span>
-                            {m.attribution && (
-                              <p className="mt-1 text-[10px] text-text2">attribuzione: {m.attribution}</p>
+                            {m.display_status === "display_allowed_with_attribution" && (
+                              <span className="ml-1 inline-block rounded-sm border border-accent/40 px-1.5 py-0.5 text-[10px] text-accent">
+                                mostrabile citando la fonte
+                              </span>
                             )}
+                            {/* L'attribuzione non è un dettaglio: è la
+                                condizione a cui si può mostrare. Sta
+                                sotto l'immagine, sempre, anche quando
+                                l'autore non è dichiarato. */}
+                            {m.provider_reference
+                              ? (
+                                <p className="mt-1 text-[10px] text-text2">
+                                  {m.attribution ? `${m.attribution} — ` : ""}
+                                  <a
+                                    href={urlMaps}
+                                    target="_blank"
+                                    rel="noreferrer noopener"
+                                    className="underline underline-offset-2 hover:text-accent"
+                                  >Google Maps</a>
+                                </p>
+                              )
+                              : (
+                                <p className="mt-1 break-all text-[10px] text-text2">
+                                  {m.source_url.slice(0, 70)}
+                                  {m.attribution ? ` — ${m.attribution}` : ""}
+                                </p>
+                              )}
                           </div>
                         </div>
                         {/* Approvare e un atto di una persona: due bottoni grandi. */}
-                        {m.rights_status !== "forbidden" && m.rights_status !== "unknown" && (
+                        {/* Approvare vale solo per ciò che aspetta
+                            un'approvazione. Una fotografia di Google
+                            non diventa nostra perché la si approva:
+                            mostrarla è già consentito, copiarla no. */}
+                        {m.display_status === "display_after_approval" && (
                           <div className="mt-2 flex gap-2">
                             <button
                               type="button"
@@ -481,7 +586,8 @@ export default function CollectorPanel({ leadId, leadName }: { leadId: string; l
             </ul>
           </Sezione>
         </div>
-      )}
+        );
+      })()}
     </GlassCard>
   );
 }
@@ -520,5 +626,80 @@ function Sezione({
       </button>
       {aperta && <div className="border-t border-border p-3">{children}</div>}
     </section>
+  );
+}
+
+/** Una delle tre decisioni. Il valore grande, le ragioni sotto: chi
+ *  guarda deve capire in un colpo COSA si è deciso e in due righe
+ *  PERCHÉ, senza aprire niente. */
+function Decisione({
+  etichetta, valore, tono, motivi, coda,
+}: {
+  etichetta: string;
+  valore: string;
+  tono: Tono;
+  motivi: string[];
+  coda?: React.ReactNode;
+}) {
+  return (
+    <div className={cn("rounded-sm border p-3", BORDO[tono])}>
+      <p className="text-[10px] uppercase tracking-wide text-text2">{etichetta}</p>
+      <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+        <span className={cn(
+          "font-ui text-sm font-semibold uppercase tracking-[0.12em]",
+          TESTO[tono],
+        )}>{valore || "—"}</span>
+        {coda && <span className="text-[11px] text-text2">{coda}</span>}
+      </div>
+      <ul className="mt-2 space-y-1">
+        {motivi.map((m) => (
+          <li key={m} className="text-[11px] leading-snug text-text2">— {m}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * Un'anteprima di fotografia.
+ *
+ * Per le immagini di Google Places non si usa mai l'URL del provider:
+ * quello vuole la chiave API, e una chiave dentro una pagina è una
+ * chiave pubblica. Si passa da `/api/collector/foto`, che aggiunge la
+ * chiave sul server e restituisce i byte con `Cache-Control: no-store`.
+ *
+ * Il riferimento fotografico di Places ha una scadenza. Quando è
+ * scaduto la rotta risponde 410 e qui si mostra perché, invece di un
+ * riquadro rotto che sembrerebbe un guasto nostro.
+ */
+function Anteprima({ m }: { m: MediaCandidate }) {
+  const [rotta, setRotta] = useState(false);
+  const daProvider = Boolean(m.provider_reference);
+  const src = daProvider
+    ? `/api/collector/foto?ref=${encodeURIComponent(m.provider_reference)}&w=400`
+    : m.source_url;
+
+  if (rotta || m.display_status === "display_forbidden") {
+    return (
+      <div className="flex h-24 items-center justify-center rounded-sm border border-border bg-bg2/40 px-2 text-center">
+        <span className="text-[10px] leading-snug text-text2">
+          {m.display_status === "display_forbidden"
+            ? "non mostrabile: provenienza non riconducibile a un canale ufficiale"
+            : daProvider
+              ? "riferimento scaduto — rilancia la raccolta per aggiornarlo"
+              : "immagine non caricabile"}
+        </span>
+      </div>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={m.probable_role}
+      loading="lazy"
+      onError={() => setRotta(true)}
+      className="h-24 w-full rounded-sm object-cover"
+    />
   );
 }

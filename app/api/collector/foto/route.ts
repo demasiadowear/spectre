@@ -102,9 +102,9 @@ export async function GET(req: Request) {
         "X-Image-Source": "Google Maps",
       },
     });
-  } catch (e) {
+  } catch {
     // Il messaggio del provider puo contenere l'URL con la chiave in
-    // query: non esce di qui.
+    // query: non esce di qui, nemmeno come dettaglio.
     return NextResponse.json<ApiResponse<never>>(
       { success: false, error: "fotografia non recuperabile dal provider" },
       { status: 502, headers: { "Cache-Control": "no-store" } },
