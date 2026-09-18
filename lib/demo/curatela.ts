@@ -1,109 +1,148 @@
 import type { FotoDemo } from "./foto";
 
 // ============================================================
-// La curatela fotografica: quali fotografie vanno in pagina, e con
-// che peso.
+// La curatela fotografica: quali fotografie vanno in pagina, in che
+// ordine e con quale ritaglio.
 //
-// PERCHE NON LA DECIDE IL CODICE.
+// GLI STATI, E PERCHE IL DEFAULT NON E «ESCLUDI».
 //
-// `display_allowed` vuol dire «legalmente mostrabile», non
-// «esteticamente utile». Le due cose non coincidono quasi mai: fra
-// dieci fotografie di Google Maps ce ne sono di ottime, di neutre e
-// alcune che abbassano la percezione del centro — un magazzino, un
-// ambiente vuoto, un'attrezzatura tagliata a meta.
+// Avevo scritto `exclude` come stato predefinito, ragionando che
+// mostrare per difetto significa pubblicare il magazzino. Era sbagliato
+// nel nome: `exclude` e un GIUDIZIO, e un giudizio su una fotografia
+// che nessuno — nessuna persona e nessun modello — ha mai guardato non
+// esiste. Dire «esclusa» di un'immagine mai vista e la stessa specie
+// di errore che dire «non ha social» di un profilo mai aperto.
 //
-// Il collector puo misurare i pixel: dimensioni, proporzione, nitidezza
-// stimata. Non puo sapere COSA c'e dentro. `probable_role` e `unknown`
-// su tutte e dieci, e `quality_score` e una funzione delle dimensioni,
-// non del soggetto. Un punteggio di 100 su una foto di scatoloni resta
-// 100.
+//   unreviewed    nessuno ha ancora osservato i byte
+//   selected      va in pagina
+//   not_selected  non va in pagina, in QUESTO progetto
+//   needs_review  la decisione richiede una persona
 //
-// Quindi la curatela e un atto di chi guarda, come l'approvazione dei
-// diritti: si registra per fotografia, e la pagina la rispetta. Il
-// codice fa una cosa sola — comporre bene cio che e stato scelto.
+// E per le fotografie di Places `selected` / `not_selected` sono
+// decisioni DEL PROGETTO, non classificazioni permanenti
+// dell'immagine: la stessa fotografia puo entrare in un progetto e
+// restare fuori dal successivo senza che nessuna verita cambi.
 // ============================================================
 
-export type RuoloDemo = "keep" | "secondary" | "exclude";
+export type StatoCuratela = "unreviewed" | "selected" | "not_selected" | "needs_review";
 
-/** Il verdetto per una fotografia, piu la nota di chi l'ha guardata. */
-export interface Curatela {
-  ruolo: RuoloDemo;
-  /** Cosa mostra davvero. Scritto da chi vede, mai dedotto. */
-  soggetto: string;
-}
+/** Il ruolo di impaginazione. E una decisione di layout, non una
+ *  descrizione di cosa mostra la fotografia. */
+export type RuoloLayout = "hero" | "treatment" | "interior" | "detail" | "closing";
 
-/** Senza verdetto una fotografia NON e in pagina.
+/**
+ * Cio che si conserva di una fotografia scelta.
  *
- *  Il default e escludere, non includere: e la scelta prudente quando
- *  nessuno ha ancora guardato. Una demo con sei fotografie scelte vale
- *  piu di una con dieci fotografie a caso, e mostrare per difetto
- *  significa pubblicare il magazzino finche qualcuno non se ne accorge. */
-export const RUOLO_PREDEFINITO: RuoloDemo = "exclude";
-
-export interface FotoCurata extends FotoDemo {
-  ruolo: RuoloDemo;
-  soggetto: string;
+ * Solo impaginazione: indice, ordine, ruolo, ritaglio. Nessuna
+ * descrizione, nessun punteggio, nessuna motivazione — vedi
+ * lib/demo/policy-media.ts e la nota sul regime Places.
+ *
+ * Manca di proposito il PERCHE. Sembra una perdita, ed e la riga che
+ * tiene separata una decisione di impaginazione da un indice di
+ * contenuti derivato da immagini altrui.
+ */
+export interface SceltaFoto {
+  /** Indice nel MediaManifest: l'unico nome stabile. */
+  indice: number;
+  /** Posizione in pagina, da 0. */
+  ordine: number;
+  ruolo: RuoloLayout;
+  /** `object-position` da applicare, es. "50% 28%". */
+  object_position: string;
+  stato: StatoCuratela;
 }
 
+/** La curatela di un progetto: cosa e stato scelto, e cosa aspetta una
+ *  persona. Vive nel progetto, non nel dossier. */
+export interface CuratelaProgetto {
+  scelte: SceltaFoto[];
+  /** Indici che richiedono una decisione umana, con il motivo in una
+   *  parola NON derivata dall'immagine. */
+  da_rivedere: { indice: number; motivo: MotivoRevisione }[];
+  /** Quando e stata composta. Serve a sapere se e vecchia. */
+  composta_il: string;
+  /** Firma del manifest su cui e stata composta: se il manifest
+   *  cambia, la curatela non e piu valida per quelle fotografie. */
+  firma_manifest: string;
+}
+
+/** Perche serve una persona. Insieme chiuso, e nessuna voce descrive
+ *  il CONTENUTO: sono stati della decisione, non dell'immagine. */
+export type MotivoRevisione =
+  | "bassa_confidenza"
+  | "possibile_persona_identificabile"
+  | "possibile_marchio"
+  | "analisi_non_disponibile";
+
+export const RITAGLIO_PREDEFINITO = "50% 50%";
+
+/** Al massimo cinque: oltre, una sequenza torna a essere un mosaico.
+ *  Non si riempie per arrivare al numero. */
+export const MAX_IN_PAGINA = 5;
+
+/** L'ordine dei ruoli in pagina. La sequenza editoriale e questa, e
+ *  non cambia con il numero di fotografie disponibili: con tre foto si
+ *  usano i primi tre ruoli, non si inventa una griglia. */
+export const SEQUENZA_RUOLI: readonly RuoloLayout[] = [
+  "hero", "treatment", "interior", "detail", "closing",
+];
+
+export interface FotoInPagina extends FotoDemo {
+  ruolo: RuoloLayout;
+  object_position: string;
+}
+
+/** Applica una curatela alle fotografie mostrabili, in ordine. */
 export function applicaCuratela(
   foto: readonly FotoDemo[],
-  curatela: Readonly<Record<string, Curatela>>,
-): FotoCurata[] {
-  return foto.map((f) => {
-    const c = curatela[f.id];
-    return { ...f, ruolo: c?.ruolo ?? RUOLO_PREDEFINITO, soggetto: c?.soggetto ?? "" };
-  });
+  c: CuratelaProgetto | null,
+): FotoInPagina[] {
+  if (!c) return [];
+  const perIndice = new Map(foto.map((f) => [f.indice, f]));
+  return c.scelte
+    .filter((s) => s.stato === "selected")
+    .slice()
+    .sort((a, b) => a.ordine - b.ordine)
+    .slice(0, MAX_IN_PAGINA)
+    .map((s) => {
+      const f = perIndice.get(s.indice);
+      return f ? { ...f, ruolo: s.ruolo, object_position: s.object_position } : null;
+    })
+    .filter((f): f is FotoInPagina => f !== null);
 }
 
 /**
- * La sequenza editoriale.
+ * La generazione del sito puo partire?
  *
- * Non una griglia: una dominante, una coppia, una isolata. E il ritmo
- * che un servizio fotografico ha e che un contact sheet non ha — e
- * regge anche quando le fotografie sono cinque invece di dieci, che e
- * il caso normale dopo una curatela onesta.
- *
- * `keep` porta i posti forti in ordine: prima la dominante, poi la
- * chiusura, poi la coppia. `secondary` riempie solo cio che resta.
+ * Tre condizioni, e sono tutte «non so» travestiti da «no»:
+ *  - nessuna fotografia scelta: la pagina sarebbe muta;
+ *  - la hero e da rivedere: e l'immagine che si vede per prima, e
+ *    pubblicarla senza averla guardata e il difetto che ha fatto
+ *    bocciare la versione precedente;
+ *  - l'identita visiva e ancora inconcludente: non sappiamo se un logo
+ *    esista, e comporre il nome senza saperlo significa scegliere per
+ *    stanchezza.
  */
-export interface Sequenza {
-  /** La fotografia della hero: la migliore, con massa vera. */
-  apertura: FotoCurata | null;
-  /** Il primo piano che racconta il gesto. */
-  momento: FotoCurata | null;
-  /** Due fotografie affiancate: gli ambienti. */
-  coppia: FotoCurata[];
-  /** L'ultima, larga, sopra la chiamata all'azione. */
-  chiusura: FotoCurata | null;
-  /** Escluse dalla pagina, non dal dossier. */
-  escluse: FotoCurata[];
+export function puoGenerare(
+  c: CuratelaProgetto | null,
+  brandInconcludente: boolean,
+): { ok: boolean; motivo: string } {
+  if (!c || c.scelte.filter((s) => s.stato === "selected").length === 0) {
+    return { ok: false, motivo: "nessuna fotografia selezionata: la pagina non avrebbe immagini" };
+  }
+  const hero = c.scelte.find((s) => s.ruolo === "hero");
+  if (!hero || hero.stato === "needs_review" || hero.stato === "unreviewed") {
+    return { ok: false, motivo: "la fotografia di apertura non e stata decisa: e la prima cosa che si vede" };
+  }
+  if (brandInconcludente) {
+    return { ok: false, motivo: "identita visiva ancora inconcludente: non sappiamo se esista un logo" };
+  }
+  return { ok: true, motivo: "" };
 }
 
-/** Al massimo cinque fotografie in pagina: una dominante, un momento,
- *  una coppia, una chiusura. Oltre, tornano a essere un mosaico. */
-export const MAX_IN_PAGINA = 5;
-
-export function sequenza(foto: readonly FotoCurata[]): Sequenza {
-  const escluse = foto.filter((f) => f.ruolo === "exclude");
-  // `keep` prima, nell'ordine in cui stanno nel manifest: chi ha
-  // guardato le ha gia ordinate implicitamente scegliendole.
-  const forti = foto.filter((f) => f.ruolo === "keep");
-  const deboli = foto.filter((f) => f.ruolo === "secondary");
-  const coda = forti.concat(deboli).slice(0, MAX_IN_PAGINA);
-
-  const prendi = () => coda.shift() ?? null;
-  const apertura = prendi();
-  const momento = prendi();
-  const coppia: FotoCurata[] = [];
-  for (let i = 0; i < 2; i++) { const f = prendi(); if (f) coppia.push(f); }
-  const chiusura = prendi();
-
-  return { apertura, momento, coppia, chiusura, escluse };
-}
-
-/** Le fotografie davvero in pagina, in ordine. Serve a contarle e a
- *  costruire l'elenco delle attribuzioni senza ripetere la logica. */
-export function inPagina(s: Sequenza): FotoCurata[] {
-  return [s.apertura, s.momento, ...s.coppia, s.chiusura]
-    .filter((f): f is FotoCurata => f !== null);
+/** Firma del manifest: cambia se cambiano le fotografie o il loro
+ *  ordine. Non e un hash del CONTENUTO — sono gli id, che gia
+ *  conserviamo. */
+export function firmaManifest(foto: readonly FotoDemo[]): string {
+  return foto.map((f) => `${f.indice}:${f.id}`).join("|");
 }
