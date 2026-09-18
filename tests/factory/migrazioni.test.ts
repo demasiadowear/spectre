@@ -208,9 +208,12 @@ test("curatela: lo schema non contiene nessuna istruzione distruttiva", () => {
   const src = readFileSync(join(__dirname, "..", "..", "lib", "demo", "proposte-db.ts"), "utf8");
   // Le istruzioni che possono togliere qualcosa a un database che ha
   // gia dei dati. `delete from` compreso: qui non si ripulisce niente.
+  // `alter table ... add column` NON e in questo elenco: e additivo, ed
+  // e l'unico modo di aggiungere una colonna a una tabella che in
+  // produzione esiste gia. Cio che non deve esserci e tutto il resto.
   for (const proibita of [
     "drop table", "drop index", "drop column", "delete from",
-    "truncate", "alter table", "create table demo", "replace into",
+    "truncate", "replace into", "alter table demo_proposte drop",
   ]) {
     assert.ok(
       !src.toLowerCase().includes(proibita),
@@ -221,6 +224,10 @@ test("curatela: lo schema non contiene nessuna istruzione distruttiva", () => {
   assert.ok(src.includes("create table if not exists demo_proposte"));
   assert.ok(src.includes("create table if not exists demo_pubblicazioni"));
   assert.ok(src.includes("create index if not exists"));
+  // E l'unico ALTER e un ADD COLUMN.
+  for (const m of src.toLowerCase().match(/alter table[^;"'`]*/g) ?? []) {
+    assert.match(m, /add column/, `ALTER non additivo: ${m}`);
+  }
 });
 
 test("curatela: applicare lo schema due volte non cambia niente", async () => {

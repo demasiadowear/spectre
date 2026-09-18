@@ -59,6 +59,7 @@ interface Provino {
   analisi_in_corso: boolean;
   proposal_status: "complete" | "incomplete";
   codice: string;
+  minimo_in_pagina: number;
   messaggio: string;
   bloccante: boolean;
   brand: { status: string; uso: string; nota: string };
@@ -94,6 +95,7 @@ const ETICHETTA_REVISIONE: Record<string, string> = {
   marchio_attivita_possibile: "Possibile identità dell’attività — verifica",
   marchio_estraneo_dominante: "Marchio estraneo dominante — verifica",
   qualita_insufficiente: "Luce, fuoco o soggetto non sufficienti",
+  genere_non_utilizzabile: "Tessili, deposito o soffitto — non va in pagina",
   analisi_non_disponibile: "Non è stata guardata",
   // Lettura dei dati vecchi: prima il marchio era un valore solo.
   possibile_marchio: "Marchio incidentale — non blocca",
@@ -328,10 +330,11 @@ export default function PannelloProposta({ leadId }: { leadId: string }) {
       {/* L'analisi e finita senza scegliere niente. Non e un errore e
           non e un successo: e un risultato che non si puo usare, e il
           pulsante spento da solo non lo spiega a nessuno. */}
-      {p?.proposal_status === "incomplete" && scelte.length === 0 && (
+      {p?.proposal_status === "incomplete" && (
         <p className="mt-2 text-[11px] leading-snug text-text2">
-          Nessuna fotografia è stata selezionata dall’analisi. Puoi metterne
-          una in pagina a mano dall’elenco qui sotto, oppure rieseguire.
+          {scelte.length === 0
+            ? "Nessuna fotografia è stata selezionata dall’analisi. Puoi metterne una in pagina a mano dall’elenco qui sotto, oppure rieseguire."
+            : `In pagina ce ne sono ${scelte.length}: ne servono almeno ${p.minimo_in_pagina} perché sia una pagina. Aggiungine dall’elenco qui sotto, oppure riesegui.`}
         </p>
       )}
 
@@ -507,7 +510,12 @@ export default function PannelloProposta({ leadId }: { leadId: string }) {
           <NeonButton
             variant="cyan" filled size="md"
             className="min-h-[44px] w-full sm:w-auto"
-            disabled={approvando || scelte.length === 0 || p.bloccante || brandFerma}
+            // La stessa regola del server. Il pulsante spento e una
+            // cortesia: se qualcuno lo forza, la rotta risponde 409.
+            disabled={
+              approvando || p.bloccante || brandFerma
+              || scelte.length < p.minimo_in_pagina
+            }
             onClick={() => void decidi("approva")}
           >
             {approvando ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}

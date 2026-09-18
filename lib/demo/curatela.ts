@@ -103,6 +103,10 @@ export type MotivoRevisione =
   | "marchio_attivita_possibile"   // forse e l'insegna del cliente: conta
   | "marchio_estraneo_dominante"   // un marchio altrui domina l'inquadratura
   | "qualita_insufficiente"        // buia, sfocata, soggetto illeggibile
+  /** Tessili ammassati, deposito, soffitto: non sono fotografie di
+   *  un'attivita, sono fotografie di cose che ci stanno dentro. E la
+   *  sola esclusione per COSA si vede, e l'elenco e chiuso. */
+  | "genere_non_utilizzabile"
   | "analisi_non_disponibile"
   /** @deprecated Sostituito dai due marchi distinti. Si legge, non si
    *  scrive. */
@@ -110,6 +114,62 @@ export type MotivoRevisione =
 
 export const RITAGLIO_PREDEFINITO = "50% 50%";
 export const MAX_IN_PAGINA = 5;
+
+/** Quante fotografie servono perche una proposta sia una pagina. */
+export const MIN_IN_PAGINA = 3;
+
+/** Perche una proposta non e utilizzabile. Insieme chiuso. */
+export type CodiceProposta =
+  | ""
+  | "no_usable_media_selected"   // non ne ha scelta nessuna
+  | "insufficient_usable_media"  // troppo poche rispetto a quante ce n'erano
+  | "no_hero_candidate";         // nessuna merita l'apertura
+
+export type StatoProposta = "complete" | "incomplete";
+
+/**
+ * LA REGOLA, IN UN POSTO SOLO.
+ *
+ * Esisteva in tre: il compositore calcolava `insufficient_usable_media`
+ * e non lo salvava, la rotta del provino ricalcolava solo «zero», e
+ * l'approvazione non controllava niente. Risultato: «Approva e
+ * pubblica» acceso su una proposta di UNA fotografia, con la regola
+ * gia scritta e mai applicata.
+ *
+ * Adesso la calcolano tutti da qui, sullo stato salvato — che e
+ * l'unico modo perche non possano essere in disaccordo.
+ */
+export function valutaProposta(scelte: readonly SceltaFoto[]): {
+  proposal_status: StatoProposta;
+  codice: CodiceProposta;
+  selezionate: number;
+  candidati: number;
+  apertura: boolean;
+} {
+  const selezionate = scelte.filter((s) => s.stato === "selected").length;
+  // I candidati sono le fotografie che l'analisi ha davvero guardato:
+  // quelle mai viste non fanno testo su quanto materiale c'era.
+  const candidati = scelte.filter((s) => s.stato !== "unreviewed").length;
+  const apertura = scelte.some((s) => s.stato === "selected" && s.layout_role === "hero");
+
+  const codice: CodiceProposta =
+    scelte.length === 0 ? ""
+    : selezionate === 0 ? "no_usable_media_selected"
+    // Meno del minimo, ma solo se il materiale c'era: un'attivita con
+    // due fotografie in tutto non ha una proposta incompleta.
+    : selezionate < MIN_IN_PAGINA && candidati >= MIN_IN_PAGINA ? "insufficient_usable_media"
+    : !apertura ? "no_hero_candidate"
+    : "";
+
+  return {
+    // `no_hero_candidate` NON rende incompleta la proposta: la pagina si
+    // apre con il nome, ed e una composizione legittima.
+    proposal_status:
+      codice === "no_usable_media_selected" || codice === "insufficient_usable_media"
+        ? "incomplete" : "complete",
+    codice, selezionate, candidati, apertura,
+  };
+}
 
 export const SEQUENZA_RUOLI: readonly RuoloLayout[] = [
   "hero", "treatment", "interior", "detail", "closing",

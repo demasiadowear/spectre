@@ -3,8 +3,8 @@ import { gemini, COMPLEX_MODEL } from "@/lib/gemini";
 import { classificaGuasto, guastoDiConfigurazione, type Guasto } from "@/lib/collector/guasti";
 import { puoPersistereSemantica, senzaSemantica } from "./policy-media";
 import {
-  MAX_IN_PAGINA, RITAGLIO_PREDEFINITO, SEQUENZA_RUOLI,
-  type MotivoRevisione, type RuoloLayout, type SceltaFoto,
+  MAX_IN_PAGINA, RITAGLIO_PREDEFINITO, SEQUENZA_RUOLI, valutaProposta,
+  type CodiceProposta, type MotivoRevisione, type RuoloLayout, type SceltaFoto,
 } from "./curatela";
 import type { RightsStatus } from "@/types/dossier";
 
@@ -81,33 +81,35 @@ interface Osservazione {
   /** Posizione nel LOTTO inviato, 0..n-1. Mai l'indice del manifest,
    *  mai un candidate_id. */
   image_index: number;
-  /** `null` = il modello non l'ha detto. `"none"` = ha detto di no.
-   *  Non sono la stessa cosa: il silenzio non esclude, il no si. */
-  ruolo: RuoloLayout | "none" | null;
-  fuoco_x: number;
-  fuoco_y: number;
-  adatta: boolean | null;
-  confidenza: number | null;
 
-  // ----- Asse A: che cosa e, e quanto vale commercialmente -----
-  /** Che genere di immagine e. Serve al gate dell'apertura, e resta
-   *  QUI: e una classificazione semantica derivata da una fotografia di
-   *  Places, e non sopravvive alla richiesta. */
+  // ----- Asse A: che cos'e, e quanto vale -----
   genere: GenereContenuto;
   /** Quanto regge come immagine di un'attivita che vende. */
   richiamo: number | null;
   /** Quanto e disordinata. Alto = male. */
   disordine: number | null;
-  /** Luce e nitidezza insieme: una foto buia e una sfocata si
-   *  escludono per lo stesso motivo. */
+  /** Luce e nitidezza insieme. */
   qualita: number | null;
   /** Il soggetto si capisce guardandola? */
   soggetto_leggibile: boolean | null;
+  fuoco_x: number;
+  fuoco_y: number;
+  confidenza: number | null;
 
-  // ----- Asse B: che marchio si vede, se se ne vede uno -----
+  // ----- Asse B: che marchio si vede, e chi si riconosce -----
   marchio: OsservazioneMarchio;
   persona_identificabile: boolean;
 }
+
+// NOTA: qui NON c'e `ruolo` e NON c'e `adatta`, e non e una
+// semplificazione.
+//
+// Finche il modello poteva dire «usable: false» o «role: none»,
+// poteva CHIUDERE la selezione da solo — e su una corsa reale l'ha
+// fatto: ha marcato utilizzabile una fotografia sola, un mucchio di
+// asciugamani, e il compositore non ha avuto niente da comporre. Il
+// modello OSSERVA; chi decide e il compositore, che vede tutti i
+// candidati e risponde a una domanda alla volta.
 
 /**
  * ASSE B — che marchio si vede. NON e una decisione di curatela.
@@ -175,18 +177,9 @@ export type StatoAnalisi = "OK" | "NEEDS_REVIEW";
  */
 export type StatoHero = "OK" | "NEEDS_REVIEW";
 
-/** Perche la proposta non e completa. Insieme chiuso. */
-export type CodiceProposta =
-  | ""
-  /** L'analisi non ha scelto niente. */
-  | "no_usable_media_selected"
-  /** Ha scelto, ma troppo poco rispetto a quanto c'era: una fotografia
-   *  sola su dieci disponibili non e una pagina, e non e nemmeno un
-   *  risultato di cui fidarsi senza guardare. */
-  | "insufficient_usable_media"
-  /** Nessuna fotografia ha superato il gate dell'apertura: la pagina si
-   *  apre con il nome, e va detto prima di approvarla. */
-  | "no_hero_candidate";
+/** La regola sta in `lib/demo/curatela.ts`, in un posto solo: qui si
+ *  ri-esporta il tipo per comodita di chi legge questo modulo. */
+export type { CodiceProposta } from "./curatela";
 
 /**
  * I contatori STRUTTURALI dell'interpretazione.
@@ -250,45 +243,50 @@ const MARCHI = [
 ] as const;
 
 const ISTRUZIONI = [
-  "Osservi fotografie di un'attivita commerciale per deciderne l'IMPAGINAZIONE.",
-  "Ogni immagine e preceduta da una riga «image_index: N». Usa QUEL numero.",
+  "Osservi fotografie di un'attivita commerciale e ne DESCRIVI le",
+  "caratteristiche. NON decidere quali usare: quella scelta la fa",
+  "un'altra parte del sistema, che le vede tutte insieme.",
   "",
-  "Per ogni immagine restituisci un oggetto con:",
+  "Ogni immagine e preceduta da una riga «image_index: N». Usa QUEL",
+  "numero. Rispondi per OGNI immagine ricevuta, anche per quelle che ti",
+  "sembrano brutte: servono anche quelle.",
+  "",
+  "Per ogni immagine restituisci:",
   "- image_index: il numero della riga che precede l'immagine;",
-  "- content_kind: che genere di immagine e, fra",
+  "- content_kind: che cosa e, fra",
   "  treatment (un trattamento in corso, composizione leggibile),",
   "  person_treatment (una persona durante un trattamento),",
-  "  interior (l'ambiente), detail (un dettaglio), product (un prodotto),",
-  "  linen (tessili, asciugamani, biancheria), storage (deposito o disordine),",
-  "  ceiling (soffitto o inquadratura fortemente inclinata),",
-  "  equipment_detail (un macchinario), unidentified_object (un oggetto",
-  "  isolato che non si capisce), other;",
-  "- role: hero, treatment, interior, detail, closing, oppure none;",
-  "- usable: true se si puo mostrare su una pagina pubblica dell'attivita;",
-  "- commercial_appeal: quanto regge come immagine di un'attivita che vende, 0-1;",
-  "- clutter: quanto e disordinata, 0-1 (alto = disordinata);",
-  "- quality: luce e nitidezza insieme, 0-1;",
+  "  interior (l'ambiente, la sala, la postazione),",
+  "  detail (un dettaglio coerente col benessere),",
+  "  product (un prodotto o una confezione come soggetto),",
+  "  linen (tessili, asciugamani, biancheria, teli — ammassati o piegati),",
+  "  storage (deposito, scaffali di servizio, disordine, ripostiglio),",
+  "  ceiling (soffitto, faretti, o inquadratura fortemente inclinata verso l'alto),",
+  "  equipment_detail (un macchinario o un lettino, spesso tagliato),",
+  "  unidentified_object (un oggetto isolato che non si capisce),",
+  "  other;",
+  "- commercial_appeal 0-1: quanto regge come immagine di un'attivita che vende;",
+  "- clutter 0-1: quanto e disordinata o affollata (alto = disordinata);",
+  "- quality 0-1: luce e nitidezza insieme;",
   "- subject_legible: true se il soggetto si capisce guardandola;",
-  "- focus_x, focus_y: dove sta il soggetto, frazioni fra 0 e 1;",
-  "- confidence: quanto sei sicuro, fra 0 e 1;",
+  "- focus_x, focus_y 0-1: dove sta il soggetto;",
+  "- confidence 0-1: quanto sei sicuro di questa descrizione;",
   "- identifiable_person: true se si riconosce il volto di una persona;",
   "- brand_observation: none se non si vede nessun marchio;",
-  "  incidental_mark se se ne vede uno ma NON e il soggetto (confezioni su",
-  "  uno scaffale, un logo su un flacone o su un asciugamano);",
+  "  incidental_mark se se ne vede uno ma NON e il soggetto (confezioni",
+  "  su uno scaffale, un logo su un flacone o su un asciugamano);",
   "  possible_business_mark se potrebbe essere l'insegna di QUESTA attivita;",
   "  dominant_third_party_mark se un marchio altrui DOMINA l'inquadratura.",
   "",
-  "Sii GENEROSO su `usable`: una fotografia ordinaria di un ambiente, di",
-  "un dettaglio o di un trattamento e utilizzabile. Le confezioni di",
-  "prodotti sullo sfondo sono NORMALI in un'attivita di questo tipo e non",
-  "la rendono inutilizzabile. Metti `false` solo se e inservibile —",
-  "sfocata, buia, illeggibile o palesemente estranea all'attivita.",
+  "Sii preciso su content_kind: un mucchio di asciugamani e `linen`",
+  "anche se sta dentro una sala, e una foto verso i faretti e `ceiling`",
+  "anche se si intravede l'ambiente. E la descrizione che conta di piu.",
   "",
-  "NON descrivere cosa mostra l'immagine, non trascrivere testo, non",
-  "nominare marchi, non dedurre quale trattamento sia in corso,",
-  "competenze professionali, nomi di persone, proprieta del locale,",
-  "risultati estetici o qualita cliniche. Rispondi solo con i campi",
-  "elencati.",
+  "NON descrivere a parole cosa mostra l'immagine, non trascrivere",
+  "testo, non nominare marchi, non dedurre quale trattamento sia in",
+  "corso, competenze professionali, nomi di persone, proprieta del",
+  "locale, risultati estetici o qualita cliniche. Rispondi solo con i",
+  "campi elencati.",
 ].join("\n");
 
 /**
@@ -306,8 +304,6 @@ const SCHEMA = {
     properties: {
       image_index: { type: SchemaType.INTEGER },
       content_kind: { type: SchemaType.STRING, enum: [...GENERI] },
-      role: { type: SchemaType.STRING, enum: [...SEQUENZA_RUOLI, "none"] },
-      usable: { type: SchemaType.BOOLEAN },
       commercial_appeal: { type: SchemaType.NUMBER },
       clutter: { type: SchemaType.NUMBER },
       quality: { type: SchemaType.NUMBER },
@@ -318,10 +314,12 @@ const SCHEMA = {
       identifiable_person: { type: SchemaType.BOOLEAN },
       brand_observation: { type: SchemaType.STRING, enum: [...MARCHI] },
     },
+    // `usable` e `role` NON sono nello schema, e non e una dimenticanza:
+    // il modello non ha piu un campo con cui chiudere la selezione.
     required: [
-      "image_index", "content_kind", "role", "usable", "commercial_appeal",
-      "clutter", "quality", "subject_legible", "focus_x", "focus_y",
-      "confidence", "identifiable_person", "brand_observation",
+      "image_index", "content_kind", "commercial_appeal", "clutter",
+      "quality", "subject_legible", "focus_x", "focus_y", "confidence",
+      "identifiable_person", "brand_observation",
     ],
   },
 } as const;
@@ -431,12 +429,8 @@ export async function proponiImpaginazione(
   // Puo essere vero — dieci fotografie inservibili capitano — ma non e
   // un risultato di cui fidarsi senza guardare, e la differenza fra
   // «va bene cosi» e «guarda tu» la deve dire il sistema.
-  const troppoPoche = selezionate < 2 && inviate.length >= 5;
-  const codice: CodiceProposta =
-    selezionate === 0 ? "no_usable_media_selected"
-    : troppoPoche ? "insufficient_usable_media"
-    : i.hero_status === "NEEDS_REVIEW" ? "no_hero_candidate"
-    : "";
+  const v = valutaProposta(i.scelte);
+  const codice: CodiceProposta = v.codice;
 
   return {
     // La rete: fra il tipo e il disco c'e JSON, che i tipi non li vede.
@@ -452,7 +446,7 @@ export async function proponiImpaginazione(
     // L'analisi e «OK» solo se ha prodotto abbastanza da poterci
     // lavorare. Un'apertura mancante da sola non la declassa: la pagina
     // si apre con il nome, ed e una composizione legittima.
-    analysis_status: selezionate > 0 && !troppoPoche ? "OK" : "NEEDS_REVIEW",
+    analysis_status: v.proposal_status === "complete" ? "OK" : "NEEDS_REVIEW",
     hero_status: i.hero_status,
     codice,
     conti: { ...i.conti, ...conti1, selected_count: selezionate, needs_review_count: i.conti.needs_review_count },
@@ -505,9 +499,7 @@ export function interpretaRisposta(
  *  righe tenerli. */
 const CHIAVI = {
   indice: ["image_index", "index", "indice", "idx", "id"],
-  ruolo: ["role", "ruolo", "layout_role"],
   genere: ["content_kind", "genere", "kind", "category"],
-  adatta: ["usable", "adatta", "suitable", "usabile"],
   fuoco_x: ["focus_x", "fuoco_x", "x"],
   fuoco_y: ["focus_y", "fuoco_y", "y"],
   confidenza: ["confidence", "confidenza", "score"],
@@ -525,16 +517,6 @@ const CHIAVI = {
 const primo = (o: Record<string, unknown>, chiavi: readonly string[]): unknown => {
   for (const k of chiavi) if (o[k] !== undefined && o[k] !== null) return o[k];
   return undefined;
-};
-
-/** Ruoli detti in italiano. Con lo schema non dovrebbero arrivare, e
- *  con la prima versione bastavano a cancellare tutte le scelte. */
-const RUOLI_ALTERNATIVI: Record<string, RuoloLayout> = {
-  apertura: "hero", copertina: "hero", principale: "hero",
-  trattamento: "treatment", servizio: "treatment",
-  ambiente: "interior", interno: "interior", locale: "interior",
-  dettaglio: "detail", particolare: "detail",
-  chiusura: "closing", finale: "closing",
 };
 
 function leggiOsservazioni(
@@ -565,11 +547,9 @@ function leggiOsservazioni(
 
     out.push({
       image_index: n,
-      ruolo: ruoloDa(primo(o, CHIAVI.ruolo)),
       genere: generoDa(primo(o, CHIAVI.genere)),
       fuoco_x: frazione(primo(o, CHIAVI.fuoco_x)) ?? 0.5,
       fuoco_y: frazione(primo(o, CHIAVI.fuoco_y)) ?? 0.5,
-      adatta: booleano(primo(o, CHIAVI.adatta)),
       confidenza: frazione(primo(o, CHIAVI.confidenza)),
       richiamo: frazione(primo(o, CHIAVI.richiamo)),
       disordine: frazione(primo(o, CHIAVI.disordine)),
@@ -594,14 +574,21 @@ function elencoDa(grezzo: unknown): unknown[] | null {
   return null;
 }
 
-function ruoloDa(v: unknown): RuoloLayout | "none" | null {
-  if (v === undefined || v === null || v === "") return null;
-  const s = String(v).trim().toLowerCase();
-  if ((SEQUENZA_RUOLI as readonly string[]).indexOf(s) !== -1) return s as RuoloLayout;
-  if (RUOLI_ALTERNATIVI[s]) return RUOLI_ALTERNATIVI[s];
-  // Qualunque parola che non sia un ruolo vale «no»: il modello ha
-  // risposto, e la risposta non e un ruolo di impaginazione.
-  return "none";
+/**
+ * Da che cosa E la fotografia a dove va in pagina.
+ *
+ * Il ruolo non lo chiede piu nessuno al modello: si deriva dal genere,
+ * che e un'osservazione. Cosi la stessa descrizione produce sempre la
+ * stessa impaginazione, e non c'e un campo con cui il modello possa
+ * decidere l'ordine della pagina.
+ */
+function ruoloDaGenere(g: GenereContenuto): RuoloLayout {
+  switch (g) {
+    case "treatment": case "person_treatment": return "treatment";
+    case "interior": return "interior";
+    case "detail": case "product": return "detail";
+    default: return "closing";
+  }
 }
 
 /** Il genere di contenuto. Sconosciuto = `other`: non si indovina, e
@@ -661,105 +648,112 @@ export function booleano(v: unknown): boolean | null {
   return null;
 }
 
-/** Sotto questa confidenza DICHIARATA la decisione passa a una persona.
- *  Una confidenza non dichiarata non ci arriva mai. */
+/** Sotto questa confidenza DICHIARATA la descrizione non si usa da
+ *  sola: la guarda una persona. Una confidenza non dichiarata non ci
+ *  arriva mai. */
 export const SOGLIA_CONFIDENZA = 0.6;
 
 /**
- * IL GATE DELL'APERTURA. Deterministico, e dopo Gemini.
+ * GENERI CHE NON VANNO IN PAGINA. Esclusione automatica, causa
+ * esplicita.
  *
- * Esiste perche il modello puo proporre come apertura una fotografia
- * che non lo e — ed e successo: un mucchio di asciugamani, proposto e
- * accettato, unica immagine della pagina. Un punteggio alto su un
- * mucchio di asciugamani resta un mucchio di asciugamani, quindi il
- * filtro non e un punteggio: e un elenco di generi che in apertura non
- * ci vanno, piu quattro soglie.
+ * Sono i tre che una corsa reale ha mostrato: un mucchio di asciugamani
+ * in apertura, e una fotografia verso i faretti. Non e un giudizio di
+ * gusto, e un fatto sul soggetto: nessun sito di nessun centro estetico
+ * mostra la biancheria sporca o il soffitto.
  *
- * Il gate non si applica alla scelta di una PERSONA: se l'operatore
- * mette in apertura quella fotografia, e una sua decisione e vale.
- * Questo ferma il programma, non chi guarda.
+ * `equipment_detail`, `unidentified_object` e `product` NON sono qui:
+ * possono stare in galleria — un macchinario e un dettaglio del
+ * mestiere — ma non aprono. Vedi `GENERI_AMMESSI_HERO`.
+ */
+const GENERI_ESCLUSI: readonly GenereContenuto[] = ["linen", "storage", "ceiling"];
+
+/** Sotto questa qualita dichiarata la fotografia non si mostra. */
+const QUALITA_MINIMA = 0.35;
+
+/**
+ * IL GATE DELL'APERTURA. Deterministico, severo, e per PROVE POSITIVE.
+ *
+ * La versione precedente escludeva sui difetti: se il modello non
+ * dichiarava il disordine, il disordine non c'era. Cosi una fotografia
+ * descritta male passava. Adesso ogni condizione va DIMOSTRATA: un
+ * valore non dichiarato non e un valore buono, e l'apertura non si
+ * prende per mancanza di obiezioni.
+ *
+ * Il gate ferma il programma, non chi guarda: se l'operatore mette in
+ * apertura quella fotografia, e una sua decisione e vale.
  */
 export const SOGLIE_HERO = {
-  /** Quanto deve reggere commercialmente. */
-  richiamo: 0.6,
-  /** Oltre questo disordine, non e un'apertura. */
-  disordine_max: 0.5,
-  /** Luce e nitidezza. */
-  qualita: 0.5,
+  richiamo: 0.65,
+  disordine_max: 0.35,
+  qualita: 0.6,
   /** Il soggetto deve stare abbastanza dentro l'inquadratura da
-   *  sopravvivere sia al 16:9 del desktop sia al 3:4 del telefono. Un
-   *  soggetto sul bordo e mezzo viso tagliato appena cambia formato. */
-  fuoco_min: 0.15,
-  fuoco_max: 0.85,
+   *  sopravvivere sia al 16:9 del desktop sia al 3:4 del telefono. */
+  fuoco_min: 0.2,
+  fuoco_max: 0.8,
 } as const;
 
-/** Generi che in apertura non ci vanno MAI, qualunque punteggio
- *  abbiano. E l'elenco che rende il gate deterministico. */
-const GENERI_VIETATI_HERO: readonly GenereContenuto[] = [
-  "linen", "storage", "ceiling", "equipment_detail", "unidentified_object", "product",
-];
-
-/** In quest'ordine si sceglie, quando piu di una supera il gate. */
-const GENERI_PREFERITI_HERO: readonly GenereContenuto[] = [
+/** Solo questi generi possono aprire, ed e un elenco POSITIVO: cio che
+ *  non e nominato non apre, compreso `other`. */
+const GENERI_AMMESSI_HERO: readonly GenereContenuto[] = [
   "treatment", "person_treatment", "interior", "detail",
 ];
 
-/** Perche una fotografia non puo aprire. Vuoto = puo. */
 export type MotivoNoHero =
-  | "" | "genere_vietato" | "disordine_alto" | "richiamo_basso"
-  | "qualita_bassa" | "soggetto_illeggibile" | "ritaglio_insostenibile";
+  | "" | "genere_non_ammesso" | "disordine_alto" | "richiamo_basso"
+  | "qualita_bassa" | "soggetto_illeggibile" | "ritaglio_insostenibile"
+  | "non_dichiarato" | "unica_selezionata";
 
 function gateHero(o: Osservazione): MotivoNoHero {
-  if (GENERI_VIETATI_HERO.indexOf(o.genere) !== -1) return "genere_vietato";
-  if (o.soggetto_leggibile === false) return "soggetto_illeggibile";
-  if (o.disordine !== null && o.disordine > SOGLIE_HERO.disordine_max) return "disordine_alto";
-  if (o.qualita !== null && o.qualita < SOGLIE_HERO.qualita) return "qualita_bassa";
-  if (o.richiamo !== null && o.richiamo < SOGLIE_HERO.richiamo) return "richiamo_basso";
-  // Il ritaglio: fuori da questa finestra il soggetto non sopravvive al
-  // cambio di proporzione, e il difetto si vede solo in produzione.
+  if (GENERI_AMMESSI_HERO.indexOf(o.genere) === -1) return "genere_non_ammesso";
+  if (o.soggetto_leggibile !== true) return "soggetto_illeggibile";
+  // PROVE POSITIVE: `null` non passa. Non sapere non e un merito.
+  if (o.richiamo === null || o.disordine === null || o.qualita === null) return "non_dichiarato";
+  if (o.disordine > SOGLIE_HERO.disordine_max) return "disordine_alto";
+  if (o.qualita < SOGLIE_HERO.qualita) return "qualita_bassa";
+  if (o.richiamo < SOGLIE_HERO.richiamo) return "richiamo_basso";
   const dentro = (v: number) => v >= SOGLIE_HERO.fuoco_min && v <= SOGLIE_HERO.fuoco_max;
   if (!dentro(o.fuoco_x) || !dentro(o.fuoco_y)) return "ritaglio_insostenibile";
-  // Un genere che il modello non ha saputo dire non apre: «other» non
-  // e una categoria preferibile, e in apertura si va solo per merito.
-  if (GENERI_PREFERITI_HERO.indexOf(o.genere) === -1) return "genere_vietato";
   return "";
 }
 
 /**
- * La curatela di una singola fotografia: i DUE ASSI, tenuti separati.
+ * La curatela di una singola fotografia.
  *
- * Il marchio incidentale non compare qui, ed e il punto: non e un
- * motivo, non e un ostacolo, non si registra. Una confezione su uno
- * scaffale non e una ragione per non mostrare un centro estetico.
+ * ESCLUSIONE AUTOMATICA SOLO PER CAUSE ESPLICITE. Non c'e piu nessun
+ * modo per cui una fotografia esca dalla proposta senza che si possa
+ * dire quale fatto l'ha fatta uscire — ed e la regola che mancava:
+ * prima bastava che il modello non la selezionasse.
  */
 function decidi(o: Osservazione): { stato: SceltaFoto["stato"]; motivo: MotivoRevisione | "" } {
-  // Asse A — la fotografia vale?
-  if (o.adatta === false) return { stato: "not_selected", motivo: "qualita_insufficiente" };
-  // Un «no» esplicito e un no. Il SILENZIO (`null`) no: quello vale
-  // «non l'ho detto», e un ruolo glielo si assegna dopo.
-  if (o.ruolo === "none") return { stato: "not_selected", motivo: "" };
+  // --- Cause esplicite di esclusione ---
+  if (GENERI_ESCLUSI.indexOf(o.genere) !== -1) {
+    return { stato: "not_selected", motivo: "genere_non_utilizzabile" };
+  }
   if (o.soggetto_leggibile === false) {
     return { stato: "not_selected", motivo: "qualita_insufficiente" };
   }
-  if (o.qualita !== null && o.qualita < 0.3) {
+  if (o.qualita !== null && o.qualita < QUALITA_MINIMA) {
     return { stato: "not_selected", motivo: "qualita_insufficiente" };
+  }
+
+  // --- Cause esplicite di revisione: si guarda, non si butta ---
+  if (o.marchio === "dominant_third_party_mark") {
+    return { stato: "needs_visual_review", motivo: "marchio_estraneo_dominante" };
+  }
+  // UNA PERSONA RICONOSCIBILE NON E UN CONSENSO ACQUISITO. Resta in
+  // revisione: l'operatore puo metterla in pagina, ma e una decisione
+  // che deve prendere guardandola, non un effetto collaterale.
+  if (o.persona_identificabile) {
+    return { stato: "needs_visual_review", motivo: "possibile_persona_identificabile" };
   }
   if (o.confidenza !== null && o.confidenza < SOGLIA_CONFIDENZA) {
     return { stato: "needs_visual_review", motivo: "bassa_confidenza" };
   }
 
-  // Asse B — il marchio. Solo UNO dei quattro valori ferma.
-  if (o.marchio === "dominant_third_party_mark") {
-    return { stato: "needs_visual_review", motivo: "marchio_estraneo_dominante" };
-  }
-
-  // Cio che segue non ferma: SEGNALA. La fotografia resta selezionabile
-  // e il motivo arriva all'operatore, che decide guardandola.
+  // --- Segnala e passa: il marchio incidentale non e nemmeno qui ---
   if (o.marchio === "possible_business_mark") {
     return { stato: "selected", motivo: "marchio_attivita_possibile" };
-  }
-  if (o.persona_identificabile) {
-    return { stato: "selected", motivo: "possibile_persona_identificabile" };
   }
   return { stato: "selected", motivo: "" };
 }
@@ -769,22 +763,18 @@ const sceltaNeutra = (candidate_id: string, stato: SceltaFoto["stato"]): SceltaF
   object_position: RITAGLIO_PREDEFINITO, stato,
 });
 
+/** L'ordine di preferenza in galleria, dopo l'apertura. */
+const RANGO_GENERE: readonly GenereContenuto[] = [
+  "treatment", "interior", "detail", "person_treatment",
+  "product", "equipment_detail", "unidentified_object", "other",
+];
+
 /**
- * Da osservazioni a composizione.
+ * Da osservazioni a composizione. IL COMPOSITORE VEDE TUTTI.
  *
- * TRE REGOLE, E OGNUNA NASCE DA UNA PROPOSTA REALE SBAGLIATA.
- *
- *  1. NESSUN RIPIEGO CIECO SULL'APERTURA. Prima: «se nessuna chiede
- *     l'apertura, la prende la piu sicura». La piu sicura era l'unica
- *     rimasta, ed era un mucchio di asciugamani. Adesso: se nessuna
- *     supera il gate, l'apertura NON si assegna e la pagina si apre con
- *     il nome. Meglio una hero testuale progettata che il mucchio di
- *     asciugamani.
- *  2. IL MARCHIO NON E LA CURATELA. Solo `dominant_third_party_mark`
- *     ferma; incidentale e «forse l'insegna» al massimo segnalano.
- *  3. LA SEQUENZA NON DEVE ARRIVARE A CINQUE. Tre bastano, due pure.
- *     Ma una sola fotografia su dieci significa che qualcosa non torna,
- *     e la proposta lo dichiara invece di sembrare pronta.
+ * Nessuna fotografia scaricata resta fuori dalla valutazione: se il
+ * modello l'ha descritta, il compositore la giudica. La descrizione dice
+ * com'e; la decisione la prende qui, e una sola volta.
  */
 function componi(
   oss: readonly Osservazione[],
@@ -798,73 +788,66 @@ function componi(
   const da_rivedere: { candidate_id: string; motivo: MotivoRevisione }[] = [];
   const scelte: SceltaFoto[] = [];
 
-  // LA TRADUZIONE, in un punto solo: image_index -> snapshot del lotto
-  // -> candidate_id. Il modello non ha mai visto un candidate_id.
+  // image_index -> snapshot del lotto -> candidate_id, in un punto solo.
   const visti = new Set(oss.map((o) => inviate[o.image_index]?.candidate_id).filter(Boolean));
-
   for (const f of tutte) {
     if (visti.has(f.candidate_id)) continue;
     scelte.push(sceltaNeutra(f.candidate_id, "unreviewed"));
     da_rivedere.push({ candidate_id: f.candidate_id, motivo: "analisi_non_disponibile" });
   }
 
-  const NEUTRA = SOGLIA_CONFIDENZA;
-  const candidate = oss.slice().sort((a, b) => (b.confidenza ?? NEUTRA) - (a.confidenza ?? NEUTRA));
-
   const ammesse: { id: string; o: Osservazione }[] = [];
-  for (const o of candidate) {
+  for (const o of oss) {
     const id = inviate[o.image_index]?.candidate_id;
     if (!id) continue;
     const d = decidi(o);
-    // Il motivo arriva all'operatore anche quando la fotografia NON e
-    // in revisione: «non in pagina» senza un perche costringe a
-    // indovinare, e chi indovina rifa l'analisi.
+    // Il motivo arriva all'operatore anche per le sole non selezionate:
+    // «non in pagina» senza un perche costringe a indovinare.
     if (d.motivo) da_rivedere.push({ candidate_id: id, motivo: d.motivo });
-    if (d.stato !== "selected") {
-      scelte.push(sceltaNeutra(id, d.stato));
-      continue;
-    }
+    if (d.stato !== "selected") { scelte.push(sceltaNeutra(id, d.stato)); continue; }
     ammesse.push({ id, o });
   }
 
-  // ----- L'apertura, per merito -----
-  const conGate = ammesse.map((x) => ({ ...x, no: gateHero(x.o) }));
-  const idonee = conGate.filter((x) => x.no === "").sort((a, b) => {
-    // Chi l'ha CHIESTA viene prima: il gate decide chi puo aprire, non
-    // chi apre. Fra le ammesse, l'intenzione del modello si rispetta —
-    // e il difetto che avevo gia corretto una volta.
-    const ca = a.o.ruolo === "hero" ? 0 : 1;
-    const cb = b.o.ruolo === "hero" ? 0 : 1;
-    if (ca !== cb) return ca - cb;
-    const ra = GENERI_PREFERITI_HERO.indexOf(a.o.genere);
-    const rb = GENERI_PREFERITI_HERO.indexOf(b.o.genere);
-    if (ra !== rb) return ra - rb;
+  // ----- La galleria: 3-5, per merito -----
+  const ordinate = ammesse.slice().sort((a, b) => {
+    const ra = RANGO_GENERE.indexOf(a.o.genere);
+    const rb = RANGO_GENERE.indexOf(b.o.genere);
+    if (ra !== rb) return (ra === -1 ? 99 : ra) - (rb === -1 ? 99 : rb);
     return (b.o.richiamo ?? 0) - (a.o.richiamo ?? 0);
   });
-
-  const apertura: { id: string; o: Osservazione } | null = idonee[0] ?? null;
-  const hero_status: StatoHero = apertura ? "OK" : "NEEDS_REVIEW";
-
-  // ----- La sequenza: apertura piu i ruoli, senza obbligo di arrivare
-  //       a cinque -----
-  const resto = ammesse.filter((x) => x.id !== apertura?.id);
-  const ordinate = (apertura ? [apertura] : []).concat(
-    resto.slice().sort((a, b) => {
-      const ra = a.o.ruolo ? SEQUENZA_RUOLI.indexOf(a.o.ruolo as RuoloLayout) : -1;
-      const rb = b.o.ruolo ? SEQUENZA_RUOLI.indexOf(b.o.ruolo as RuoloLayout) : -1;
-      return (ra === -1 ? 9 : ra) - (rb === -1 ? 9 : rb);
-    }),
-  );
-
   const inPagina = ordinate.slice(0, MAX_IN_PAGINA);
   for (const x of ordinate.slice(MAX_IN_PAGINA)) scelte.push(sceltaNeutra(x.id, "not_selected"));
 
+  // ----- L'apertura -----
+  //
+  // MAI PROMUOVERE L'UNICA SELEZIONATA. Una fotografia sola non e una
+  // pagina, e metterla in apertura la fa sembrare una scelta quando e
+  // solo cio che e avanzato.
+  const idonee = inPagina
+    .filter((x) => gateHero(x.o) === "")
+    .sort((a, b) => {
+      const ra = GENERI_AMMESSI_HERO.indexOf(a.o.genere);
+      const rb = GENERI_AMMESSI_HERO.indexOf(b.o.genere);
+      if (ra !== rb) return ra - rb;
+      return (b.o.richiamo ?? 0) - (a.o.richiamo ?? 0);
+    });
+  const apertura = inPagina.length >= 2 ? (idonee[0] ?? null) : null;
+  const hero_status: StatoHero = apertura ? "OK" : "NEEDS_REVIEW";
+
+  const sequenza = apertura
+    ? [apertura].concat(inPagina.filter((x) => x.id !== apertura.id))
+    : inPagina;
+
   const usati = new Set<RuoloLayout>();
-  inPagina.forEach((x, i) => {
+  sequenza.forEach((x, i) => {
     let ruolo: RuoloLayout;
     if (apertura && x.id === apertura.id) ruolo = "hero";
-    else if (x.o.ruolo && x.o.ruolo !== "none" && x.o.ruolo !== "hero" && !usati.has(x.o.ruolo)) ruolo = x.o.ruolo;
-    else ruolo = SEQUENZA_RUOLI.find((r) => r !== "hero" && !usati.has(r)) ?? "detail";
+    else {
+      const proposto = ruoloDaGenere(x.o.genere);
+      ruolo = !usati.has(proposto) && proposto !== "hero"
+        ? proposto
+        : SEQUENZA_RUOLI.find((r) => r !== "hero" && !usati.has(r)) ?? "detail";
+    }
     usati.add(ruolo);
     scelte.push({
       candidate_id: x.id,

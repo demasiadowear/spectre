@@ -31,6 +31,9 @@ import {
   httpAnalisi, httpApprovazione, scriviHeroMancante,
 } from "../../lib/demo/telemetria-proposta";
 import { CAMPI_SEMANTICI } from "../../lib/demo/policy-media";
+import {
+  ANALYZER_VERSION, COMPOSER_VERSION, PROMPT_VERSION,
+} from "../../lib/demo/versioni";
 import type {
   BusinessDossier, FontiBrand, MediaCandidate,
 } from "../../types/dossier";
@@ -557,4 +560,46 @@ test("e2e: la riga di telemetria della hero mancante non contiene dati personali
   for (const proibito of ["Rosita", "Buonsante", "places/", "photos/", slug, "http://", "https://"]) {
     assert.ok(!riga.includes(proibito), `la riga contiene «${proibito}»: ${riga}`);
   }
+});
+
+// ----- 7. Le versioni dell'algoritmo -----------------------------------
+
+test("e2e: cambiare composer_version rifa la proposta anche a manifest identico", async () => {
+  // Il difetto che questo test esiste per non avere piu: fra una corsa
+  // e l'altra e cambiato TRE VOLTE l'algoritmo, e con il manifest fermo
+  // l'idempotenza avrebbe restituito il risultato vecchio dicendo
+  // «invariata». Cioe: correggo il compositore, e il lead continua a
+  // vedere la proposta sbagliata.
+  await scrivi([foto("v1"), foto("v2"), foto("v3"), foto("v4")]);
+  const prima = await analizzaProgetto(projectId, opzioni(3, { refresh: true }));
+  assert.equal(prima.esito, "completata");
+
+  // Stesse fotografie, stesso algoritmo: non si rispende.
+  const uguale = await analizzaProgetto(projectId, opzioni(3));
+  assert.equal(uguale.esito, "invariata");
+
+  // Stesse fotografie, compositore diverso: si rifa.
+  await db.execute({
+    sql: "update demo_proposte set composer_version = ? where project_id = ?",
+    args: ["c-vecchio", projectId],
+  });
+  const dopo = await analizzaProgetto(projectId, opzioni(3));
+  assert.equal(dopo.esito, "completata", "una versione diversa NON e un cache hit");
+
+  // E lo stesso per le altre due.
+  for (const colonna of ["analyzer_version", "prompt_version"]) {
+    await db.execute({
+      sql: `update demo_proposte set ${colonna} = 'vecchia' where project_id = ?`,
+      args: [projectId],
+    });
+    const r = await analizzaProgetto(projectId, opzioni(3));
+    assert.equal(r.esito, "completata", colonna);
+  }
+});
+
+test("e2e: le versioni finiscono sulla proposta salvata", async () => {
+  const p = await leggiProposta(projectId);
+  assert.equal(p?.versioni.analyzer_version, ANALYZER_VERSION);
+  assert.equal(p?.versioni.prompt_version, PROMPT_VERSION);
+  assert.equal(p?.versioni.composer_version, COMPOSER_VERSION);
 });

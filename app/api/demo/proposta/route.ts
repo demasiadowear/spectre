@@ -7,8 +7,8 @@ import { getProject, getProjectByLead } from "@/lib/factory/db";
 import { usoConsentito } from "@/lib/collector/brand";
 import { fotoMostrabili } from "@/lib/demo/foto";
 import {
-  MAX_IN_PAGINA, SEQUENZA_RUOLI, validaProposta,
-  type MotivoRevisione, type RuoloLayout, type StatoCuratela,
+  MAX_IN_PAGINA, MIN_IN_PAGINA, SEQUENZA_RUOLI, validaProposta, valutaProposta,
+  type CodiceProposta, type MotivoRevisione, type RuoloLayout, type StatoCuratela,
 } from "@/lib/demo/curatela";
 import {
   NESSUNA_SELEZIONE, messaggioPubblicazione, messaggioValidazione,
@@ -65,7 +65,9 @@ export interface Provino {
    *  scelta, e da li non si pubblica. Derivato dalle scelte, non
    *  salvato: e una domanda a cui si risponde guardando. */
   proposal_status: "complete" | "incomplete";
-  codice: "" | "no_usable_media_selected";
+  codice: CodiceProposta;
+  /** Quante ne servono perche sia una pagina. */
+  minimo_in_pagina: number;
   /** Il messaggio preciso: cosa e successo e cosa fare adesso. */
   messaggio: string;
   bloccante: boolean;
@@ -124,12 +126,12 @@ export async function GET(req: Request) {
   const v = validaProposta(c, foto);
   const msg = messaggioValidazione(v, c);
 
-  // Zero fotografie scelte su un'analisi che E stata eseguita: la
-  // proposta non e utilizzabile, e lo si dice invece di lasciare una
-  // schermata vuota con il pulsante spento e nessuna spiegazione.
-  const eseguita = (c?.scelte.length ?? 0) > 0 || Boolean(proposta);
-  const selezionate = (c?.scelte ?? []).filter((s) => s.stato === "selected").length;
-  const incompleta = eseguita && selezionate === 0;
+  // La regola sta in `valutaProposta`, in un posto solo: la rotta non
+  // ne tiene una copia, o prima o poi le due copie si contraddicono —
+  // ed e successo, con «Approva e pubblica» acceso su una fotografia
+  // sola mentre il compositore la chiamava gia insufficiente.
+  const v2 = valutaProposta(c?.scelte ?? []);
+  const incompleta = v2.proposal_status === "incomplete";
 
   const perId = new Map((c?.scelte ?? []).map((s) => [s.candidate_id, s]));
   const revisione = new Map((c?.da_rivedere ?? []).map((x) => [x.candidate_id, x.motivo]));
@@ -179,8 +181,9 @@ export async function GET(req: Request) {
       proposal_revision: c?.proposal_revision ?? "",
       approvata_il: proposta?.approvata_il ?? "",
       analisi_in_corso: Boolean(proposta?.in_corso_da),
-      proposal_status: incompleta ? "incomplete" : "complete",
-      codice: incompleta ? "no_usable_media_selected" : "",
+      proposal_status: v2.proposal_status,
+      codice: v2.codice,
+      minimo_in_pagina: MIN_IN_PAGINA,
       messaggio: incompleta && !msg.testo ? NESSUNA_SELEZIONE : msg.testo,
       bloccante: msg.bloccante || incompleta,
       brand: { status: brandStatus, uso: uso.usa, nota: uso.nota },

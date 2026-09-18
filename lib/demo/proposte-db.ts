@@ -1,8 +1,10 @@
 import { randomUUID } from "crypto";
 import { turso } from "@/lib/turso";
+import { aggiungiColonne } from "@/lib/factory/migrazioni";
 import { senzaSemantica } from "./policy-media";
 import type { CuratelaProgetto, SceltaFoto } from "./curatela";
 import type { SpecPubblicata } from "./pubblicazione";
+import { VERSIONI_CORRENTI, type Versioni } from "./versioni";
 
 // ============================================================
 // Le proposte di impaginazione, e cio che e stato PUBBLICATO.
@@ -67,6 +69,16 @@ export async function ensureProposteSchema(): Promise<void> {
       pubblicata_il     text default (datetime('now'))
     );
   `);
+  // Additiva, per le righe gia scritte prima delle versioni. Il
+  // `create table if not exists` qui sopra non tocca una tabella che
+  // esiste gia: senza questo, in produzione le tre colonne non
+  // comparirebbero mai.
+  await aggiungiColonne(turso, "demo_proposte", [
+    { nome: "analyzer_version", definizione: "text not null default ''" },
+    { nome: "prompt_version", definizione: "text not null default ''" },
+    { nome: "composer_version", definizione: "text not null default ''" },
+  ], { obbligatoria: true });
+
   pronto = true;
 }
 
@@ -74,6 +86,8 @@ export function resetProposteSchemaCache(): void { pronto = false; }
 
 export interface PropostaSalvata {
   curatela: CuratelaProgetto;
+  /** Con quale algoritmo e stata prodotta. */
+  versioni: Versioni;
   brand_status: string;
   brand_blocco: string;
   costo: { immagini: number; token: number; durata_ms: number; modello: string };
@@ -112,6 +126,11 @@ export async function leggiProposta(projectId: string): Promise<PropostaSalvata 
       da_rivedere: parse(r.da_rivedere, [] as CuratelaProgetto["da_rivedere"]),
       composta_il: testo(r.composta_il),
     },
+    versioni: {
+      analyzer_version: testo(r.analyzer_version),
+      prompt_version: testo(r.prompt_version),
+      composer_version: testo(r.composer_version),
+    },
     brand_status: testo(r.brand_status) || "PENDING",
     brand_blocco: testo(r.brand_blocco),
     costo: {
@@ -147,8 +166,10 @@ export async function salvaProposta(d: DaSalvare): Promise<void> {
     sql: `insert into demo_proposte
             (project_id, lead_id, basis_revision, manifest_revision,
              proposal_revision, scelte, da_rivedere, brand_status, brand_blocco,
-             immagini, token, durata_ms, modello, approvata_il, composta_il, updated_at)
-          values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, datetime('now'))
+             immagini, token, durata_ms, modello,
+             analyzer_version, prompt_version, composer_version,
+             approvata_il, composta_il, updated_at)
+          values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, datetime('now'))
           on conflict(project_id) do update set
             basis_revision = excluded.basis_revision,
             manifest_revision = excluded.manifest_revision,
@@ -161,6 +182,9 @@ export async function salvaProposta(d: DaSalvare): Promise<void> {
             token = excluded.token,
             durata_ms = excluded.durata_ms,
             modello = excluded.modello,
+            analyzer_version = excluded.analyzer_version,
+            prompt_version = excluded.prompt_version,
+            composer_version = excluded.composer_version,
             approvata_il = excluded.approvata_il,
             composta_il = excluded.composta_il,
             updated_at = datetime('now')`,
@@ -168,6 +192,8 @@ export async function salvaProposta(d: DaSalvare): Promise<void> {
       d.project_id, d.lead_id, d.curatela.basis_revision, d.curatela.manifest_revision,
       d.curatela.proposal_revision, scelte, rivedere, d.brand_status, d.brand_blocco,
       d.costo.immagini, d.costo.token, d.costo.durata_ms, d.costo.modello,
+      VERSIONI_CORRENTI.analyzer_version, VERSIONI_CORRENTI.prompt_version,
+      VERSIONI_CORRENTI.composer_version,
       d.approvata_il ?? null, d.curatela.composta_il || new Date().toISOString(),
     ],
   });

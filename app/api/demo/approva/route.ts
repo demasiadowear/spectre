@@ -9,7 +9,8 @@ import { getProject } from "@/lib/factory/db";
 import { rimedioBlocco, usoConsentito } from "@/lib/collector/brand";
 import { fotoMostrabili } from "@/lib/demo/foto";
 import {
-  selectionBasisRevision, validaProposta, validaScelteInviate, type SceltaFoto,
+  MIN_IN_PAGINA, selectionBasisRevision, validaProposta, validaScelteInviate,
+  valutaProposta, type SceltaFoto,
 } from "@/lib/demo/curatela";
 import { messaggioValidazione } from "@/lib/demo/messaggi";
 import {
@@ -147,6 +148,21 @@ export async function POST(req: Request) {
   }
 
   const curatela = { ...proposta.curatela, scelte };
+
+  // LA PROPOSTA E UTILIZZABILE? Il controllo sta QUI e non solo nella
+  // UI: un pulsante spento e una cortesia, non una regola. La stessa
+  // funzione decide in tutti e tre i posti.
+  const completezza = valutaProposta(scelte);
+  if (completezza.proposal_status === "incomplete") {
+    return esci(
+      "proposta_incompleta",
+      completezza.codice === "no_usable_media_selected"
+        ? "L'analisi non ha selezionato fotografie: non c'è niente da pubblicare."
+        : `Servono almeno ${MIN_IN_PAGINA} fotografie in pagina: adesso sono ${completezza.selezionate}.`,
+      progetto.lead_id, projectId,
+    );
+  }
+
   const v = validaProposta(curatela, foto);
   if (v.stato !== "valida") {
     const m = messaggioValidazione(v, curatela);

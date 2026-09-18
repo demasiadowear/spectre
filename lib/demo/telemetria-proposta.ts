@@ -56,6 +56,7 @@ export type EsitoApprovazione =
   | "input_non_valido"
   | "marchio_non_risolto"
   | "marchio_bloccato"
+  | "proposta_incompleta"
   | "database_non_disponibile";
 
 export interface RiepilogoProposta {
@@ -248,6 +249,7 @@ export function httpApprovazione(e: EsitoApprovazione): number {
     case "stale":
     case "concorrenza":
     case "marchio_non_risolto":         // serve una nuova analisi, non una decisione
+    case "proposta_incompleta":         // non c'e abbastanza da pubblicare
       return 409;
     case "marchio_bloccato":
     case "database_non_disponibile":

@@ -7,17 +7,19 @@ import { getProject } from "@/lib/factory/db";
 import { briefDaDossier } from "@/lib/factory/brief";
 import { fotoMostrabili, riferimentoPerIndice, type FotoDemo } from "./foto";
 import {
-  manifestRevision, selectionBasisRevision, type CuratelaProgetto,
+  manifestRevision, selectionBasisRevision, valutaProposta,
+  type CodiceProposta, type CuratelaProgetto, type StatoProposta,
 } from "./curatela";
 import {
   CONTI_VUOTI, MAX_IMMAGINI, proponiImpaginazione,
-  type CodiceProposta, type ContiInterpretazione, type FotoDaAnalizzare,
+  type ContiInterpretazione, type FotoDaAnalizzare,
   type Proposta, type StatoAnalisi, type StatoHero,
 } from "./analisi-effimera";
 import {
   leggiProposta, rilasciaAnalisi, rivendicaAnalisi, salvaProposta,
   type PropostaSalvata,
 } from "./proposte-db";
+import { versioniAttuali } from "./versioni";
 import type { BrandOverall, MotivoBlocco } from "@/types/dossier";
 
 // ============================================================
@@ -74,11 +76,6 @@ export type EsitoComando =
   | "progetto_assente"
   | "dossier_assente"
   | "database_non_disponibile";
-
-/** La proposta e utilizzabile com'e? Derivato, non salvato: e vero
- *  quando c'e almeno una fotografia scelta, e quella e una domanda a cui
- *  si risponde guardando, non ricordando. */
-export type StatoProposta = "complete" | "incomplete";
 
 export interface RisultatoAnalisi {
   esito: EsitoComando;
@@ -163,20 +160,22 @@ export async function analizzaProgetto(
   //    della proposta: e la differenza fra «non e cambiato niente» e
   //    «c'e gia qualcosa», che sono due cose diverse.
   const precedente = await leggiProposta(projectId);
+  // L'IDEMPOTENZA GUARDA ANCHE L'ALGORITMO. Stesse fotografie non
+  // bastano: se e cambiato come si guardano o come si decide, la
+  // proposta vecchia e il risultato di un sistema che non esiste piu.
   if (
     !opts.refresh && precedente
     && precedente.curatela.manifest_revision === manifest
     && precedente.curatela.scelte.length > 0
+    && versioniAttuali(precedente.versioni)
   ) {
-    const scelteVive = precedente.curatela.scelte.filter((s) => s.stato === "selected").length;
+    const v = valutaProposta(precedente.curatela.scelte);
     return {
       ...vuoto("invariata"),
-      analysis_status: scelteVive > 0 ? "OK" : "NEEDS_REVIEW",
-      hero_status: precedente.curatela.scelte.some(
-        (s) => s.stato === "selected" && s.layout_role === "hero",
-      ) ? "OK" : "NEEDS_REVIEW",
-      proposal_status: scelteVive > 0 ? "complete" : "incomplete",
-      codice: scelteVive > 0 ? "" : "no_usable_media_selected",
+      analysis_status: v.proposal_status === "complete" ? "OK" : "NEEDS_REVIEW",
+      hero_status: v.apertura ? "OK" : "NEEDS_REVIEW",
+      proposal_status: v.proposal_status,
+      codice: v.codice,
       proposta: precedente,
       brand: statoBrand(precedente.brand_status as BrandOverall, precedente.brand_blocco as MotivoBlocco),
       costo: {
@@ -260,7 +259,7 @@ export async function analizzaProgetto(
       : m.blocco ? "bloccata"
       : "completata";
 
-    const selezionate = p.scelte.filter((s) => s.stato === "selected").length;
+    const v = valutaProposta(p.scelte);
 
     return {
       esito,
@@ -271,8 +270,8 @@ export async function analizzaProgetto(
       // `completata` e basta e come dire che e andata bene.
       analysis_status: p.analysis_status,
       hero_status: p.hero_status,
-      proposal_status: selezionate > 0 ? "complete" : "incomplete",
-      codice: p.codice,
+      proposal_status: v.proposal_status,
+      codice: v.codice,
       proposta: await leggiProposta(projectId),
       brand: statoBrand(m.identita.brand_status, m.blocco),
       costo: {
