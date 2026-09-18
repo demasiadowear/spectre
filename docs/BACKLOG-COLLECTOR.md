@@ -67,3 +67,23 @@ copre parte dei tre profili qui sopra.
   cosa che impedisce di pubblicare l'Instagram di un altro sotto il nome
   del cliente;
 - far dipendere di nuovo la decisione commerciale dai social.
+
+---
+
+## `google.com/search` classificato come `google_maps`
+
+**Stato:** nel backlog. Non si riapre il Collector adesso.
+
+Nel primo dossier reale, fra i candidati della ricerca grounded e
+comparso `https://google.com/search`, e `piattaformaDi()` l'ha
+etichettato `google_maps` invece che `altro`.
+
+**Non fa danno oggi.** Quell'URL e finito `unverified_candidate` — zero
+segnali, in nessuna direzione — quindi e escluso da tutto: non entra nel
+sito, non tocca la decisione commerciale, compare solo nel dossier come
+evidenza. L'etichetta sbagliata cambia una parola nel pannello.
+
+**Va corretto quando si riapre il modulo**, insieme a una regola piu
+generale: un URL senza un percorso di profilo non e un profilo, di
+nessuna piattaforma. `google.com/search` non e una scheda Maps piu di
+quanto `facebook.com` sia una pagina.
